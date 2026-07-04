@@ -1,6 +1,37 @@
       window.brythonTestResult = null;
 
       // ==========================================
+      // テーマ切り替え (Dark / Light Mode)
+      // ==========================================
+      const themeToggleBtn = document.getElementById("theme-toggle-btn");
+      const themeToggleDarkIcon = document.getElementById("theme-toggle-dark-icon");
+      const themeToggleLightIcon = document.getElementById("theme-toggle-light-icon");
+      const themeToggleText = document.getElementById("theme-toggle-text");
+
+      function syncThemeUI() {
+        const isDark = document.documentElement.classList.contains("dark");
+        if (isDark) {
+          themeToggleDarkIcon.classList.add("hidden");
+          themeToggleLightIcon.classList.remove("hidden");
+          themeToggleText.textContent = "ライトモード";
+        } else {
+          themeToggleDarkIcon.classList.remove("hidden");
+          themeToggleLightIcon.classList.add("hidden");
+          themeToggleText.textContent = "ダークモード";
+        }
+      }
+
+      if (themeToggleBtn) {
+        syncThemeUI();
+        themeToggleBtn.addEventListener("click", () => {
+          document.documentElement.classList.toggle("dark");
+          const isDark = document.documentElement.classList.contains("dark");
+          localStorage.setItem("theme", isDark ? "dark" : "light");
+          syncThemeUI();
+        });
+      }
+
+      // ==========================================
       // カスタムモーダル・確認用ダイアログ
       // ==========================================
       const appModal = document.getElementById("app-modal");
