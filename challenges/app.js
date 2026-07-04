@@ -211,7 +211,7 @@ function setupApiKeyPanel() {
 function getGeminiConfig() {
   const key = (localStorage.getItem("gemini_api_key") || "").trim();
   return {
-    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`,
     hasKey: !!key,
   };
 }
