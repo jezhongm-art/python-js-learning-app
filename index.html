@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Python 学習プラットフォーム (高度学習・完全ビジュアル拡張版)</title>
+    <!-- Content Security Policy (XSS軽減) -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net;
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com;
+                 font-src https://fonts.gstatic.com;
+                 connect-src https://generativelanguage.googleapis.com;
+                 img-src 'self' data:;"
+    />
+    <!-- Tailwind CSS & Typography Plugin -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <!-- Google Fonts: Beautiful programming font 'Fira Code' -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Brython CDN -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/brython@3.11.0/brython.min.js"
+      integrity="sha384-8k0jbQKwQIeiacCLttBgm1EGKYfyTTVO5Aalvpkx8ObsFZ7PHtF2+jNDNSej2Qo1"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/brython@3.11.0/brython_stdlib.js"
+      integrity="sha384-69obb0aicV85hQqb22snwd9y5Wg1L+6eQnuT3ck6VeKFefxofr6RXewFLQjT3HP2"
+      crossorigin="anonymous"
+    ></script>
+    <!-- Marked.js CDN -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/marked@14.1.0/marked.min.js"
+      integrity="sha384-kBc7AQeO5AZTsOrf8p0QKrwpCLgLg4cMCFnCiGDubrCOzmUZEIQjN178ofwtRPOG"
+      crossorigin="anonymous"
+    ></script>
+    <!-- DOMPurify CDN -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/dompurify@3.4.11/dist/purify.min.js"
+      integrity="sha384-o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K"
+      crossorigin="anonymous"
+    ></script>
+
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="text/python">
+from browser import window
+import json
+import ast
+import sys
+import io
+
+def run_tests(user_code, test_cases_json):
+    stdout_backup = sys.stdout
+    captured_output = io.StringIO()
+    sys.stdout = captured_output
+    
+    try:
+        _local_namespace = {}
+        exec(user_code, _local_namespace, _local_namespace)
+        
+        sys.stdout = stdout_backup
+        printed_log = captured_output.getvalue()
+        def normalize_quotes(obj):
+            if isinstance(obj, list): return [normalize_quotes(x) for x in obj]
+            if isinstance(obj, tuple): return tuple(normalize_quotes(x) for x in obj)
+            if isinstance(obj, dict): return {normalize_quotes(k): normalize_quotes(v) for k, v in obj.items()}
+            if isinstance(obj, str):
+                if len(obj) >= 2 and ((obj[0] == "'" and obj[-1] == "'") or (obj[0] == '"' and obj[-1] == '"')):
+                    return obj[1:-1]
+            return obj
+        
+        results = []
+        test_cases = json.loads(test_cases_json)
+        
+        for idx, case_ in enumerate(test_cases):
+            expr = case_['input']
+            raw_expected = case_['expected']
+            
+            if isinstance(raw_expected, str):
+                try:
+                    expected = ast.literal_eval(raw_expected)
+                    if isinstance(expected, str):
+                        expected = expected.replace('\\\\', '\x00').replace('\\n', '\n').replace('\\t', '\t').replace('\x00', '\\')
+                except (ValueError, SyntaxError):
+                    s = raw_expected
+                    if len(s) >= 2 and ((s[0] == "'" and s[-1] == "'") or (s[0] == '"' and s[-1] == '"')):
+                        inner = s[1:-1]
+                        inner = inner.replace('\\\\', '\x00').replace('\\n', '\n').replace('\\t', '\t').replace('\x00', '\\')
+                        expected = inner
+                    else:
+                        expected = raw_expected
+            else:
+                expected = raw_expected
+                
+            expected = normalize_quotes(expected)
+                
+            try:
+                actual = eval(expr, _local_namespace, _local_namespace)
+                cmp_actual = list(actual) if isinstance(actual, tuple) else actual
+                cmp_actual = normalize_quotes(cmp_actual)
+                
+                is_pass = (cmp_actual == expected)
+                results.append({
+                    'index': idx, 'input': expr,
+                    'expected': repr(expected), 'actual': repr(cmp_actual),
+                    'pass': is_pass, 'error': None
+                })
+            except Exception as e:
+                results.append({
+                    'index': idx, 'input': expr,
+                    'expected': repr(expected), 'actual': None,
+                    'pass': False, 'error': str(e)
+                })
+                
+        return json.dumps({
+            'tests': results,
+            'stdout': printed_log,
+            'error': None
+        })
+    except Exception as global_err:
+        sys.stdout = stdout_backup
+        return json.dumps({
+            'tests': None,
+            'stdout': captured_output.getvalue(),
+            'error': str(global_err)
+        })
+
+window.run_python_tests = run_tests
+    </script>
+  </head>
+  <body
+    class="bg-slate-50 text-slate-800 min-h-screen flex flex-col"
+    onload="brython()"
+  >
+    <!-- ヘッダー -->
+    <header class="bg-indigo-600 text-white shadow-md">
+      <div
+        class="max-w-4xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4"
+      >
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl font-bold tracking-tight">
+            Python 学習プラットフォーム
+            <span
+              class="text-xs bg-indigo-500 text-indigo-100 font-bold px-2 py-0.5 rounded ml-1"
+              >Ultimate v2.5</span
+            >
+          </h1>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- APIキー設定用トグル -->
+          <button
+            id="api-key-toggle-btn"
+            class="bg-indigo-700 hover:bg-indigo-800 text-white px-3.5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 border border-indigo-500/30"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M15 7a2 2 0 012 2m-3.418 4.818l-2.828-2.828M11.622 15.622a3 3 0 11-4.243-4.243 3 3 0 014.243 4.243zM19 19L14 14M14 14l1.5-1.5m-1.5 1.5l-1.5-1.5"
+              />
+            </svg>
+            APIキー設定
+          </button>
+
+          <!-- モード選択 -->
+          <div class="flex bg-indigo-700 p-1 rounded-lg">
+            <button
+              id="mode-quiz"
+              class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 bg-white text-indigo-700 shadow-sm"
+            >
+              4択クイズ
+            </button>
+            <button
+              id="mode-coding"
+              class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 text-indigo-100 hover:text-white ml-1"
+            >
+              コーディング問題
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- APIキー設定入力フォームエリア（アコーディオン） -->
+    <div
+      id="api-key-panel"
+      class="hidden bg-slate-100 border-b border-slate-200 shadow-inner"
+    >
+      <div class="max-w-4xl mx-auto px-4 py-4 space-y-3">
+        <div
+          class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+        >
+          <div class="space-y-0.5">
+            <h4 class="text-sm font-bold text-slate-800">
+              🔑 Gemini 3.5 Flash APIキーの設定
+            </h4>
+            <p class="text-xs text-slate-500">
+              お持ちのGemini
+              APIキーを入力すると、ローカル環境でもAI機能が利用可能になります。キーはブラウザ内（localStorage）に保存されます。
+            </p>
+            <p class="text-xs text-amber-600 font-medium mt-1">
+              ⚠️ セキュリティに関する注意:
+              APIキーはブラウザ内に平文で保存されます。共有PCでの使用や、ブラウザの開発者ツールからの閲覧が可能です。使用後はキーのクリアを推奨します。
+            </p>
+          </div>
+          <a
+            href="https://aistudio.google.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"
+          >
+            Google AI Studioでキーを取得する
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-3 w-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+              />
+            </svg>
+          </a>
+        </div>
+        <div class="flex gap-2">
+          <input
+            id="api-key-input"
+            type="text"
+            autocomplete="new-password"
+            name="gemini_api_key_field"
+            placeholder="AIzaSy..."
+            class="api-key-mask flex-grow px-3.5 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono"
+          />
+          <button
+            id="api-key-save-btn"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-bold transition-all shadow-sm"
+          >
+            保存
+          </button>
+          <button
+            id="api-key-clear-btn"
+            class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+          >
+            クリア
+          </button>
+        </div>
+        <div
+          id="api-key-status"
+          class="hidden text-xs flex items-center gap-1.5 font-semibold"
+        >
+          <!-- 状態テキストが動的に入ります -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 学習進捗ダッシュボード (ゲーミフィケーション要素) -->
+    <section class="bg-indigo-50 border-b border-indigo-100 py-4">
+      <div
+        class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4"
+      >
+        <div class="flex items-center gap-3">
+          <div class="bg-indigo-600 text-white p-2.5 rounded-lg shadow-sm">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">
+              あなたの現在の学習ステータス
+            </h3>
+            <p
+              id="dashboard-rank"
+              class="text-xs text-indigo-700 font-semibold mt-0.5"
+            >
+              🐍 Pythonビギナー (進捗をロード中...)
+            </p>
+          </div>
+        </div>
+        <!-- 進捗簡易統計 -->
+        <div
+          class="flex gap-4 items-center justify-around bg-white px-4 py-2 rounded-xl border border-indigo-100/60 shadow-sm"
+        >
+          <div class="text-center px-2">
+            <span
+              id="stat-quizzes"
+              class="block text-base font-bold text-slate-800"
+              >0</span
+            >
+            <span class="text-[10px] text-slate-400 font-bold uppercase"
+              >クイズ挑戦数</span
+            >
+          </div>
+          <div class="h-8 w-px bg-slate-200"></div>
+          <div class="text-center px-2">
+            <span
+              id="stat-coding"
+              class="block text-base font-bold text-slate-800"
+              >0</span
+            >
+            <span class="text-[10px] text-slate-400 font-bold uppercase"
+              >問題クリア数</span
+            >
+          </div>
+          <div class="h-8 w-px bg-slate-200"></div>
+          <div class="text-center px-2">
+            <span
+              id="stat-ai-gen"
+              class="block text-base font-bold text-slate-800"
+              >0</span
+            >
+            <span class="text-[10px] text-slate-400 font-bold uppercase"
+              >AI生成クリア</span
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-grow max-w-4xl w-full mx-auto px-4 py-8">
+      <!-- 4択クイズモード -->
+      <div id="quiz-mode" class="space-y-6">
+        <!-- AI問題生成コントロール -->
+        <div
+          class="bg-gradient-to-r from-indigo-50 to-purple-50 p-5 rounded-xl border border-indigo-100 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between"
+        >
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">✨</span>
+              <h3
+                class="text-sm font-bold text-indigo-900 uppercase tracking-wider"
+              >
+                AI クイズジェネレーター
+              </h3>
+            </div>
+            <p class="text-xs text-indigo-600">
+              学びたいテーマと難易度を指定して、Gemini 3.5
+              Flashにオリジナル問題を作ってもましょう！(空欄でおまかせ生成可能)
+            </p>
+          </div>
+          <div class="flex flex-col sm:flex-row w-full md:w-auto gap-2">
+            <!-- 難易度セレクター -->
+            <select
+              id="ai-quiz-difficulty"
+              class="px-3 py-2 text-sm rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-medium text-slate-700"
+            >
+              <option value="random">難易度: おまかせ</option>
+              <option value="beginner">初級 (基礎概念)</option>
+              <option value="intermediate">中級 (応用・例外処理等)</option>
+              <option value="advanced">上級 (高度・内部構造等)</option>
+            </select>
+            <div class="flex gap-2 flex-grow sm:flex-grow-0">
+              <input
+                id="ai-quiz-topic"
+                type="text"
+                placeholder="例: デコレータ、型ヒント"
+                class="w-full sm:w-48 md:w-56 px-3.5 py-2 text-sm rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              />
+              <button
+                id="ai-quiz-generate-btn"
+                class="flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-1.5"
+              >
+                生成
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div class="flex justify-between items-center mb-4">
+            <h2
+              class="text-xl font-semibold text-slate-900 flex items-center gap-2"
+            >
+              Python 4択クイズ
+              <span
+                id="quiz-type-badge"
+                class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800"
+                >✨ AI生成問題</span
+              >
+            </h2>
+            <span
+              id="quiz-progress"
+              class="text-sm bg-slate-100 px-3 py-1 rounded-full text-slate-600 font-medium"
+              >1 / 49</span
+            >
+          </div>
+
+          <div id="quiz-container">
+            <div
+              id="question-container"
+              class="text-lg font-medium text-slate-800 mb-6 bg-slate-50 p-4 rounded-lg border-l-4 border-indigo-500"
+            >
+              <!-- 質問文がここに挿入されます -->
+            </div>
+            <div id="options-container" class="grid grid-cols-1 gap-3">
+              <!-- 選択肢ボタンがここに挿入されます -->
+            </div>
+            <div class="flex justify-end mt-6">
+              <button
+                id="next-btn"
+                class="hidden bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+              >
+                次の問題へ
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- クイズ結果画面 -->
+        <div
+          id="quiz-result-container"
+          class="hidden bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-6"
+        >
+          <!-- 結果詳細がここに挿入されます -->
+        </div>
+      </div>
+
+      <!-- コーディング問題モード -->
+      <div id="coding-mode" class="hidden space-y-6">
+        <!-- AIコーディング問題生成コントロール -->
+        <div
+          class="bg-gradient-to-r from-emerald-50 to-teal-50 p-5 rounded-xl border border-emerald-100 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between"
+        >
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">✨</span>
+              <h3
+                class="text-sm font-bold text-emerald-900 uppercase tracking-wider"
+              >
+                AI 課題ジェネレーター
+              </h3>
+            </div>
+            <p class="text-xs text-emerald-600">
+              学びたいテーマとレベルを設定して、高品質な採点テスト付き課題をオート生成！(空欄でおまかせ生成可能)
+            </p>
+          </div>
+          <div class="flex flex-col sm:flex-row w-full md:w-auto gap-2">
+            <!-- 難易度セレクター -->
+            <select
+              id="ai-coding-difficulty"
+              class="px-3 py-2 text-sm rounded-lg border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-medium text-slate-700"
+            >
+              <option value="random">難易度: おまかせ</option>
+              <option value="beginner">
+                初級 (アルゴリズム基本・基礎文法)
+              </option>
+              <option value="intermediate">
+                中級 (データ構造応用・文字列操作等)
+              </option>
+              <option value="advanced">
+                上級 (高度設計・クラス・数学ロジック等)
+              </option>
+            </select>
+            <div class="flex gap-2 flex-grow sm:flex-grow-0">
+              <input
+                id="ai-coding-topic"
+                type="text"
+                placeholder="例: クラス設計、再帰処理"
+                class="w-full sm:w-48 md:w-56 px-3.5 py-2 text-sm rounded-lg border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+              />
+              <button
+                id="ai-coding-generate-btn"
+                class="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-1.5"
+              >
+                生成
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div class="flex justify-between items-center mb-4">
+            <h2
+              class="text-xl font-semibold text-slate-900 flex items-center gap-2"
+            >
+              Python 基礎コーディング問題
+              <span
+                id="coding-type-badge"
+                class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800"
+                >✨ AI生成問題</span
+              >
+            </h2>
+            <span
+              id="coding-progress"
+              class="text-sm bg-slate-100 px-3 py-1 rounded-full text-slate-600 font-medium"
+              >1 / 20</span
+            >
+          </div>
+
+          <div id="coding-quiz-container" class="space-y-6">
+            <div id="coding-question-container" class="space-y-2">
+              <!-- 問題タイトルと説明がここに挿入されます -->
+            </div>
+
+            <div class="space-y-2">
+              <label
+                for="code-editor"
+                class="block text-sm font-medium text-slate-600"
+                >解答コードエディタ (Tabキーでインデント可,
+                Enterで自動インデント)</label
+              >
+              <!-- Custom Editor Wrapper with resizing support -->
+              <div class="editor-wrapper h-64 min-h-[150px] max-h-[800px] resize-y">
+                <!-- Line Numbers -->
+                <div id="line-numbers-container" class="line-numbers-container">
+                  <div class="editor-line">1</div>
+                </div>
+                
+                <!-- Main Editor Area -->
+                <div class="editor-area-container">
+                  <!-- Backdrop for Indentation Guides and Lines -->
+                  <div id="editor-backdrop" class="editor-backdrop" aria-hidden="true"></div>
+                  
+                  <!-- Actual Textarea -->
+                  <textarea
+                    id="code-editor"
+                    class="code-editor-textarea"
+                    placeholder="# ここにコードを書いてください"
+                    spellcheck="false"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3 justify-between items-center">
+              <div class="flex flex-wrap gap-2">
+                <button
+                  id="run-btn"
+                  class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  実行して採点
+                </button>
+
+                <!-- コードを整えるフォーマットボタン -->
+                <button
+                  id="format-btn"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-4 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2 text-sm"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M4 6h16M4 12h16M4 18h7"
+                    />
+                  </svg>
+                  コードを整える
+                </button>
+
+                <!-- AIヒントボタン -->
+                <button
+                  id="ai-hint-btn"
+                  class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                >
+                  ✨ AIにヒントをもらう
+                </button>
+
+                <!-- AIコードレビュー＆模範解答ボタン -->
+                <button
+                  id="ai-review-btn"
+                  class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                >
+                  🎓 AIレビュー＆模範解答
+                </button>
+              </div>
+
+              <button
+                id="coding-next-btn"
+                class="hidden bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+              >
+                次の問題へ
+              </button>
+            </div>
+
+            <!-- 標準出力デバッグログ表示エリア -->
+            <div id="stdout-container" class="hidden space-y-2 mt-4">
+              <label
+                class="block text-sm font-semibold text-slate-600 flex items-center gap-1.5"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4 text-slate-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                標準出力ログ (print出力デバッグ)
+              </label>
+              <div
+                id="stdout-terminal"
+                class="w-full max-h-40 overflow-y-auto p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs whitespace-pre-wrap leading-relaxed shadow-inner"
+              ></div>
+            </div>
+
+            <!-- テスト結果表示エリア (ヒントよりも上に配置) -->
+            <div id="test-results" class="space-y-3 mt-4">
+              <!-- テスト結果の個別カードがここに動的に挿入されます -->
+            </div>
+
+            <!-- AIヒントアドバイス表示パネル (Markdown対応のproseクラスを付与し見やすく美化) -->
+            <div
+              id="ai-hint-panel"
+              class="hidden bg-indigo-50/50 border border-indigo-100 p-6 rounded-lg space-y-3"
+            >
+              <h4
+                class="text-sm font-bold text-indigo-800 flex items-center gap-1.5 border-b border-indigo-100 pb-2"
+              >
+                <span>✨ AI先生のアドバイス</span>
+              </h4>
+              <!-- proseクラスによってMarkdownの中の見出しや箇条書き、プログラムブロックが完璧に美化されます -->
+              <div
+                id="ai-hint-content"
+                class="prose prose-indigo max-w-none text-slate-700 leading-relaxed text-sm"
+              ></div>
+            </div>
+
+            <!-- AIコードレビュー＆模範解答パネル -->
+            <div
+              id="ai-review-panel"
+              class="hidden bg-purple-50/50 border border-purple-100 p-6 rounded-lg space-y-3"
+            >
+              <h4
+                class="text-sm font-bold text-purple-800 flex items-center gap-1.5 border-b border-purple-100 pb-2"
+              >
+                <span>🎓 AIコードレビュー ＆ 模範コード</span>
+              </h4>
+              <div
+                id="ai-review-content"
+                class="prose prose-purple max-w-none text-slate-700 leading-relaxed text-sm"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- コーディング結果画面 -->
+        <div
+          id="coding-result-container"
+          class="hidden bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-6"
+        >
+          <!-- コーディング結果詳細がここに挿入されます -->
+        </div>
+      </div>
+    </main>
+
+    <!-- 全画面ロード画面 (最高水準の躍動的なCSSスピナー演出) -->
+    <div
+      id="ai-loading-screen"
+      class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center"
+    >
+      <div
+        class="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 text-center max-w-sm w-full mx-4 space-y-5 transform transition-all scale-100"
+      >
+        <div class="flex justify-center items-center">
+          <!-- 美しく回転する2重リングのインディゴカラーローダー -->
+          <div class="relative w-16 h-16">
+            <div
+              class="absolute inset-0 rounded-full border-4 border-slate-100"
+            ></div>
+            <div
+              class="absolute inset-0 rounded-full border-4 border-t-indigo-600 animate-spin"
+            ></div>
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <h4 id="ai-loading-title" class="text-lg font-bold text-slate-800">
+            ✨ AIが思考中...
+          </h4>
+          <p
+            id="ai-loading-desc"
+            class="text-xs text-slate-500 leading-relaxed"
+          >
+            Gemini 3.5
+            Flashが最適なプログラミング課題を生成しています。数秒お待ちください。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 確認用ダイアログ (無限ループ警告用モーダル) -->
+    <div
+      id="confirm-modal"
+      class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-modal-title"
+    >
+      <div
+        class="bg-white rounded-2xl shadow-xl border border-slate-150 max-w-md w-full p-6 space-y-4 transform transition-all scale-95 duration-200"
+      >
+        <div class="flex items-start gap-3">
+          <div class="p-2 bg-amber-50 text-amber-600 rounded-lg">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <div class="space-y-1 flex-1">
+            <h4
+              id="confirm-modal-title"
+              class="text-base font-bold text-slate-900"
+            >
+              ⚠️ 無限ループ発生の警告
+            </h4>
+            <p class="text-sm text-slate-600 leading-relaxed">
+              解答コード内に
+              <code>while</code>
+              ループ、または終了条件が不確定な繰り返し構文が検出されました。<br /><br />
+              ループ終了条件（変数の更新や
+              <code>break</code
+              >）が抜けている場合、<strong>ブラウザタブが完全にフリーズ（ハングアップ）</strong>する危険性があります。コードは本当に安全ですか？
+            </p>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2.5 pt-2">
+          <button
+            id="confirm-modal-cancel"
+            class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+          >
+            コードを修正する (中止)
+          </button>
+          <button
+            id="confirm-modal-ok"
+            class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors shadow-sm"
+          >
+            リスクを理解して実行
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- カスタムダイアログ通知 (ブラウザのalertの代替UI) -->
+    <div
+      id="app-modal"
+      class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="app-modal-title"
+    >
+      <div
+        class="bg-white rounded-2xl shadow-xl border border-slate-150 max-w-md w-full p-6 space-y-4 transform transition-all scale-95 duration-200"
+      >
+        <div class="flex items-start gap-3">
+          <div
+            id="modal-icon-container"
+            class="p-2 bg-indigo-50 text-indigo-600 rounded-lg"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <div class="space-y-1 flex-1">
+            <h4 id="app-modal-title" class="text-base font-bold text-slate-900">
+              お知らせ
+            </h4>
+            <p
+              id="app-modal-message"
+              class="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed"
+            ></p>
+          </div>
+        </div>
+        <div class="flex justify-end pt-2">
+          <button
+            id="app-modal-close"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- フッター -->
+    <footer
+      class="bg-white border-t border-slate-200 py-6 text-center text-sm text-slate-500"
+    >
+      <div class="max-w-4xl mx-auto px-4">
+        <p>&copy; 2026 Python 学習プラットフォーム. Built with Brython.</p>
+      </div>
+    </footer>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
