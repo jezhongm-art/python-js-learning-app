@@ -90,3 +90,10 @@ body {
   min-height: 1.625rem;
   line-height: 1.625rem;
 }
+
+/* APIキー用マスク */
+.api-key-mask {
+  -webkit-text-security: disc !important;
+  text-security: disc !important;
+}
+
