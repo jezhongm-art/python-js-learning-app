@@ -655,7 +655,7 @@
           const btn = document.createElement("button");
           btn.textContent = option;
           btn.className =
-            "w-full text-left px-5 py-4 border border-slate-200 rounded-lg hover:bg-slate-50 font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm";
+            "w-full text-left px-5 py-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-sm";
           btn.onclick = () => selectQuizOption(index);
           quizOptionsContainer.appendChild(btn);
         });
@@ -673,16 +673,29 @@
           if (index === q.correctIndex) {
             btn.classList.add(
               "bg-emerald-50",
+              "dark:bg-emerald-950/30",
               "border-emerald-500",
+              "dark:border-emerald-600",
               "text-emerald-800",
+              "dark:text-emerald-300",
             );
           } else if (index === selectedIndex && index !== q.correctIndex) {
-            btn.classList.add("bg-rose-50", "border-rose-500", "text-rose-800");
+            btn.classList.add(
+              "bg-rose-50",
+              "dark:bg-rose-950/30",
+              "border-rose-500",
+              "dark:border-rose-600",
+              "text-rose-800",
+              "dark:text-rose-300",
+            );
           } else {
             btn.classList.add(
               "bg-slate-50",
+              "dark:bg-slate-800/50",
               "border-slate-200",
+              "dark:border-slate-700",
               "text-slate-400",
+              "dark:text-slate-500",
             );
           }
         });
