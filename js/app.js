@@ -1463,18 +1463,19 @@
           コードの安全性を検証しています...
         </div>`;
 
-        const testCasesSerialized = JSON.stringify(
-          problem.test_cases.map((tc) => ({
+        const testPayload = JSON.stringify({
+          setup_code: problem.setup_code || "",
+          test_cases: problem.test_cases.map((tc) => ({
             input: tc.input,
             expected: tc.expected,
           })),
-        );
+        });
         try {
           let res = null;
           if (typeof window.run_python_tests !== 'function') {
             throw new Error("Python環境がまだ初期化されていません。少し待つか、ページを再読み込みしてください。");
           }
-          const resultStr = window.run_python_tests(userCode, testCasesSerialized);
+          const resultStr = window.run_python_tests(userCode, testPayload);
           if (resultStr) {
             res = JSON.parse(resultStr);
           }
@@ -1989,13 +1990,15 @@
         const systemPrompt = `あなたは非常に優秀なPython試験問題設計士です。
 ユーザーが指定するテーマと難易度レベルに完全に適したコーディングテスト問題を1問作成してください。
 この問題は、ブラウザ内のPythonランナーで動的テスト（eval関数）されます。
-関数名、その引数、および期待される戻り値を明確にしたコーディング問題と、自動評価用の複数のテストケース（関数呼び出し式と、期待される戻り値）をJSONで生成してください。`;
+関数名、その引数、および期待される戻り値を明確にしたコーディング問題と、自動評価用の複数のテストケース（関数呼び出し式と、期待される戻り値）をJSONで生成してください。
+【重要】クラス定義やトランザクション、例外処理のテストなど、ユーザーコードの外部から動作検証（アサーションラッパー）が必要な場合は、必ず「setup_code」フィールドに検証用ヘルパー関数のPython定義を生成してください。`;
 
         const userPrompt = `難易度: ${label}
 テーマ: ${topic}
 難易度設計規約: ${difficultyPromptConstraint}
-
-Brython自動採点システム対応の問題、解答テンプレート、およびテストケース of 配列（4ケース以上、特にエッジケースや例外ケースの検証も含めること）を、指定 of JSONスキーマに沿って生成してください。`;
+ 
+Brython自動採点システム対応の問題、解答テンプレート、テストケースの配列（4ケース以上、特にエッジケースや例外ケースの検証も含めること）を指定のJSONスキーマに沿って生成してください。
+例外の発生を期待するテストケース（例えばValueErrorが発生することを確認したい場合）は、expectedの値として、発生すべき例外クラスの名前（例: "ValueError" や "TypeError"）をそのまま指定してください。`;
 
         const codingSchema = {
           type: "OBJECT",
@@ -2014,6 +2017,11 @@ Brython自動採点システム対応の問題、解答テンプレート、お�
               type: "STRING",
               description:
                 "ユーザーが最初にエディタに入力するコード構造、または関数/クラス定義（例: 'def filter_list(lst):\n    # ここにコードを書く\n    pass'）",
+            },
+            setup_code: {
+              type: "STRING",
+              description:
+                "テストケース実行前に評価される準備用のPythonコード（検証用のラッパー関数やアサーションドライバーの定義など。不要な場合は空文字列とする）",
             },
             test_cases: {
               type: "ARRAY",
@@ -2036,7 +2044,7 @@ Brython自動採点システム対応の問題、解答テンプレート、お�
               },
             },
           },
-          required: ["title", "description", "template", "test_cases"],
+          required: ["title", "description", "template", "setup_code", "test_cases"],
         };
 
         try {
@@ -2054,6 +2062,7 @@ Brython自動採点システム対応の問題、解答テンプレート、お�
               ? parsedProblem.description.replace(/\\n/g, "\n")
               : "",
             template: parsedProblem.template,
+            setup_code: parsedProblem.setup_code || "",
             test_cases: parsedProblem.test_cases,
             isAiGenerated: true,
           };

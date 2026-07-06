@@ -85,13 +85,38 @@ def deep_equal(a, b):
         return True
     return a == b
 
-def run_tests(user_code, test_cases_json):
+def is_exception_name(s):
+    if not isinstance(s, str):
+        return False
+    builtin_exceptions = [
+        "BaseException", "Exception", "TypeError", "ValueError", 
+        "ZeroDivisionError", "IndexError", "KeyError", "AttributeError", 
+        "NameError", "AssertionError", "FileNotFoundError", "RuntimeError", 
+        "SyntaxError", "IndentationError", "SystemError", "ImportError"
+    ]
+    if s in builtin_exceptions:
+        return True
+    if len(s) > 0 and s[0].isupper() and (s.endswith("Error") or s == "Exception"):
+        return True
+    return False
+
+def run_tests(user_code, test_payload_json):
     stdout_backup = sys.stdout
     captured_output = io.StringIO()
     sys.stdout = captured_output
     
     try:
+        payload = json.loads(test_payload_json)
+        setup_code = payload.get('setup_code', '')
+        test_cases = payload.get('test_cases', [])
+        
         _local_namespace = {}
+        
+        # Execute setup code if present to load test wrapper/helpers
+        if setup_code:
+            exec(setup_code, _local_namespace, _local_namespace)
+            
+        # Execute user's solution
         exec(user_code, _local_namespace, _local_namespace)
         
         sys.stdout = stdout_backup
@@ -106,7 +131,6 @@ def run_tests(user_code, test_cases_json):
             return obj
         
         results = []
-        test_cases = json.loads(test_cases_json)
         
         for idx, case_ in enumerate(test_cases):
             expr = case_['input']
@@ -134,18 +158,31 @@ def run_tests(user_code, test_cases_json):
                 actual = eval(expr, _local_namespace, _local_namespace)
                 cmp_actual = normalize_quotes(actual)
                 
-                is_pass = deep_equal(cmp_actual, expected)
+                # If an exception is expected, but no exception was raised
+                if is_exception_name(expected):
+                    is_pass = False
+                else:
+                    is_pass = deep_equal(cmp_actual, expected)
+                    
                 results.append({
                     'index': idx, 'input': expr,
                     'expected': repr(expected), 'actual': repr(cmp_actual),
                     'pass': is_pass, 'error': None
                 })
             except Exception as e:
-                results.append({
-                    'index': idx, 'input': expr,
-                    'expected': repr(expected), 'actual': None,
-                    'pass': False, 'error': str(e)
-                })
+                exc_type_name = e.__class__.__name__
+                if is_exception_name(expected) and (expected == exc_type_name or expected.startswith(exc_type_name + "(")):
+                    results.append({
+                        'index': idx, 'input': expr,
+                        'expected': repr(expected), 'actual': f"{exc_type_name}: {str(e)}",
+                        'pass': True, 'error': None
+                    })
+                else:
+                    results.append({
+                        'index': idx, 'input': expr,
+                        'expected': repr(expected), 'actual': None,
+                        'pass': False, 'error': f"{exc_type_name}: {str(e)}"
+                    })
                 
         return json.dumps({
             'tests': results,
