@@ -71,6 +71,20 @@ import ast
 import sys
 import io
 
+def deep_equal(a, b):
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        if len(a) != len(b):
+            return False
+        return all(deep_equal(x, y) for x, y in zip(a, b))
+    elif isinstance(a, dict) and isinstance(b, dict):
+        if len(a) != len(b):
+            return False
+        for k, v in a.items():
+            if k not in b or not deep_equal(v, b[k]):
+                return False
+        return True
+    return a == b
+
 def run_tests(user_code, test_cases_json):
     stdout_backup = sys.stdout
     captured_output = io.StringIO()
@@ -118,10 +132,9 @@ def run_tests(user_code, test_cases_json):
                 
             try:
                 actual = eval(expr, _local_namespace, _local_namespace)
-                cmp_actual = list(actual) if isinstance(actual, tuple) else actual
-                cmp_actual = normalize_quotes(cmp_actual)
+                cmp_actual = normalize_quotes(actual)
                 
-                is_pass = (cmp_actual == expected)
+                is_pass = deep_equal(cmp_actual, expected)
                 results.append({
                     'index': idx, 'input': expr,
                     'expected': repr(expected), 'actual': repr(cmp_actual),
