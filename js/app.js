@@ -2061,8 +2061,12 @@ Brython自動採点システム対応の問題、解答テンプレート、テ�
             description: parsedProblem.description
               ? parsedProblem.description.replace(/\\n/g, "\n")
               : "",
-            template: parsedProblem.template,
-            setup_code: parsedProblem.setup_code || "",
+            template: parsedProblem.template
+              ? parsedProblem.template.replace(/\\n/g, "\n")
+              : "",
+            setup_code: parsedProblem.setup_code
+              ? parsedProblem.setup_code.replace(/\\n/g, "\n")
+              : "",
             test_cases: parsedProblem.test_cases,
             isAiGenerated: true,
           };
