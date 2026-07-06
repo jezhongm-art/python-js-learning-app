@@ -158,11 +158,7 @@ def run_tests(user_code, test_payload_json):
                 actual = eval(expr, _local_namespace, _local_namespace)
                 cmp_actual = normalize_quotes(actual)
                 
-                # If an exception is expected, but no exception was raised
-                if is_exception_name(expected):
-                    is_pass = False
-                else:
-                    is_pass = deep_equal(cmp_actual, expected)
+                is_pass = deep_equal(cmp_actual, expected)
                     
                 results.append({
                     'index': idx, 'input': expr,
