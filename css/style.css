@@ -44,16 +44,33 @@ body {
   min-width: 0;
   height: 100%;
 }
+/* [MODIFIED_START] 1. Prism.jsによるシンタックスハイライト用のCSS修正 */
+
 .editor-backdrop {
   position: absolute;
   inset: 0;
   padding: 1rem;
-  color: transparent;
+  /* color: transparent; を削除し、ハイライト用のベース色を指定 */
+  color: #f1f5f9; 
   pointer-events: none;
   white-space: pre;
   overflow: hidden;
   background-color: transparent;
+  z-index: 1; /* 背景を奥に配置 */
 }
+
+/* Prism.jsのハイライト要素が親のフォント設定を引き継ぐようにする */
+.editor-backdrop code,
+.editor-backdrop code * {
+  font-family: "Fira Code", "Courier New", Courier, monospace !important;
+  text-shadow: none !important;
+  white-space: pre !important;               /* 改行を保持 */
+  background-color: transparent !important;  /* グレーの帯を消す */
+  padding: 0 !important;
+  letter-spacing: normal !important;         /* 文字間隔を統一 */
+  word-spacing: normal !important;           /* 単語間隔を統一 */
+}
+
 .code-editor-textarea {
   position: absolute;
   inset: 0;
@@ -61,7 +78,12 @@ body {
   height: 100%;
   padding: 1rem;
   background-color: transparent;
-  color: #f1f5f9; /* text-slate-100 */
+  
+  /* シンタックスハイライトを見せるため、文字自体は透明にする */
+  color: transparent !important; 
+  /* 入力カーソル（キャレット）の色は白系にして見えるようにする */
+  caret-color: #f8fafc; 
+
   border: none;
   outline: none;
   resize: none;
@@ -69,26 +91,50 @@ body {
   white-space: pre;
   tab-size: 4;
   -moz-tab-size: 4;
+  z-index: 10; /* テキストエリアを手前に配置して入力を受け付ける */
 }
-.code-editor-textarea, .editor-backdrop {
+.code-editor-textarea,
+.editor-backdrop,
+.editor-backdrop code,
+.editor-backdrop code * {
   font-family: "Fira Code", "Courier New", Courier, monospace !important;
   font-size: 0.875rem !important;
-  line-height: 1.625rem !important;
+  line-height: 1.625rem !important;          /* Prismの「1.5」を上書きし、行の高さを完全に一致させる */
+  letter-spacing: normal !important;         /* 文字の間隔を統一 */
+  word-spacing: normal !important;           /* 単語の間隔を統一 */
+}
+
+.editor-backdrop code {
+  text-shadow: none !important;
+  white-space: pre !important;               /* 改行を保持 */
+  background-color: transparent !important;  /* グレーの帯を消す */
+  padding: 0 !important;
 }
 /* Indent guides styling */
 .indent-guide {
   position: relative;
   display: inline-block;
+  vertical-align: top;
+  height: 1.625rem; /* 行の高さに完全同期 */
   box-sizing: border-box;
 }
-.indent-guide::before {
+
+/* ライトモード（通常時）：はっきり見える不透明度50%のインディゴブルー */
+.editor-backdrop .indent-guide::before {
   content: "";
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
+  background-color: rgba(56, 189, 248, 0.8); /* 視認性の高いスカイブルー（80%）に変更 */
   width: 1px;
-  background-color: rgba(148, 163, 184, 0.4); /* Slate 400 with opacity for better visibility */
+  box-shadow: 0 0 2px rgba(56, 189, 248, 0.5); /* 不透明度を50%に強化 */
+}
+
+.dark .editor-backdrop .indent-guide::before {
+  background-color: rgba(56, 189, 248, 0.8); /* 視認性の高いスカイブルー（80%）に変更 */
+  width: 1px;
+  box-shadow: 0 0 2px rgba(56, 189, 248, 0.5); /* 発光効果も少し強めに設定 */
 }
 .editor-line {
   display: block;

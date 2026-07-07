@@ -8,27 +8,30 @@
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self';
-                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net;
-                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com;
+                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://cdnjs.cloudflare.com;
                  font-src https://fonts.gstatic.com;
-                 connect-src https://generativelanguage.googleapis.com;
+                 connect-src 'self' ws://localhost:* ws://127.0.0.1:* https://generativelanguage.googleapis.com;
                  img-src 'self' data:;"
     />
     <!-- Tailwind CSS & Typography Plugin -->
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
       tailwind.config = {
-        darkMode: 'class'
-      }
+        darkMode: "class",
+      };
     </script>
     <!-- Blocking Theme Initializer (Avoids FOUC/Light Flash) -->
     <script>
-      (function() {
-        const theme = localStorage.getItem('theme');
-        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
+      (function () {
+        const theme = localStorage.getItem("theme");
+        if (
+          theme === "dark" ||
+          (!theme && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        ) {
+          document.documentElement.classList.add("dark");
         } else {
-          document.documentElement.classList.remove('dark');
+          document.documentElement.classList.remove("dark");
         }
       })();
     </script>
@@ -64,136 +67,127 @@
     ></script>
 
     <link rel="stylesheet" href="css/style.css" />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
     <script type="text/python">
-from browser import window
-import json
-import ast
-import sys
-import io
+      from browser import window
+      import json
+      import ast
+      import sys
+      import io
 
-def deep_equal(a, b):
-    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
-        if len(a) != len(b):
-            return False
-        return all(deep_equal(x, y) for x, y in zip(a, b))
-    elif isinstance(a, dict) and isinstance(b, dict):
-        if len(a) != len(b):
-            return False
-        for k, v in a.items():
-            if k not in b or not deep_equal(v, b[k]):
-                return False
-        return True
-    return a == b
+      def deep_equal(a, b):
+          if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+              if len(a) != len(b):
+                  return False
+              return all(deep_equal(x, y) for x, y in zip(a, b))
+          elif isinstance(a, dict) and isinstance(b, dict):
+              if len(a) != len(b):
+                  return False
+              for k, v in a.items():
+                  if k not in b or not deep_equal(v, b[k]):
+                      return False
+              return True
+          return a == b
 
-def is_exception_name(s):
-    if not isinstance(s, str):
-        return False
-    builtin_exceptions = [
-        "BaseException", "Exception", "TypeError", "ValueError", 
-        "ZeroDivisionError", "IndexError", "KeyError", "AttributeError", 
-        "NameError", "AssertionError", "FileNotFoundError", "RuntimeError", 
-        "SyntaxError", "IndentationError", "SystemError", "ImportError"
-    ]
-    if s in builtin_exceptions:
-        return True
-    if len(s) > 0 and s[0].isupper() and (s.endswith("Error") or s == "Exception"):
-        return True
-    return False
+      def is_exception_name(s):
+          if not isinstance(s, str):
+              return False
+          builtin_exceptions = [
+              "BaseException", "Exception", "TypeError", "ValueError",
+              "ZeroDivisionError", "IndexError", "KeyError", "AttributeError",
+              "NameError", "AssertionError", "FileNotFoundError", "RuntimeError",
+              "SyntaxError", "IndentationError", "SystemError", "ImportError"
+          ]
+          if s in builtin_exceptions:
+              return True
+          if len(s) > 0 and s[0].isupper() and (s.endswith("Error") or s == "Exception"):
+              return True
+          return False
 
-def run_tests(user_code, test_payload_json):
-    stdout_backup = sys.stdout
-    captured_output = io.StringIO()
-    sys.stdout = captured_output
-    
-    try:
-        payload = json.loads(test_payload_json)
-        setup_code = payload.get('setup_code', '')
-        test_cases = payload.get('test_cases', [])
-        
-        _local_namespace = {}
-        
-        # Execute setup code if present to load test wrapper/helpers
-        if setup_code:
-            exec(setup_code, _local_namespace, _local_namespace)
-            
-        # Execute user's solution
-        exec(user_code, _local_namespace, _local_namespace)
-        
-        sys.stdout = stdout_backup
-        printed_log = captured_output.getvalue()
-        def normalize_quotes(obj):
-            if isinstance(obj, list): return [normalize_quotes(x) for x in obj]
-            if isinstance(obj, tuple): return tuple(normalize_quotes(x) for x in obj)
-            if isinstance(obj, dict): return {normalize_quotes(k): normalize_quotes(v) for k, v in obj.items()}
-            if isinstance(obj, str):
-                if len(obj) >= 2 and ((obj[0] == "'" and obj[-1] == "'") or (obj[0] == '"' and obj[-1] == '"')):
-                    return obj[1:-1]
-            return obj
-        
-        results = []
-        
-        for idx, case_ in enumerate(test_cases):
-            expr = case_['input']
-            raw_expected = case_['expected']
-            
-            if isinstance(raw_expected, str):
-                try:
-                    expected = ast.literal_eval(raw_expected)
-                    if isinstance(expected, str):
-                        expected = expected.replace('\\\\', '\x00').replace('\\n', '\n').replace('\\t', '\t').replace('\x00', '\\')
-                except (ValueError, SyntaxError):
-                    s = raw_expected
-                    if len(s) >= 2 and ((s[0] == "'" and s[-1] == "'") or (s[0] == '"' and s[-1] == '"')):
-                        inner = s[1:-1]
-                        inner = inner.replace('\\\\', '\x00').replace('\\n', '\n').replace('\\t', '\t').replace('\x00', '\\')
-                        expected = inner
-                    else:
-                        expected = raw_expected
-            else:
-                expected = raw_expected
-                
-            expected = normalize_quotes(expected)
-                
-            try:
-                actual = eval(expr, _local_namespace, _local_namespace)
-                cmp_actual = normalize_quotes(actual)
-                
-                is_pass = deep_equal(cmp_actual, expected)
-                    
-                results.append({
-                    'index': idx, 'input': expr,
-                    'expected': repr(expected), 'actual': repr(cmp_actual),
-                    'pass': is_pass, 'error': None
-                })
-            except Exception as e:
-                exc_type_name = e.__class__.__name__
-                if is_exception_name(expected) and (expected == exc_type_name or expected.startswith(exc_type_name + "(")):
-                    results.append({
-                        'index': idx, 'input': expr,
-                        'expected': repr(expected), 'actual': f"{exc_type_name}: {str(e)}",
-                        'pass': True, 'error': None
-                    })
-                else:
-                    results.append({
-                        'index': idx, 'input': expr,
-                        'expected': repr(expected), 'actual': None,
-                        'pass': False, 'error': f"{exc_type_name}: {str(e)}"
-                    })
-                
-        return json.dumps({
-            'tests': results,
-            'stdout': printed_log,
-            'error': None
-        })
-    except Exception as global_err:
-        sys.stdout = stdout_backup
-        return json.dumps({
-            'tests': None,
-            'stdout': captured_output.getvalue(),
-            'error': str(global_err)
-        })
+      # [MODIFIED_START] 4. Brython実行エンジンのフリーズ・無限ループ対策
+      def run_tests(user_code, test_payload_json):
+          stdout_backup = sys.stdout
+          captured_output = io.StringIO()
+          sys.stdout = captured_output
 
-window.run_python_tests = run_tests
+          # 実行ステップを制限するトレーサー (10万ステップを超えると強制停止)
+          MAX_STEPS = 100000
+          step_count = [0]
+
+          def tracer(frame, event, arg):
+              step_count[0] += 1
+              if step_count[0] > MAX_STEPS:
+                  raise RuntimeError("【実行中断】処理が重すぎるか、無限ループが発生しています。(最大ステップ数超過)")
+              return tracer
+
+          try:
+              payload = json.loads(test_payload_json)
+              setup_code = payload.get('setup_code', '')
+              test_cases = payload.get('test_cases', [])
+              _local_namespace = {}
+
+              if setup_code:
+                  exec(setup_code, _local_namespace, _local_namespace)
+
+              sys.settrace(tracer) # 監視開始
+
+              exec(user_code, _local_namespace, _local_namespace)
+
+              sys.stdout = stdout_backup
+              printed_log = captured_output.getvalue()
+
+              def normalize_quotes(obj):
+                  if isinstance(obj, list): return [normalize_quotes(x) for x in obj]
+                  if isinstance(obj, tuple): return tuple(normalize_quotes(x) for x in obj)
+                  if isinstance(obj, dict): return {normalize_quotes(k): normalize_quotes(v) for k, v in obj.items()}
+                  if isinstance(obj, str):
+                      if len(obj) >= 2 and ((obj[0] == "'" and obj[-1] == "'") or (obj[0] == '"' and obj[-1] == '"')):
+                          return obj[1:-1]
+                  return obj
+
+              results = []
+              for idx, case_ in enumerate(test_cases):
+                  expr = case_['input']
+                  raw_expected = case_['expected']
+                  if isinstance(raw_expected, str):
+                      try:
+                          expected = ast.literal_eval(raw_expected)
+                          if isinstance(expected, str): expected = expected.replace('\\\\', '\x00').replace('\\n', '\n').replace('\\t', '\t').replace('\x00', '\\')
+                      except (ValueError, SyntaxError):
+                          s = raw_expected
+                          if len(s) >= 2 and ((s[0] == "'" and s[-1] == "'") or (s[0] == '"' and s[-1] == '"')):
+                              expected = s[1:-1].replace('\\\\', '\x00').replace('\\n', '\n').replace('\\t', '\t').replace('\x00', '\\')
+                          else:
+                              expected = raw_expected
+                  else:
+                      expected = raw_expected
+                  expected = normalize_quotes(expected)
+
+                  try:
+                      actual = eval(expr, _local_namespace, _local_namespace)
+                      cmp_actual = normalize_quotes(actual)
+                      is_pass = deep_equal(cmp_actual, expected)
+                      results.append({'index': idx, 'input': expr, 'expected': repr(expected), 'actual': repr(cmp_actual), 'pass': is_pass, 'error': None})
+                  except Exception as e:
+                      exc_type_name = e.__class__.__name__
+                      if is_exception_name(expected) and (expected == exc_type_name or expected.startswith(exc_type_name + "(")):
+                          results.append({'index': idx, 'input': expr, 'expected': repr(expected), 'actual': f"{exc_type_name}: {str(e)}", 'pass': True, 'error': None})
+                      else:
+                          results.append({'index': idx, 'input': expr, 'expected': repr(expected), 'actual': None, 'pass': False, 'error': f"{exc_type_name}: {str(e)}"})
+
+              sys.settrace(None) # 監視終了
+              return json.dumps({'tests': results, 'stdout': printed_log, 'error': None})
+          except Exception as global_err:
+              sys.settrace(None)
+              sys.stdout = stdout_backup
+              return json.dumps({'tests': None, 'stdout': captured_output.getvalue(), 'error': str(global_err)})
+
+      window.run_python_tests = run_tests
     </script>
   </head>
   <body
@@ -201,7 +195,9 @@ window.run_python_tests = run_tests
     onload="brython()"
   >
     <!-- ヘッダー -->
-    <header class="bg-indigo-600 dark:bg-slate-900 text-white shadow-md transition-colors duration-200">
+    <header
+      class="bg-indigo-600 dark:bg-slate-900 text-white shadow-md transition-colors duration-200"
+    >
       <div
         class="max-w-4xl mx-auto px-4 py-6 flex flex-col lg:flex-row justify-between items-center gap-4"
       >
@@ -241,8 +237,30 @@ window.run_python_tests = run_tests
               class="bg-indigo-700 hover:bg-indigo-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-indigo-100 hover:text-white dark:text-slate-300 dark:hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 border border-indigo-500/30 dark:border-slate-700"
               title="テーマ切り替え"
             >
-              <svg id="theme-toggle-dark-icon" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-              <svg id="theme-toggle-light-icon" class="h-3.5 w-3.5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.46 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+              <svg
+                id="theme-toggle-dark-icon"
+                class="h-3.5 w-3.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"
+                ></path>
+              </svg>
+              <svg
+                id="theme-toggle-light-icon"
+                class="h-3.5 w-3.5 hidden"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.46 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z"
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                ></path>
+              </svg>
               <span id="theme-toggle-text">ダークモード</span>
             </button>
 
@@ -291,7 +309,9 @@ window.run_python_tests = run_tests
               お持ちのGemini
               APIキーを入力すると、ローカル環境でもAI機能が利用可能になります。キーはブラウザ内（localStorage）に保存されます。
             </p>
-            <p class="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
+            <p
+              class="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1"
+            >
               ⚠️ セキュリティに関する注意:
               APIキーはブラウザ内に平文で保存されます。共有PCでの使用や、ブラウザの開発者ツールからの閲覧が可能です。使用後はキーのクリアを推奨します。
             </p>
@@ -351,7 +371,9 @@ window.run_python_tests = run_tests
     </div>
 
     <!-- 学習進捗ダッシュボード (ゲーミフィケーション要素) -->
-    <section class="bg-indigo-50 dark:bg-slate-900/40 border-b border-indigo-100 dark:border-slate-800 py-4 transition-colors duration-200">
+    <section
+      class="bg-indigo-50 dark:bg-slate-900/40 border-b border-indigo-100 dark:border-slate-800 py-4 transition-colors duration-200"
+    >
       <div
         class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4"
       >
@@ -394,7 +416,8 @@ window.run_python_tests = run_tests
               class="block text-base font-bold text-slate-800 dark:text-slate-200"
               >0</span
             >
-            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase"
+            <span
+              class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase"
               >クイズ挑戦数</span
             >
           </div>
@@ -405,7 +428,8 @@ window.run_python_tests = run_tests
               class="block text-base font-bold text-slate-800 dark:text-slate-200"
               >0</span
             >
-            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase"
+            <span
+              class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase"
               >問題クリア数</span
             >
           </div>
@@ -416,7 +440,8 @@ window.run_python_tests = run_tests
               class="block text-base font-bold text-slate-800 dark:text-slate-200"
               >0</span
             >
-            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase"
+            <span
+              class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase"
               >AI生成クリア</span
             >
           </div>
@@ -474,7 +499,9 @@ window.run_python_tests = run_tests
           </div>
         </div>
 
-        <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors duration-200">
+        <div
+          class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors duration-200"
+        >
           <div class="flex justify-between items-center mb-4">
             <h2
               class="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"
@@ -576,7 +603,9 @@ window.run_python_tests = run_tests
           </div>
         </div>
 
-        <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors duration-200">
+        <div
+          class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors duration-200"
+        >
           <div class="flex justify-between items-center mb-4">
             <h2
               class="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"
@@ -608,17 +637,23 @@ window.run_python_tests = run_tests
                 Enterで自動インデント)</label
               >
               <!-- Custom Editor Wrapper with resizing support -->
-              <div class="editor-wrapper h-64 min-h-[150px] max-h-[800px] resize-y">
+              <div
+                class="editor-wrapper h-64 min-h-[150px] max-h-[800px] resize-y"
+              >
                 <!-- Line Numbers -->
                 <div id="line-numbers-container" class="line-numbers-container">
                   <div class="editor-line">1</div>
                 </div>
-                
+
                 <!-- Main Editor Area -->
                 <div class="editor-area-container">
                   <!-- Backdrop for Indentation Guides and Lines -->
-                  <div id="editor-backdrop" class="editor-backdrop" aria-hidden="true"></div>
-                  
+                  <div
+                    id="editor-backdrop"
+                    class="editor-backdrop"
+                    aria-hidden="true"
+                  ></div>
+
                   <!-- Actual Textarea -->
                   <textarea
                     id="code-editor"
@@ -795,7 +830,10 @@ window.run_python_tests = run_tests
           </div>
         </div>
         <div class="space-y-1.5">
-          <h4 id="ai-loading-title" class="text-lg font-bold text-slate-800 dark:text-slate-100">
+          <h4
+            id="ai-loading-title"
+            class="text-lg font-bold text-slate-800 dark:text-slate-100"
+          >
             ✨ AIが思考中...
           </h4>
           <p
@@ -821,7 +859,9 @@ window.run_python_tests = run_tests
         class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-150 dark:border-slate-800 max-w-md w-full p-6 space-y-4 transform transition-all scale-95 duration-200"
       >
         <div class="flex items-start gap-3">
-          <div class="p-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg">
+          <div
+            class="p-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg"
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               class="h-6 w-6"
@@ -844,7 +884,9 @@ window.run_python_tests = run_tests
             >
               ⚠️ 無限ループ発生の警告
             </h4>
-            <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            <p
+              class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed"
+            >
               解答コード内に
               <code>while</code>
               ループ、または終了条件が不確定な繰り返し構文が検出されました。<br /><br />
@@ -903,7 +945,10 @@ window.run_python_tests = run_tests
             </svg>
           </div>
           <div class="space-y-1 flex-1">
-            <h4 id="app-modal-title" class="text-base font-bold text-slate-900 dark:text-slate-100">
+            <h4
+              id="app-modal-title"
+              class="text-base font-bold text-slate-900 dark:text-slate-100"
+            >
               お知らせ
             </h4>
             <p
