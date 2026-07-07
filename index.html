@@ -142,13 +142,32 @@
               printed_log = captured_output.getvalue()
 
               def normalize_quotes(obj):
-                  if isinstance(obj, list): return [normalize_quotes(x) for x in obj]
-                  if isinstance(obj, tuple): return tuple(normalize_quotes(x) for x in obj)
-                  if isinstance(obj, dict): return {normalize_quotes(k): normalize_quotes(v) for k, v in obj.items()}
+                  """AI生成の expected が "'olleh'" のように引用符で二重ラップされるケースを解除する。
+                  リスト・タプル・辞書は再帰的に処理。文字列は ast.literal_eval で剥ぎ取りを繰り返す。"""
+                  if isinstance(obj, list):
+                      return [normalize_quotes(x) for x in obj]
+                  if isinstance(obj, tuple):
+                      return tuple(normalize_quotes(x) for x in obj)
+                  if isinstance(obj, dict):
+                      return {normalize_quotes(k): normalize_quotes(v) for k, v in obj.items()}
                   if isinstance(obj, str):
-                      if len(obj) >= 2 and ((obj[0] == "'" and obj[-1] == "'") or (obj[0] == '"' and obj[-1] == '"')):
-                          return obj[1:-1]
+                      s = obj
+                      # 引用符に囲まれている間は ast.literal_eval で剥ぎ取りを繰り返す
+                      while len(s) >= 2 and (
+                          (s[0] == "'" and s[-1] == "'") or
+                          (s[0] == '"' and s[-1] == '"')
+                      ):
+                          try:
+                              parsed = ast.literal_eval(s)
+                              if isinstance(parsed, str) and parsed != s:
+                                  s = parsed  # 1段剥いた
+                              else:
+                                  break  # これ以上剥けない
+                          except Exception:
+                              s = s[1:-1]  # literal_eval失敗時は単純に先頭末尾の引用符1文字ずつ除去
+                      return s
                   return obj
+
 
               results = []
               for idx, case_ in enumerate(test_cases):
@@ -166,6 +185,8 @@
                               expected = raw_expected
                   else:
                       expected = raw_expected
+                  # expected 側だけ引用符の剥ぎ取りを適用（AI生成のexpectedが "'olleh'" のように二重引用符になるケースへの対策）
+                  expected = normalize_quotes(expected)
 
                   try:
                       actual = eval(expr, _local_namespace, _local_namespace)
