@@ -166,13 +166,11 @@
                               expected = raw_expected
                   else:
                       expected = raw_expected
-                  expected = normalize_quotes(expected)
 
                   try:
                       actual = eval(expr, _local_namespace, _local_namespace)
-                      cmp_actual = normalize_quotes(actual)
-                      is_pass = deep_equal(cmp_actual, expected)
-                      results.append({'index': idx, 'input': expr, 'expected': repr(expected), 'actual': repr(cmp_actual), 'pass': is_pass, 'error': None})
+                      is_pass = deep_equal(actual, expected)
+                      results.append({'index': idx, 'input': expr, 'expected': repr(expected), 'actual': repr(actual), 'pass': is_pass, 'error': None})
                   except Exception as e:
                       exc_type_name = e.__class__.__name__
                       if is_exception_name(expected) and (expected == exc_type_name or expected.startswith(exc_type_name + "(")):
