@@ -118,7 +118,8 @@ let lastTestResults = null;
 // ============================================================
 // 3. DOM REFERENCES
 // ============================================================
-const challengeListContainer = document.getElementById("challenge-list");
+const challengeSelect       = document.getElementById("challenge-select");
+const codingTypeBadge       = document.getElementById("coding-type-badge");
 const challengeTitle        = document.getElementById("challenge-title");
 const challengeDifficulty   = document.getElementById("challenge-difficulty");
 const challengeDescription  = document.getElementById("challenge-description");
@@ -130,6 +131,14 @@ const editorBackdrop        = document.getElementById("editor-backdrop");
 const formatBtn             = document.getElementById("format-btn");
 const resetBtn              = document.getElementById("reset-btn");
 const runBtn                = document.getElementById("run-btn");
+
+// 追加参照
+const aiReviewBtn           = document.getElementById("ai-review-btn");
+const aiReviewPanel         = document.getElementById("ai-review-panel");
+const aiReviewContent       = document.getElementById("ai-review-content");
+const aiReviewCloseBtn      = document.getElementById("ai-review-close-btn");
+const stdoutContainer       = document.getElementById("stdout-container");
+const stdoutTerminal        = document.getElementById("stdout-terminal");
 
 const resultContainer       = document.getElementById("result-container");
 const resultBadge           = document.getElementById("result-badge");
@@ -214,6 +223,57 @@ function getGeminiConfig() {
     url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`,
     hasKey: !!key,
   };
+}
+
+/**
+ * Call Gemini API as an SSE stream.
+ */
+async function callGeminiStream(systemPrompt, userPrompt, onChunk) {
+  const cfg = getGeminiConfig();
+  const streamUrl = cfg.url.replace(":generateContent", ":streamGenerateContent") + "&alt=sse";
+
+  if (!cfg.hasKey) {
+    apiKeyPanel.classList.remove("hidden");
+    throw new Error("Gemini APIキーが設定されていません。画面右上の「APIキー」ボタンから設定してください。");
+  }
+
+  const payload = {
+    contents: [{ parts: [{ text: userPrompt }] }],
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+  };
+
+  const response = await fetch(streamUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok)
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const dataStr = line.replace("data: ", "").trim();
+        if (dataStr === "[DONE]") continue;
+        try {
+          const data = JSON.parse(dataStr);
+          const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          fullText += textPart;
+          if (onChunk) onChunk(fullText);
+        } catch (e) {}
+      }
+    }
+  }
+  return fullText;
 }
 
 /**
@@ -391,7 +451,6 @@ async function requestAiCoach() {
     return;
   }
 
-  // Build test result summary for context
   let testResultSummary = "テストはまだ実行されていません。";
   if (lastTestResults) {
     const passing = lastTestResults.filter(r => r.pass).length;
@@ -402,7 +461,10 @@ async function requestAiCoach() {
       ).join("\n");
   }
 
-  showAiLoader("💡 AIコーチが分析中...", "あなたのコードと問題を読み込み、アドバイスを準備しています。");
+  aiCoachContent.innerHTML = '<span class="animate-pulse text-indigo-500 font-bold">✨ AIコーチがコードを分析し、タイピングしています...</span>';
+  aiCoachPanel.classList.remove("hidden");
+  aiReviewPanel.classList.add("hidden");
+  aiCoachPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
   const systemPrompt = `あなたはJavaScriptプログラミングを始めたばかりの初心者を優しく指導するプログラミングコーチAIです。
 
@@ -431,15 +493,11 @@ ${testResultSummary}
 上記の情報をもとに、このユーザーへのアドバイスをMarkdown形式で作成してください。`;
 
   try {
-    const advice = await callGemini(systemPrompt, userPrompt, false);
-    // Safe rendering with marked + DOMPurify
-    aiCoachContent.innerHTML = DOMPurify.sanitize(marked.parse(advice));
-    aiCoachPanel.classList.remove("hidden");
-    aiCoachPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
+      aiCoachContent.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
+    });
   } catch (err) {
     alert(`AIコーチ取得失敗: ${err.message}`);
-  } finally {
-    hideAiLoader();
   }
 }
 
@@ -456,6 +514,53 @@ function setupAiButtons() {
     finally { aiCoachBtn.disabled = false; }
   };
 
+  // AIレビュー＆模範解答リクエストロジック
+  aiReviewBtn.onclick = async () => {
+    const ch       = challenges[currentChallengeIndex];
+    const userCode = codeEditor.value;
+
+    if (!userCode.trim()) {
+      alert("コードを入力してからAIレビューを依頼してください。");
+      return;
+    }
+
+    aiReviewContent.innerHTML = '<span class="animate-pulse text-purple-500 font-bold">🎓 AIシニアエンジニアがコードを詳細レビュー中です...</span>';
+    aiReviewPanel.classList.remove("hidden");
+    aiCoachPanel.classList.add("hidden");
+    aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    const systemPrompt = `あなたは卓越したJavaScriptシニアフロントエンドエンジニアであり、素晴らしい技術指導者です。
+生徒が書いたJavaScriptコード（ES6+）をレビューし、アルゴリズムの効率性、パフォーマンス、可読性、モダンな書き方（スプレッド構文、アロー関数、配列メソッドの使いこなし等）の観点から徹底評価してください。
+また、もっとも模範的かつクリーンな「模範解答コード例」と、その時間計算量および空間計算量の解説を提供してください。
+解答コードブロックは必ずマークダウン（\`\`\`javascript）で記述してください。`;
+
+    const userPrompt = `【課題タイトル】${ch.title}
+【課題説明】: ${ch.description.replace(/<[^>]+>/g, "")}
+【期待されるアサーションテスト】: ${JSON.stringify(ch.testCases)}
+
+【生徒が現在書いた解答コード】:
+\`\`\`javascript
+${userCode}
+\`\`\`
+
+この情報を元に、以下の3つの構成でMarkdown形式の丁寧なレビューを日本語で行ってください。
+1. **コードの評価・アドバイス**: 良かった点、リファクタリング（洗練）できる箇所、バグやエッジケース（空配列など）への対策。
+2. **もっとも洗練された模範解答コード例**: モダンで美しいJavaScriptコード例。
+3. **計算量と設計のアプローチ解説**: 計算量（O記法）も交えた技術解説。`;
+
+    try {
+      await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
+        aiReviewContent.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
+      });
+    } catch (err) {
+      alert(`AIレビュー取得失敗: ${err.message}`);
+    }
+  };
+
+  aiReviewCloseBtn.onclick = () => {
+    aiReviewPanel.classList.add("hidden");
+  };
+
   aiCoachCloseBtn.onclick = () => {
     aiCoachPanel.classList.add("hidden");
   };
@@ -465,33 +570,21 @@ function setupAiButtons() {
 // 9. CHALLENGE LIST RENDERING
 // ============================================================
 function renderChallengeList() {
-  challengeListContainer.innerHTML = challenges
-    .map((ch, idx) => `
-      <button
-        class="challenge-item-btn text-left w-full px-4 py-3 rounded-lg border text-sm font-semibold transition-all flex justify-between items-center gap-2 ${
-          idx === currentChallengeIndex
-            ? "bg-slate-900 border-slate-900 text-white shadow-sm"
-            : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-        }"
-        data-index="${idx}"
-      >
-        <span class="truncate flex items-center gap-1.5">
-          ${ch.isAiGenerated ? '<span class="text-emerald-400 text-xs">✨</span>' : ""}
-          ${escapeHtml(ch.title)}
-        </span>
-        <span class="text-xs px-2 py-0.5 rounded-full shrink-0 ${
-          idx === currentChallengeIndex ? "bg-slate-800 text-slate-300" : ch.difficultyColor
-        }">${ch.difficulty}</span>
-      </button>
-    `)
+  challengeSelect.innerHTML = challenges
+    .map((ch, idx) => {
+      const prefix = ch.isAiGenerated ? "✨ [AI] " : "";
+      const title = ch.title.replace(/^\[AI\]\s*/, "").replace(/^\d+\.\s*/, "");
+      return `<option value="${idx}">${prefix}${title}</option>`;
+    })
     .join("");
 
-  document.querySelectorAll(".challenge-item-btn").forEach(btn => {
-    btn.onclick = e => {
-      const idx = parseInt(e.currentTarget.getAttribute("data-index"));
-      selectChallenge(idx);
-    };
-  });
+  // プルダウン変更時のイベント
+  challengeSelect.onchange = (e) => {
+    selectChallenge(parseInt(e.target.value, 10));
+  };
+  
+  // 選択状態を同期
+  challengeSelect.value = currentChallengeIndex;
 }
 
 // ============================================================
@@ -504,57 +597,90 @@ function selectChallenge(index) {
 
   renderChallengeList();
 
-  // Strip numbering like "1. " from the displayed title
   const displayTitle = ch.title.replace(/^\d+\.\s*/, "").replace(/^\[AI\]\s*/, "");
   challengeTitle.textContent = displayTitle;
-  challengeDifficulty.innerHTML = `<span class="text-xs font-bold px-2.5 py-1 rounded-full ${ch.difficultyColor}">${ch.difficulty}</span>${ch.isAiGenerated ? '<span class="ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">AI生成</span>' : ""}`;
+  challengeDifficulty.innerHTML = `<span class="text-xs font-bold px-2.5 py-1 rounded-full ${ch.difficultyColor}">${ch.difficulty}</span>`;
 
-  // Render description as HTML (built-in challenges already use HTML tags)
-  challengeDescription.innerHTML = DOMPurify.sanitize(ch.description);
+  // バッジの表示切り替え
+  if (ch.isAiGenerated) {
+    codingTypeBadge.classList.remove("hidden");
+  } else {
+    codingTypeBadge.classList.add("hidden");
+  }
+
+  // ★ここで marked.parse を通すことで、バッククォートの表示バグを直します
+  challengeDescription.innerHTML = DOMPurify.sanitize(marked.parse(ch.description));
 
   const savedCode = localStorage.getItem(`js_challenge_${ch.id}`);
   codeEditor.value = savedCode !== null ? savedCode : ch.template;
 
   resultContainer.classList.add("hidden");
   aiCoachPanel.classList.add("hidden");
+  aiReviewPanel.classList.add("hidden");
+  stdoutContainer.classList.add("hidden");
+  stdoutTerminal.textContent = "";
 
   updateEditorDecorations();
 }
 
 // ============================================================
-// 11. EDITOR DECORATIONS (line numbers + indent guides)
+// 11. EDITOR DECORATIONS (line numbers + Prism.js Syntax Highlight)
 // ============================================================
 function updateEditorDecorations() {
   if (!codeEditor || !lineNumbersContainer || !editorBackdrop) return;
 
-  const text  = codeEditor.value;
+  const text = codeEditor.value;
   const lines = text.split("\n");
 
-  // Line numbers
-  lineNumbersContainer.innerHTML = lines
-    .map((_, i) => `<div class="editor-line">${i + 1}</div>`)
-    .join("");
+  // 行番号の更新
+  const lineCount = lines.length;
+  let lineNumbersHtml = "";
+  for (let i = 1; i <= lineCount; i++) {
+    lineNumbersHtml += `<div class="editor-line">${i}</div>`;
+  }
+  lineNumbersContainer.innerHTML = lineNumbersHtml;
 
-  // Indentation guides
-  let backdropHtml = "";
-  lines.forEach(line => {
-    const clean = line.replace(/\t/g, "    ");
-    const leadMatch = clean.match(/^( +)/);
-    const leadCount = leadMatch ? leadMatch[1].length : 0;
-    const guides    = Math.floor(leadCount / 4);
-    const extra     = leadCount % 4;
+  // Prism.js を使ったハイライト生成 (JavaScript用)
+  let highlighted = escapeHtml(text);
+  try {
+    if (window.Prism && window.Prism.languages && window.Prism.languages.javascript) {
+      highlighted = window.Prism.highlight(text, window.Prism.languages.javascript, "javascript");
+    } else {
+      console.warn("Prism.js が読み込まれていないか、JavaScript定義がありません。");
+    }
+  } catch (err) {
+    console.error("ハイライト処理中にエラーが発生しました:", err);
+  }
 
-    let markup = "";
-    for (let i = 0; i < guides; i++) markup += `<span class="indent-guide">    </span>`;
-    if (extra > 0) markup += " ".repeat(extra);
-    markup += escapeHtml(clean.slice(leadCount));
-
-    backdropHtml += `<div class="editor-line">${markup}</div>`;
+  // 行頭の半角スペース（4つ区切り）を検出し、インデントガイド用のタグに置き換える
+  const highlightedLines = highlighted.split("\n");
+  const processedLines = highlightedLines.map((line) => {
+    const match = line.match(/^( +)/);
+    if (match) {
+      const spacesCount = match[1].length;
+      const indentCount = Math.floor(spacesCount / 4);
+      const remainingSpaces = spacesCount % 4;
+      let indentHtml = "";
+      for (let i = 0; i < indentCount; i++) {
+        indentHtml += '<span class="indent-guide">    </span>';
+      }
+      indentHtml += " ".repeat(remainingSpaces);
+      return indentHtml + line.slice(spacesCount);
+    }
+    return line;
   });
-  editorBackdrop.innerHTML = backdropHtml;
+  highlighted = processedLines.join("\n");
 
-  editorBackdrop.scrollTop       = codeEditor.scrollTop;
-  editorBackdrop.scrollLeft      = codeEditor.scrollLeft;
+  // 末尾が改行の場合に表示がズレないようにダミーの改行を付与
+  if (text.endsWith("\n")) highlighted += "<br/>";
+
+  // 生成したHTMLをバックドロップに流し込む
+  // 【修正】white-space: pre を強制して改行崩れを防ぎ、background-color: transparent で不要な背景帯を消します
+  editorBackdrop.innerHTML = `<code class="language-javascript" style="display: block; white-space: pre !important; background-color: transparent !important; padding: 0 !important; margin: 0 !important; text-shadow: none !important;">${highlighted}</code>`;
+
+  // スクロール同期
+  editorBackdrop.scrollTop = codeEditor.scrollTop;
+  editorBackdrop.scrollLeft = codeEditor.scrollLeft;
   lineNumbersContainer.scrollTop = codeEditor.scrollTop;
 }
 
@@ -660,6 +786,22 @@ function runJavaScriptTests() {
   const ch       = challenges[currentChallengeIndex];
   const userCode = codeEditor.value;
 
+  // console.log の一時的オーバーライド
+  let capturedLogs = [];
+  const originalLog = console.log;
+  console.log = (...args) => {
+    const stringified = args.map(arg => {
+      if (arg === null) return "null";
+      if (arg === undefined) return "undefined";
+      if (typeof arg === "object") {
+        try { return JSON.stringify(arg); } catch (e) { return String(arg); }
+      }
+      return String(arg);
+    }).join(" ");
+    capturedLogs.push(stringified);
+    originalLog(...args); // ブラウザのデベロッパーツールにも通常出力
+  };
+
   let userFunction  = null;
   let compileError  = null;
 
@@ -691,6 +833,17 @@ function runJavaScriptTests() {
         results.push({ inputLabel: tc.inputLabel, expected: tc.expected, actual: `エラー: ${runErr.message}`, pass: false, error: true });
       }
     });
+  }
+
+  // console.log を元の状態に復元
+  console.log = originalLog;
+
+  // 標準出力デバッグログの描画
+  if (capturedLogs.length > 0) {
+    stdoutTerminal.textContent = capturedLogs.join("\n");
+    stdoutContainer.classList.remove("hidden");
+  } else {
+    stdoutContainer.classList.add("hidden");
   }
 
   lastTestResults = results;

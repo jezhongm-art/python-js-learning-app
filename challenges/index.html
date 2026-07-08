@@ -41,55 +41,143 @@
       integrity="sha384-o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K"
       crossorigin="anonymous"
     ></script>
+    <!-- Prism.js for JavaScript Highlight -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
     <!-- Style Sheet -->
     <link rel="stylesheet" href="style.css" />
+    
+    <!-- 追加: エディタ用の強制スタイル (キャレット、発光インデント、行間完全同期) -->
+    <style>
+      /* 1. 改行ズレの修正: 行番号とテキストの行高(line-height)を完全に一致させる */
+      .editor-line,
+      .code-editor-textarea,
+      .editor-backdrop,
+      .editor-backdrop code,
+      .editor-backdrop code * {
+        font-family: "Fira Code", "Courier New", Courier, monospace !important;
+        font-size: 0.875rem !important;
+        line-height: 1.625rem !important;
+        letter-spacing: normal !important;
+        word-spacing: normal !important;
+      }
+      
+     /* 2. キャレットと選択範囲(ドラッグ)の修正 */
+      .code-editor-textarea {
+        color: transparent !important;
+        /* iOS/Safari等でも確実にカーソルを出すための指定 */
+        -webkit-text-fill-color: transparent !important;
+        /* エディタ背景が #020617 (ほぼ黒) のため、明るい色を使用 */
+        caret-color: #38bdf8 !important; /* sky-400: ダーク背景でも確実に見える明るいシアン */
+      }
+      /* ライト/ダーク共に同じシアン (背景は常にダーク固定のため共通) */
+      html.dark .code-editor-textarea {
+        caret-color: #38bdf8 !important;
+      }
+      
+      /* マウスでドラッグ選択した部分の修正: 
+         透明なテキストだとブラウザが背景色を描画しない仕様を回避するため、
+         選択時だけは背景色と「不透明な文字色」を強制的に設定し、背後を塗りつぶします */
+      .code-editor-textarea::selection {
+        background-color: #c7d2fe !important; /* ライトモード: 視認性の高いインディゴ */
+        color: #111827 !important;            /* ダークグレーの文字色 */
+        -webkit-text-fill-color: #111827 !important;
+      }
+      .code-editor-textarea::-moz-selection {
+        background-color: #c7d2fe !important;
+        color: #111827 !important;
+      }
+
+      html.dark .code-editor-textarea::selection {
+        background-color: #3730a3 !important; /* ダークモード: 濃いインディゴ */
+        color: #ffffff !important;            /* 白色の文字色 */
+        -webkit-text-fill-color: #ffffff !important;
+      }
+      html.dark .code-editor-textarea::-moz-selection {
+        background-color: #3730a3 !important;
+        color: #ffffff !important;
+      }
+
+      /* 3. インデントの修正: Python側と全く同じ美しいスカイブルーの発光スタイルに強制 */
+      .indent-guide {
+        position: relative;
+        display: inline-block;
+        vertical-align: top;
+        height: 1.625rem !important;
+        box-sizing: border-box;
+      }
+      .editor-backdrop .indent-guide::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background-color: rgba(56, 189, 248, 0.8) !important;
+        width: 1px !important;
+        box-shadow: 0 0 2px rgba(56, 189, 248, 0.5) !important;
+      }
+      html.dark .editor-backdrop .indent-guide::before {
+        background-color: rgba(56, 189, 248, 0.8) !important;
+        width: 1px !important;
+        box-shadow: 0 0 3px rgba(56, 189, 248, 0.6) !important;
+      }
+    </style>
   </head>
   <body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
 
     <!-- ==================== ヘッダー ==================== -->
+    <!-- ==================== ヘッダー ==================== -->
     <header class="bg-indigo-600 dark:bg-slate-900 text-white shadow-md transition-colors duration-200">
       <div
-        class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4"
+        class="max-w-6xl mx-auto px-4 py-6 flex flex-col lg:flex-row justify-between items-center gap-4"
       >
         <div class="flex items-center gap-3">
           <span class="bg-emerald-500 text-slate-950 font-bold px-2.5 py-1 rounded text-xs tracking-wider uppercase">Extension</span>
-          <h1 class="text-xl font-bold tracking-tight whitespace-nowrap">
+          <h1 class="text-2xl font-bold tracking-tight whitespace-nowrap">
             JavaScript コーディングチャレンジ
           </h1>
         </div>
 
-        <div class="flex items-center gap-2">
-          <!-- APIキー設定トグル -->
-          <button
-            id="api-key-toggle-btn"
-            title="Gemini APIキー設定"
-            class="bg-indigo-700 hover:bg-indigo-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 border border-indigo-500/30 dark:border-slate-700"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            APIキー
-          </button>
+        <div class="flex flex-col items-end gap-2">
+          <div class="flex items-center gap-2">
+            <!-- APIキー設定用トグル -->
+            <button
+              id="api-key-toggle-btn"
+              class="bg-indigo-700 hover:bg-indigo-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 border border-indigo-500/30 dark:border-slate-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m-3.418 4.818l-2.828-2.828M11.622 15.622a3 3 0 11-4.243-4.243 3 3 0 014.243 4.243zM19 19L14 14M14 14l1.5-1.5m-1.5 1.5l-1.5-1.5" />
+              </svg>
+              APIキー設定
+            </button>
 
-          <!-- テーマ切り替えトグル -->
-          <button
-            id="theme-toggle-btn"
-            class="bg-indigo-700 hover:bg-indigo-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-indigo-100 hover:text-white dark:text-slate-300 dark:hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 border border-indigo-500/30 dark:border-slate-700"
-            title="テーマ切り替え"
-          >
-            <svg id="theme-toggle-dark-icon" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-            <svg id="theme-toggle-light-icon" class="h-3.5 w-3.5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.46 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
-            <span id="theme-toggle-text">ダークモード</span>
-          </button>
+            <!-- テーマ切り替えトグル -->
+            <button
+              id="theme-toggle-btn"
+              class="bg-indigo-700 hover:bg-indigo-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-indigo-100 hover:text-white dark:text-slate-300 dark:hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 border border-indigo-500/30 dark:border-slate-700"
+              title="テーマ切り替え"
+            >
+              <svg id="theme-toggle-dark-icon" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+              </svg>
+              <svg id="theme-toggle-light-icon" class="h-3.5 w-3.5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.46 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
+              </svg>
+              <span id="theme-toggle-text">ダークモード</span>
+            </button>
 
-          <!-- Pythonプラットフォームへのリンク -->
-          <a
-            href="../index.html"
-            class="bg-indigo-700 hover:bg-indigo-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 border border-indigo-500/30 dark:border-slate-700 whitespace-nowrap"
-          >
-            ← Python学習に戻る
-          </a>
+            <!-- Pythonプラットフォームへのリンク -->
+            <a
+              href="../index.html"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 border border-emerald-500/30 whitespace-nowrap"
+            >
+              ← Python学習に戻る
+            </a>
+          </div>
         </div>
       </div>
     </header>
@@ -141,165 +229,148 @@
     </div>
 
     <!-- ==================== メインコンテンツ ==================== -->
-    <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <main class="flex-grow max-w-4xl w-full mx-auto px-4 py-8 space-y-6">
 
-      <!-- ====== 左コラム: 問題選択 & 問題説明 & AI生成 ====== -->
-      <section class="lg:col-span-5 flex flex-col gap-6">
-
-        <!-- 問題選択リスト -->
-        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 transition-colors duration-200">
-          <h2 class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">課題リスト</h2>
-          <div id="challenge-list" class="flex flex-col gap-2">
-            <!-- JS動的生成 -->
+      <!-- AIコーディング問題生成コントロール -->
+      <div class="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/20 p-5 rounded-xl border border-emerald-100 dark:border-emerald-900/40 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between transition-colors duration-200">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">✨</span>
+            <h3 class="text-sm font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">AI 課題ジェネレーター</h3>
           </div>
-        </div>
-
-        <!-- AI問題生成パネル -->
-        <div class="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-900 dark:to-slate-850 rounded-xl shadow-sm border border-indigo-100 dark:border-slate-800 p-5 transition-colors duration-200">
-          <div class="flex items-center gap-2 mb-4">
-            <span class="text-xl">✨</span>
-            <h2 class="text-sm font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider">AI問題ジェネレーター</h2>
-          </div>
-          <p class="text-xs text-indigo-600 dark:text-indigo-400 mb-4 leading-relaxed">
-            AIが新しいJavaScript課題を自動生成します。テーマや難易度を指定してください。
+          <p class="text-xs text-emerald-600 dark:text-emerald-400">
+            学びたいテーマとレベルを設定して、高品質な自動採点テスト付き課題を生成！(空欄でおまかせ生成可能)
           </p>
-
-          <div class="flex flex-col gap-3">
-            <div class="flex gap-2">
-              <select
-                id="ai-difficulty-select"
-                class="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="easy">🟢 簡単</option>
-                <option value="medium" selected>🟡 普通</option>
-                <option value="hard">🔴 難しい</option>
-              </select>
-            </div>
-            <input
-              id="ai-topic-input"
-              type="text"
-              placeholder="例: 再帰、配列操作、文字列（空白でランダム）"
-              class="px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <button
-              id="ai-generate-btn"
-              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-              </svg>
-              AI問題を生成する
+        </div>
+        
+        <div class="flex flex-col sm:flex-row w-full md:w-auto gap-2">
+          <!-- 難易度セレクター -->
+          <select id="ai-difficulty-select" class="px-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200">
+            <option value="easy">難易度: 初級</option>
+            <option value="medium" selected>難易度: 中級</option>
+            <option value="hard">難易度: 上級</option>
+          </select>
+          <div class="flex gap-2 flex-grow sm:flex-grow-0">
+            <input id="ai-topic-input" type="text" placeholder="例: 再帰処理、文字列" class="w-full sm:w-48 md:w-56 px-3.5 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100" />
+            <button id="ai-generate-btn" class="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-1.5">
+              生成
             </button>
           </div>
         </div>
+      </div>
 
-        <!-- 問題説明パネル -->
-        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex-1 flex flex-col transition-colors duration-200">
-          <div class="border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
-            <h2 id="challenge-title" class="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              課題を選択してください
-            </h2>
-            <div id="challenge-difficulty" class="mt-2"></div>
-          </div>
-          <div
-            id="challenge-description"
-            class="prose prose-slate dark:prose-invert max-w-none text-slate-600 dark:text-slate-400 flex-1 leading-relaxed"
-          >
-            <p class="text-slate-400 dark:text-slate-500">課題を選択すると、ここに詳しい問題説明が表示されます。</p>
-          </div>
+      <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors duration-200">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            JavaScript 基礎コーディング問題
+            <span id="coding-type-badge" class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400">✨ AI生成問題</span>
+          </h2>
+          <!-- 課題切り替え用プルダウン -->
+          <select id="challenge-select" class="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:max-w-[250px] truncate cursor-pointer"></select>
         </div>
-      </section>
 
-      <!-- ====== 右コラム: エディタ & テスト実行 & AIコーチ ====== -->
-      <section class="lg:col-span-7 flex flex-col gap-6">
-
-        <!-- エディタパネル -->
-        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col transition-colors duration-200">
-          <div class="flex justify-between items-center mb-4">
-            <span class="text-sm font-semibold text-slate-600 dark:text-slate-400">解答コード (JavaScript)</span>
-            <div class="flex gap-2">
-              <button
-                id="format-btn"
-                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors"
-              >
-                コード整形
-              </button>
-              <button
-                id="reset-btn"
-                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors"
-              >
-                初期化
-              </button>
+        <div id="coding-quiz-container" class="space-y-6">
+          <div id="challenge-question-container" class="space-y-2">
+            <div class="flex items-center gap-3">
+              <h3 id="challenge-title" class="text-xl font-bold text-slate-900 dark:text-slate-100">タイトル</h3>
+              <div id="challenge-difficulty"></div>
+            </div>
+            <div id="challenge-description" class="text-slate-600 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-slate-150 dark:border-slate-700 leading-relaxed text-sm sm:text-base prose prose-slate dark:prose-invert max-w-none">
+              <!-- 問題説明 -->
             </div>
           </div>
 
-          <!-- エディタ本体 -->
-          <div class="editor-wrapper h-80 min-h-[200px] max-h-[600px] resize-y mb-4">
-            <div id="line-numbers-container" class="line-numbers-container">
-              <div class="editor-line">1</div>
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <label for="code-editor" class="block text-sm font-medium text-slate-600 dark:text-slate-400">解答コードエディタ (Tabキーでインデント可, Enterで自動インデント)</label>
+              <button id="reset-btn" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 dark:text-rose-400 rounded-lg text-xs font-semibold transition-colors border border-rose-200/50 dark:border-rose-900/40">初期化</button>
             </div>
-            <div class="editor-area-container">
-              <div id="editor-backdrop" class="editor-backdrop"></div>
-              <textarea
-                id="code-editor"
-                class="code-editor-textarea"
-                spellcheck="false"
-                placeholder="// ここにJavaScriptコードを記述してください"
-              ></textarea>
+            
+            <!-- エディタ本体 -->
+            <div class="editor-wrapper has-highlight h-64 min-h-[150px] max-h-[800px] resize-y flex relative">
+              <div id="line-numbers-container" class="line-numbers-container">
+                <div class="editor-line">1</div>
+              </div>
+              <div class="editor-area-container relative flex-1 min-w-0">
+                <div id="editor-backdrop" class="editor-backdrop absolute inset-0 p-4 pointer-events-none whitespace-pre overflow-hidden z-0" aria-hidden="true"></div>
+               <textarea id="code-editor" class="code-editor-textarea absolute inset-0 w-full h-full p-4 whitespace-pre bg-transparent outline-none border-none resize-none z-10 block" placeholder="// ここにJavaScriptコードを記述してください" spellcheck="false"></textarea>
+              </div>
             </div>
-          </div>
 
-          <!-- テスト実行 & AIコーチ ボタン行 -->
-          <div class="flex gap-3">
-            <button
-              id="run-btn"
-              class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-emerald-600/10 transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
-            >
+          <!-- ボタン群 (Python版と完全一致) -->
+          <div class="flex flex-wrap gap-3 justify-start items-center">
+            <button id="run-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
               </svg>
-              テスト実行
+              実行して採点
             </button>
-            <button
-              id="ai-coach-btn"
-              class="flex-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/50 font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+
+            <button id="format-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 px-4 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7" />
               </svg>
-              ✨ AIコーチに相談
+              コードを整える
+            </button>
+
+            <button id="ai-coach-btn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-900/50 px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2">
+              ✨ AIにヒントをもらう
+            </button>
+
+            <button id="ai-review-btn" class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:hover:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900/50 px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2">
+              🎓 AIレビュー＆模範解答
             </button>
           </div>
-        </div>
 
-        <!-- テスト結果パネル -->
-        <div id="result-container" class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 hidden transition-colors duration-200">
-          <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
-            <h3 class="font-bold text-slate-800 dark:text-slate-200">テスト結果</h3>
-            <span id="result-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-              未実行
-            </span>
+          <!-- 標準出力デバッグログ表示エリア -->
+          <div id="stdout-container" class="hidden space-y-2 mt-4">
+            <label class="block text-sm font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              標準出力ログ (console.log出力)
+            </label>
+            <div id="stdout-terminal" class="w-full max-h-40 overflow-y-auto p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs whitespace-pre-wrap leading-relaxed shadow-inner"></div>
           </div>
-          <div id="test-cases-results" class="flex flex-col gap-3"></div>
-        </div>
 
-        <!-- AIコーチ パネル -->
-        <div id="ai-coach-panel" class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-900/30 p-5 hidden transition-colors duration-200">
-          <div class="flex justify-between items-center border-b border-indigo-100 dark:border-indigo-900/30 pb-3 mb-4">
-            <div class="flex items-center gap-2">
-              <span class="text-indigo-600 dark:text-indigo-400 text-lg">✨</span>
-              <h3 class="font-bold text-slate-800 dark:text-slate-200">AIコーチからのアドバイス</h3>
+          <!-- テスト結果パネル -->
+          <div id="result-container" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hidden transition-colors duration-200 mt-4">
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+              <h3 class="font-bold text-slate-800 dark:text-slate-200">テスト結果</h3>
+              <span id="result-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">未実行</span>
             </div>
-            <button id="ai-coach-close-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-              </svg>
-            </button>
+            <div id="test-cases-results" class="flex flex-col gap-3"></div>
           </div>
-          <div id="ai-coach-content" class="prose prose-indigo dark:prose-invert max-w-none text-sm leading-relaxed"></div>
-        </div>
 
-      </section>
+          <!-- AIコーチ パネル -->
+          <div id="ai-coach-panel" class="bg-white dark:bg-slate-900 rounded-xl border border-indigo-200 dark:border-indigo-900/30 p-5 hidden transition-colors duration-200 mt-4">
+            <div class="flex justify-between items-center border-b border-indigo-100 dark:border-indigo-900/30 pb-3 mb-4">
+              <div class="flex items-center gap-2">
+                <span class="text-indigo-600 dark:text-indigo-400 text-lg">✨</span>
+                <h3 class="font-bold text-slate-800 dark:text-slate-200">AI先生のアドバイス</h3>
+              </div>
+              <button id="ai-coach-close-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+              </button>
+            </div>
+            <div id="ai-coach-content" class="prose prose-indigo dark:prose-invert max-w-none text-sm leading-relaxed"></div>
+          </div>
+
+          <!-- AIコードレビュー＆模範解答パネル -->
+          <div id="ai-review-panel" class="hidden bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 p-6 rounded-lg space-y-3 mt-4">
+            <div class="flex justify-between items-center border-b border-purple-100 dark:border-purple-900/30 pb-2 mb-2">
+              <h4 class="text-sm font-bold text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                <span>🎓 AIコードレビュー ＆ 模範解答</span>
+              </h4>
+              <button id="ai-review-close-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+              </button>
+            </div>
+            <div id="ai-review-content" class="prose prose-purple dark:prose-invert max-w-none text-slate-700 dark:text-slate-350 leading-relaxed text-sm"></div>
+          </div>
+
+        </div>
+      </div>
     </main>
 
     <!-- ==================== フッター ==================== -->

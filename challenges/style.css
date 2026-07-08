@@ -56,7 +56,8 @@ body {
   height: 100%;
   padding: 1rem;
   background-color: transparent;
-  color: #f1f5f9; /* text-slate-100 */
+  color: transparent;                /* テキストは透明（シンタックスハイライト層と重ねるため） */
+  caret-color: #38bdf8;              /* ダーク背景に映えるシアン色カーソル */
   border: none;
   outline: none;
   resize: none;
