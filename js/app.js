@@ -1743,9 +1743,11 @@ let codingProblems = shuffleArray(defaultCodingProblems);
 let currentCodingIndex = 0;
 let codingScores = [];
 
-const codingQuestionContainer = document.getElementById(
-  "coding-question-container",
-);
+const codingSelect = document.getElementById("coding-select");
+const codingChallengeTitle = document.getElementById("coding-challenge-title");
+const codingChallengeDifficulty = document.getElementById("coding-challenge-difficulty");
+const codingChallengeDescription = document.getElementById("coding-challenge-description");
+
 const codeEditor = document.getElementById("code-editor");
 const lineNumbersContainer = document.getElementById("line-numbers-container");
 const editorBackdrop = document.getElementById("editor-backdrop");
@@ -1756,7 +1758,6 @@ const testResults = document.getElementById("test-results");
 const codingResultContainer = document.getElementById(
   "coding-result-container",
 );
-const codingProgress = document.getElementById("coding-progress");
 const codingTypeBadge = document.getElementById("coding-type-badge");
 const aiHintBtn = document.getElementById("ai-hint-btn");
 const aiHintPanel = document.getElementById("ai-hint-panel");
@@ -1994,13 +1995,33 @@ formatBtn.onclick = () => {
   formatCode();
 };
 
+function renderCodingSelect() {
+  if (!codingSelect) return;
+  codingSelect.innerHTML = codingProblems
+    .map((ch, idx) => {
+      const prefix = ch.isAiGenerated ? "✨ [AI] " : "";
+      const title = ch.title.replace(/^\[AI\]\s*/, "").replace(/^\d+\.\s*/, "");
+      return `<option value="${idx}">${prefix}${title}</option>`;
+    })
+    .join("");
+
+  codingSelect.onchange = (e) => {
+    currentCodingIndex = parseInt(e.target.value, 10);
+    showCodingProblem();
+  };
+  
+  codingSelect.value = currentCodingIndex;
+}
+
 function showCodingProblem() {
   const problem = codingProblems[currentCodingIndex];
-  codingProgress.textContent = `${currentCodingIndex + 1} / ${codingProblems.length}`;
-  codingQuestionContainer.innerHTML = `
-        <h3 class="text-xl font-bold text-slate-900">${sanitizeHtml(problem.title)}</h3>
-        <p class="text-slate-600 bg-slate-50 p-4 rounded-lg border border-slate-150 leading-relaxed text-sm sm:text-base whitespace-pre-wrap">${sanitizeHtml(problem.description)}</p>
-      `;
+  
+  if (codingSelect) renderCodingSelect();
+
+  const displayTitle = problem.title.replace(/^\d+\.\s*/, "").replace(/^\[AI\]\s*/, "");
+  codingChallengeTitle.textContent = displayTitle;
+  codingChallengeDifficulty.innerHTML = ""; 
+  codingChallengeDescription.innerHTML = DOMPurify.sanitize(marked.parse(problem.description));
 
   if (problem.isAiGenerated) {
     codingTypeBadge.classList.remove("hidden");
