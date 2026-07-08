@@ -2717,7 +2717,9 @@ aiCodingGenerateBtn.onclick = async () => {
 難易度設計規約: ${difficultyPromptConstraint}
  
 Brython自動採点システム対応の問題、解答テンプレート、テストケースの配列（4ケース以上、特にエッジケースや例外ケースの検証も含めること）を指定のJSONスキーマに沿って生成してください。
-例外の発生を期待するテストケース（例えばValueErrorが発生することを確認したい場合）は、expectedの値として、発生すべき例外クラスの名前（例: "ValueError" や "TypeError"）をそのまま指定してください。`;
+例外の発生を期待するテストケース（例えばValueErrorが発生することを確認したい場合）は、expectedの値として、発生すべき例外クラスの名前（例: "ValueError" や "TypeError"）をそのまま指定してください。
+descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してください。
+【必須】templateは必ず関数の定義の後に改行(\\n)を入れた3行以上の複数行コードにしてください。`;
 
   const codingSchema = {
     type: "OBJECT",
@@ -2729,12 +2731,12 @@ Brython自動採点システム対応の問題、解答テンプレート、テ�
       description: {
         type: "STRING",
         description:
-          "課題の詳しい日本語説明。実装すべき関数名（またはクラス名）と、その役割、引数・戻り値の型などを極めて分かりやすく明記すること。",
+          "HTML形式の詳細な問題説明。実装すべき関数名（またはクラス名）と、その役割、引数・戻り値の型などを極めて分かりやすく明記すること。",
       },
       template: {
         type: "STRING",
         description:
-          "ユーザーが最初にエディタに入力するコード構造、または関数/クラス定義（例: 'def filter_list(lst):\n    # ここにコードを書く\n    pass'）",
+          "初期コードテンプレート。必ず改行(\\n)を入れた複数行で指定（例: 'def filter_list(lst):\\n    # ここにコードを記述してください\\n    pass'）",
       },
       setup_code: {
         type: "STRING",
@@ -2775,14 +2777,22 @@ Brython自動採点システム対応の問題、解答テンプレート、テ�
     );
     const parsedProblem = JSON.parse(jsonText);
 
+    // 1. 改行コードの正規化処理
+    let cleanTemplate = parsedProblem.template
+      ? parsedProblem.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n")
+      : "";
+
+    // 2. 万が一AIが1行で生成した場合の自動フォーマット(複数行化)処理の安全装置
+    if (!cleanTemplate.includes("\n")) {
+      cleanTemplate = `${cleanTemplate}\n    # ここにコードを記述してください\n    pass`;
+    }
+
     const newProblem = {
       title: `[AI生成 - ${label}] ${parsedProblem.title}`,
       description: parsedProblem.description
         ? parsedProblem.description.replace(/\\n/g, "\n")
         : "",
-      template: parsedProblem.template
-        ? parsedProblem.template.replace(/\\n/g, "\n")
-        : "",
+      template: cleanTemplate,
       setup_code: parsedProblem.setup_code
         ? parsedProblem.setup_code.replace(/\\n/g, "\n")
         : "",

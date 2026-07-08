@@ -376,13 +376,15 @@ async function generateAiChallenge() {
 指定された難易度とテーマに厳密に合致した、ブラウザ上で動的テスト可能なコーディング問題を1問設計してください。
 必ず指定のJSONスキーマに従ったレスポンスを返してください。`;
 
+  // プロンプトを強化し、テンプレートに必ず改行を含めるよう指示
   const userPrompt = `難易度: ${meta.label}
 テーマ: ${topic}
 難易度設計基準: ${diffConstraint}
 
 以下のJSONスキーマで問題を1問生成してください。
 testCasesは4件以上、エッジケース（空配列、0、負数、空文字列など）を必ず含めること。
-functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してください。`;
+functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してください。
+【必須】templateは必ず関数の開き波括弧の後に改行(\\n)を入れた3行以上の複数行コードにしてください。`;
 
   const schema = {
     type: "OBJECT",
@@ -390,7 +392,7 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
       title:        { type: "STRING", description: "課題のタイトル（日本語）" },
       functionName: { type: "STRING", description: "実装すべき関数名（英語キャメルケース）" },
       description:  { type: "STRING", description: "HTML形式の詳細な問題説明" },
-      template:     { type: "STRING", description: "初期コードテンプレート（function定義のみ、passではなくコメント）" },
+      template:     { type: "STRING", description: "初期コードテンプレート。必ず改行(\\n)を入れた複数行で指定（例: 'function foo() {\\n    // ここにコードを記述してください\\n    \\n}'）" },
       testCases: {
         type: "ARRAY",
         items: {
@@ -411,7 +413,16 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
     const jsonText = await callGemini(systemPrompt, userPrompt, true, schema);
     const parsed   = JSON.parse(jsonText);
 
-    // Build the new challenge object
+    // 1. 改行コードの正規化処理
+    let cleanTemplate = parsed.template ? parsed.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n") : "";
+
+    // 2. 万が一AIが1行で生成した場合の自動フォーマット(複数行化)処理の安全装置
+    if (!cleanTemplate.includes("\n")) {
+      const fnName = parsed.functionName || "solution";
+      cleanTemplate = `function ${fnName}() {\n    // ここにコードを記述してください\n    \n}`;
+    }
+
+    // 新しい課題オブジェクトを構築
     const newId = `ai-${Date.now()}`;
     const newChallenge = {
       id:              newId,
@@ -419,13 +430,13 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
       difficulty:      meta.label,
       difficultyColor: meta.color,
       description:     parsed.description ? parsed.description.replace(/\\n/g, "\n") : "",
-      template:        parsed.template ? parsed.template.replace(/\\n/g, "\n") : "",
+      template:        cleanTemplate,
       functionName:    parsed.functionName,
       testCases:       parsed.testCases,
       isAiGenerated:   true,
     };
 
-    // Prepend to challenges and select it
+    // リストの先頭に追加して選択
     challenges.unshift(newChallenge);
     currentChallengeIndex = 0;
     renderChallengeList();
