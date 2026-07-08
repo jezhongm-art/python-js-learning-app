@@ -57,7 +57,7 @@ body {
   padding: 1rem;
   background-color: transparent;
   color: transparent;                /* テキストは透明（シンタックスハイライト層と重ねるため） */
-  caret-color: #38bdf8;              /* ダーク背景に映えるシアン色カーソル */
+  caret-color: #f8fafc;              /* Python側と統一: ダーク背景に映える白系カーソル */
   border: none;
   outline: none;
   resize: none;

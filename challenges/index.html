@@ -71,12 +71,8 @@
         color: transparent !important;
         /* iOS/Safari等でも確実にカーソルを出すための指定 */
         -webkit-text-fill-color: transparent !important;
-        /* エディタ背景が #020617 (ほぼ黒) のため、明るい色を使用 */
-        caret-color: #38bdf8 !important; /* sky-400: ダーク背景でも確実に見える明るいシアン */
-      }
-      /* ライト/ダーク共に同じシアン (背景は常にダーク固定のため共通) */
-      html.dark .code-editor-textarea {
-        caret-color: #38bdf8 !important;
+        /* エディタ背景は常にダーク (#020617) のため、白系の明るいカーソル色を使用 */
+        caret-color: #f8fafc !important; /* Python側と統一: ほぼ白のカーソル */
       }
       
       /* マウスでドラッグ選択した部分の修正: 
