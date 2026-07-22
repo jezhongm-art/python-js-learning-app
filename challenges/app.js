@@ -438,6 +438,87 @@ const challenges = [
       { input: ["<span>古いテキスト</span>", "新しいテキスト"], expected: "<span>新しいテキスト</span>", inputLabel: 'updateElement("<span>古いテキスト</span>", "新しいテキスト")' },
       { input: ["<h1 class='title'>Hello</h1>", "Bye"], expected: '<h1 class="title">Bye</h1>', inputLabel: 'updateElement("<h1 class=\'title\'>Hello</h1>", "Bye")' }
     ]
+  },
+  {
+    id: "dom-text-change",
+    title: "19. 実戦DOM操作: テキストの書き換え",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `画面上にある \`<h1 id="greeting">Hello World</h1>\` 要素のテキスト（\`textContent\`）を \`"こんにちは、JavaScript!"\` に書き換える関数 \`updateGreeting\` を作成してください。
+
+### ヒント
+- \`document.getElementById("greeting")\` や \`document.querySelector("#greeting")\` を使用します。`,
+    template: `function updateGreeting() {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "updateGreeting",
+    htmlFixture: `<h1 id="greeting">Hello World</h1>`,
+    testCases: [
+      { input: [], domCheck: 'document.querySelector("#greeting").textContent', expected: "こんにちは、JavaScript!", inputLabel: 'updateGreeting() -> #greeting.textContent' }
+    ]
+  },
+  {
+    id: "dom-toggle-class",
+    title: "20. 実戦DOM操作: クラスの追加・判定",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `IDが \`"submit-btn"\` のボタン要素にクラス名 \`"active"\` を追加する関数 \`activateButton\` を作成してください。
+
+### ヒント
+- \`element.classList.add("active")\` を使用します。`,
+    template: `function activateButton() {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "activateButton",
+    htmlFixture: `<button id="submit-btn" class="btn">送信する</button>`,
+    testCases: [
+      { input: [], domCheck: 'document.querySelector("#submit-btn").classList.contains("active")', expected: true, inputLabel: 'activateButton() -> #submit-btn has class "active"' }
+    ]
+  },
+  {
+    id: "dom-append-list",
+    title: "21. 実戦DOM操作: 動的リスト(ul/li)の生成",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `文字列の配列 \`items\` を受け取り、IDが \`"item-list"\` の \`<ul>\` 要素の中に、各要素を \`<li>\` タグとして追加する関数 \`renderList(items)\` を作成してください。
+
+### 引数
+- \`items\` (Array of Strings): リストに追加する文字列の配列`,
+    template: `function renderList(items) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "renderList",
+    htmlFixture: `<ul id="item-list"></ul>`,
+    testCases: [
+      { input: [["りんご", "みかん", "バナナ"]], domCheck: 'Array.from(document.querySelectorAll("#item-list li")).map(li => li.textContent)', expected: ["りんご", "みかん", "バナナ"], inputLabel: 'renderList(["りんご", "みかん", "バナナ"])' },
+      { input: [["A", "B"]], domCheck: 'Array.from(document.querySelectorAll("#item-list li")).map(li => li.textContent)', expected: ["A", "B"], inputLabel: 'renderList(["A", "B"])' }
+    ]
+  },
+  {
+    id: "dom-calc-form",
+    title: "22. 実戦DOM操作: フォーム計算結果の表示",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `ID \`"num1"\` と \`"num2"\` の \`<input>\` 要素に入力された数値を取得・加算し、ID \`"result"\` の要素にその合計値をセットする関数 \`calculateTotal()\` を作成してください。
+
+### ヒント
+- \`input\` の値は文字列（\`value\`）で取得されるため、\`Number(val)\` で数値に変換してください。`,
+    template: `function calculateTotal() {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "calculateTotal",
+    htmlFixture: `<div class="flex gap-2 items-center"><input id="num1" value="100" class="border p-1 rounded w-20"> + <input id="num2" value="200" class="border p-1 rounded w-20"> = <span id="result" class="font-bold"></span></div>`,
+    testCases: [
+      { input: [], domCheck: 'document.querySelector("#result").textContent', expected: "300", inputLabel: 'calculateTotal() -> #result.textContent' }
+    ]
+  },
+  {
+    id: "dom-remove-ad",
+    title: "23. 実戦DOM操作: 特定要素の削除",
+    difficulty: "上級",
+    difficultyColor: "bg-rose-100 text-rose-800",
+    description: `クラス名 \`"ad-banner"\` を持つ要素を画面（DOM）から削除する関数 \`removeAds()\` を作成してください。
+
+### ヒント
+- \`element.remove()\` を使用します。`,
+    template: `function removeAds() {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "removeAds",
+    htmlFixture: `<div id="content"><div class="ad-banner bg-amber-100 p-2 rounded mb-2 text-xs">広告: 限定セール中！</div><p>大切な本文です。</p></div>`,
+    testCases: [
+      { input: [], domCheck: 'document.querySelector(".ad-banner")', expected: null, inputLabel: 'removeAds() -> .ad-banner element removed' }
+    ]
   }
 ];
 
@@ -679,9 +760,9 @@ function hideAiLoader() {
 
 // Topic pools per difficulty
 const topicPools = {
-  easy:   ["FizzBuzz", "文字列カウント", "偶数/奇数判定", "配列の合計", "最小値取得", "文字列の大文字化"],
-  medium: ["フィボナッチ数列", "素数判定", "二重ループ", "配列の重複除去", "文字列の回文チェック", "フラット化"],
-  hard:   ["メモ化再帰", "クロージャカウンタ", "Promiseチェーン", "カスタムイテレータ", "関数合成", "LRUキャッシュ"],
+  easy:   ["DOM要素テキスト変更", "DOM要素のクラス追加・削除", "FizzBuzz", "文字列カウント", "偶数/奇数判定", "配列の合計"],
+  medium: ["DOMリスト(ul/li)動的生成", "DOMフォーム入力の計算・表示", "フィボナッチ数列", "素数判定", "配列の重複除去", "文字列の回文チェック"],
+  hard:   ["DOM要素の動的削除・置換", "メモ化再帰", "クロージャカウンタ", "Promiseチェーン", "カスタムイテレータ"],
 };
 
 const difficultyMeta = {
@@ -700,13 +781,13 @@ async function generateAiChallenge() {
   showAiLoader("✨ AI課題を生成中...", `Gemini AIが「${meta.label}」難易度のJavaScript課題を設計しています。`);
 
   const diffConstraint = {
-    easy:   "初心者向け。基本的な演算子やループ、条件分岐のみ使用。引数・戻り値は単純な Number や String。",
-    medium: "中級者向け。配列メソッド（map, filter, reduce）や文字列操作、基本的なアルゴリズムを組み合わせる問題。",
-    hard:   "上級者向け。クロージャ、再帰、高階関数、非同期処理、またはデータ構造の設計が必要な本格的な問題。",
+    easy:   "初心者向け。基本的な演算子やループ、条件分岐、または単純なDOM要素のテキスト書き換えやクラス操作。",
+    medium: "中級者向け。配列メソッド（map, filter, reduce）、文字列操作、またはDOMリスト生成やフォーム値の取得・動的計算。",
+    hard:   "上級者向け。クロージャ、再帰、非同期処理、またはDOMノードの動的追加・削除・要素置換が必要な本格的な問題。",
   }[difficulty];
 
   const systemPrompt = `あなたはJavaScriptプログラミングの試験問題設計の専門家です。
-指定された難易度とテーマに厳密に合致した、ブラウザ上で動的テスト可能なコーディング問題を1問設計してください。
+指定された難易度とテーマに厳密に合致した、ブラウザ上で動的テスト可能なコーディング問題（関数の戻り値判定問題、またはHTML DOM操作問題）を1問設計してください。
 必ず指定のJSONスキーマに従ったレスポンスを返してください。`;
 
   // プロンプトを強化し、テンプレートに必ず改行を含めるよう指示
@@ -715,7 +796,9 @@ async function generateAiChallenge() {
 難易度設計基準: ${diffConstraint}
 
 以下のJSONスキーマで問題を1問生成してください。
-testCasesは4件以上、エッジケース（空配列、0、負数、空文字列など）を必ず含めること。
+アルゴリズム関数問題、またはHTMLのDOM操作問題（htmlFixtureとdomCheckを含む問題）のいずれかを設計してください。
+DOM操作問題の場合は、必ず htmlFixture（例: '<h1 id="title">Old Title</h1>'）と、各testCaseに domCheck（例: 'document.querySelector("#title").textContent'）を含めてください。
+testCasesは4件以上（またはDOM問題の場合は1〜4件の検証）を含めること。
 functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してください。
 【必須】templateは必ず関数の開き波括弧の後に改行(\\n)を入れた3行以上の複数行コードにしてください。`;
 
@@ -726,14 +809,16 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
       functionName: { type: "STRING", description: "実装すべき関数名（英語キャメルケース）" },
       description:  { type: "STRING", description: "HTML形式の詳細な問題説明" },
       template:     { type: "STRING", description: "初期コードテンプレート。必ず改行(\\n)を入れた複数行で指定（例: 'function foo() {\\n    // ここにコードを記述してください\\n    \\n}'）" },
+      htmlFixture:  { type: "STRING", description: "DOM操作問題の場合、操作対象となる初期HTMLコード。関数問題の場合は空文字列" },
       testCases: {
         type: "ARRAY",
         items: {
           type: "OBJECT",
           properties: {
             input:      { type: "ARRAY", items: {}, description: "関数への引数リスト" },
-            expected:   { description: "期待される戻り値" },
-            inputLabel: { type: "STRING", description: "テストの表示ラベル（例: sum(1, 2)）" },
+            expected:   { description: "期待される戻り値、またはDOM操作後の期待値" },
+            domCheck:   { type: "STRING", description: "DOM操作問題の場合、操作後のDOM状態を取得して検証するJavaScript評価式（例: 'document.querySelector(\"#title\").textContent'）。関数問題の場合は空文字列" },
+            inputLabel: { type: "STRING", description: "テストの表示ラベル（例: updateTitle() -> #title.textContent）" },
           },
           required: ["input", "expected", "inputLabel"],
         },
@@ -786,6 +871,7 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
       difficulty:      meta.label,
       difficultyColor: meta.color,
       description:     parsed.description ? parsed.description.replace(/\\n/g, "\n") : "",
+      htmlFixture:     parsed.htmlFixture ? parsed.htmlFixture.replace(/\\n/g, "\n") : "",
       template:        cleanTemplate,
       functionName:    cleanFnName,
       testCases:       cleanTestCases,
@@ -978,6 +1064,15 @@ function selectChallenge(index) {
   // ★ここで marked.parse を通すことで、バッククォートの表示バグを直します
   challengeDescription.innerHTML = DOMPurify.sanitize(marked.parse(ch.description));
 
+  const domFixtureContainer = document.getElementById("dom-fixture-container");
+  const sandboxArea = document.getElementById("sandbox-area");
+  if (ch.htmlFixture && domFixtureContainer && sandboxArea) {
+    domFixtureContainer.classList.remove("hidden");
+    sandboxArea.innerHTML = ch.htmlFixture;
+  } else if (domFixtureContainer) {
+    domFixtureContainer.classList.add("hidden");
+  }
+
   const savedCode = localStorage.getItem(`js_challenge_${ch.id}`);
   codeEditor.value = savedCode !== null ? savedCode : ch.template;
 
@@ -1124,6 +1219,12 @@ function setupEditorListeners() {
       codeEditor.value = ch.template;
       localStorage.setItem(`js_challenge_${ch.id}`, ch.template);
       updateEditorDecorations();
+
+      const domFixtureContainer = document.getElementById("dom-fixture-container");
+      const sandboxArea = document.getElementById("sandbox-area");
+      if (ch.htmlFixture && sandboxArea) {
+        sandboxArea.innerHTML = ch.htmlFixture;
+      }
     }
   };
 
@@ -1317,7 +1418,14 @@ function runJavaScriptTests() {
     results.push({ inputLabel: "コンパイル・実行エラー", expected: "正常実行", actual: compileError, pass: false, error: true });
   } else {
     const testCases = Array.isArray(ch.testCases) ? ch.testCases : [];
+    const sandboxArea = document.getElementById("sandbox-area");
+
     testCases.forEach((tc, idx) => {
+      // DOM操作問題の場合、各テストケース実行前にHTMLフィクスチャを初期化
+      if (ch.htmlFixture && sandboxArea) {
+        sandboxArea.innerHTML = ch.htmlFixture;
+      }
+
       let args;
       try {
         args = typeof structuredClone === "function" ? structuredClone(tc.input) : JSON.parse(JSON.stringify(tc.input));
@@ -1335,8 +1443,22 @@ function runJavaScriptTests() {
       const inputLabel = tc.inputLabel || `テストケース ${idx + 1}`;
 
       try {
-        const actual = userFunction(...args);
-        const pass   = deepEqual(actual, tc.expected);
+        let actual = userFunction(...args);
+
+        // DOM操作問題で domCheck または selector/property が指定されている場合、DOMから実際の評価値を取得
+        if (tc.domCheck) {
+          try {
+            const domCheckFn = new Function(`return (${tc.domCheck});`);
+            actual = domCheckFn();
+          } catch (domErr) {
+            actual = `DOM検証エラー: ${domErr.message}`;
+          }
+        } else if (tc.selector && tc.property) {
+          const el = sandboxArea ? sandboxArea.querySelector(tc.selector) : document.querySelector(tc.selector);
+          actual = el ? el[tc.property] : null;
+        }
+
+        const pass = deepEqual(actual, tc.expected);
         if (!pass) allPass = false;
         results.push({ inputLabel, expected: tc.expected, actual, pass, error: false });
       } catch (runErr) {
