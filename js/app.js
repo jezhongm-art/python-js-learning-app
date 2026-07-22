@@ -2316,7 +2316,7 @@ function getGeminiUrl() {
   const savedKey = localStorage.getItem("gemini_api_key");
   const activeKey = savedKey ? savedKey.trim() : defaultDefaultKey;
   return {
-    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${activeKey}`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${activeKey}`,
     hasKey: !!activeKey,
   };
 }

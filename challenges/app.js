@@ -34,8 +34,10 @@ if (themeToggleBtn) {
   });
 }
 
-// ============================================================
 
+// ============================================================
+// 1. CHALLENGE DATABASE
+// ============================================================
 // ============================================================
 // 1. CHALLENGE DATABASE
 // ============================================================
@@ -45,15 +47,15 @@ const challenges = [
     title: "1. 2つの数値の足し算",
     difficulty: "初級",
     difficultyColor: "bg-emerald-100 text-emerald-800",
-    description: `<p>2つの引数 <code>a</code> と <code>b</code> を受け取り、その合計を返す関数 <code>sum</code> を作成してください。</p>
-<h3>引数</h3>
-<ul><li><code>a</code> (Number): 1つ目の数値</li><li><code>b</code> (Number): 2つ目の数値</li></ul>
-<h3>戻り値</h3>
-<ul><li>Number: 2つの数値の合計</li></ul>`,
-    template: `function sum(a, b) {
-    // ここにコードを記述してください
-    
-}`,
+    description: `2つの引数 \`a\` と \`b\` を受け取り、その合計を返す関数 \`sum\` を作成してください。
+
+### 引数
+- \`a\` (Number): 1つ目の数値
+- \`b\` (Number): 2つ目の数値
+
+### 戻り値
+- Number: 2つの数値の合計`,
+    template: `function sum(a, b) {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "sum",
     testCases: [
       { input: [1, 2], expected: 3, inputLabel: "sum(1, 2)" },
@@ -67,15 +69,15 @@ const challenges = [
     title: "2. 配列内の最大値を取得",
     difficulty: "中級",
     difficultyColor: "bg-amber-100 text-amber-800",
-    description: `<p>数値の配列 <code>arr</code> を受け取り、その配列内の最大値を返す関数 <code>findMax</code> を作成してください。<br>配列が空の場合は <code>null</code> を返してください。</p>
-<h3>引数</h3>
-<ul><li><code>arr</code> (Array of Numbers): 数値の配列</li></ul>
-<h3>戻り値</h3>
-<ul><li>Number または null: 配列内の最大値、または null</li></ul>`,
-    template: `function findMax(arr) {
-    // ここにコードを記述してください
-    
-}`,
+    description: `数値の配列 \`arr\` を受け取り、その配列内の最大値を返す関数 \`findMax\` を作成してください。
+配列が空の場合は \`null\` を返してください。
+
+### 引数
+- \`arr\` (Array of Numbers): 数値の配列
+
+### 戻り値
+- Number または null: 配列内の最大値、または \`null\``,
+    template: `function findMax(arr) {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "findMax",
     testCases: [
       { input: [[1, 5, 3, 9, 2]], expected: 9, inputLabel: "findMax([1, 5, 3, 9, 2])" },
@@ -89,21 +91,352 @@ const challenges = [
     title: "3. 文字列の反転",
     difficulty: "中級",
     difficultyColor: "bg-amber-100 text-amber-800",
-    description: `<p>与えられた文字列 <code>str</code> を反転させた新しい文字列を返す関数 <code>reverseString</code> を作成してください。</p>
-<h3>引数</h3>
-<ul><li><code>str</code> (String): 元の文字列</li></ul>
-<h3>戻り値</h3>
-<ul><li>String: 反転した文字列</li></ul>`,
-    template: `function reverseString(str) {
-    // ここにコードを記述してください
-    
-}`,
+    description: `与えられた文字列 \`str\` を反転させた新しい文字列を返す関数 \`reverseString\` を作成してください。
+
+### 引数
+- \`str\` (String): 元の文字列
+
+### 戻り値
+- String: 反転した文字列`,
+    template: `function reverseString(str) {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "reverseString",
     testCases: [
       { input: ["hello"], expected: "olleh", inputLabel: 'reverseString("hello")' },
       { input: ["JavaScript"], expected: "tpircSavaJ", inputLabel: 'reverseString("JavaScript")' },
       { input: ["a"], expected: "a", inputLabel: 'reverseString("a")' },
       { input: [""], expected: "", inputLabel: 'reverseString("")' }
+    ]
+  },
+  {
+    id: "is-even",
+    title: "4. 偶数判定",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `整数 \`n\` を受け取り、偶数であれば \`true\`、奇数であれば \`false\` を返す関数 \`isEven\` を作成してください。
+
+### 引数
+- \`n\` (Number): 判定する整数
+
+### 戻り値
+- Boolean: 偶数なら \`true\`、奇数なら \`false\``,
+    template: `function isEven(n) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "isEven",
+    testCases: [
+      { input: [4], expected: true, inputLabel: "isEven(4)" },
+      { input: [7], expected: false, inputLabel: "isEven(7)" },
+      { input: [0], expected: true, inputLabel: "isEven(0)" },
+      { input: [-2], expected: true, inputLabel: "isEven(-2)" }
+    ]
+  },
+  {
+    id: "sum-array",
+    title: "5. 配列の合計",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `数値の配列 \`arr\` を受け取り、そのすべての要素の合計を返す関数 \`sumArray\` を作成してください。
+空の配列が渡された場合は \`0\` を返してください。
+
+### 引数
+- \`arr\` (Array of Numbers): 数値の配列
+
+### 戻り値
+- Number: 要素の合計値`,
+    template: `function sumArray(arr) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "sumArray",
+    testCases: [
+      { input: [[1, 2, 3, 4]], expected: 10, inputLabel: "sumArray([1, 2, 3, 4])" },
+      { input: [[-1, 1]], expected: 0, inputLabel: "sumArray([-1, 1])" },
+      { input: [[]], expected: 0, inputLabel: "sumArray([])" },
+      { input: [[42]], expected: 42, inputLabel: "sumArray([42])" }
+    ]
+  },
+  {
+    id: "count-char",
+    title: "6. 特定文字のカウント",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `文字列 \`str\` と1文字の文字列 \`char\` を受け取り、\`str\` の中に \`char\` が何回出現するかをカウントして返す関数 \`countChar\` を作成してください。
+
+### 引数
+- \`str\` (String): 検索対象の文字列
+- \`char\` (String): カウントする1文字
+
+### 戻り値
+- Number: 出現回数`,
+    template: `function countChar(str, char) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "countChar",
+    testCases: [
+      { input: ["hello world", "l"], expected: 3, inputLabel: 'countChar("hello world", "l")' },
+      { input: ["javascript", "a"], expected: 2, inputLabel: 'countChar("javascript", "a")' },
+      { input: ["abc", "z"], expected: 0, inputLabel: 'countChar("abc", "z")' },
+      { input: ["", "a"], expected: 0, inputLabel: 'countChar("", "a")' }
+    ]
+  },
+  {
+    id: "fizz-buzz",
+    title: "7. FizzBuzz配列の生成",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `整数 \`n\` を受け取り、1から \`n\` までの数値に対する FizzBuzz の結果を配列として返す関数 \`fizzBuzz\` を作成してください。
+
+- 3の倍数のときは \`"Fizz"\`
+- 5の倍数のときは \`"Buzz"\`
+- 3と5の公倍数のときは \`"FizzBuzz"\`
+- それ以外のときはそのままの数値（Number型）
+
+### 引数
+- \`n\` (Number): 最大値となる整数
+
+### 戻り値
+- Array: FizzBuzzの条件に従って変換された要素のリスト`,
+    template: `function fizzBuzz(n) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "fizzBuzz",
+    testCases: [
+      { input: [5], expected: [1, 2, "Fizz", 4, "Buzz"], inputLabel: "fizzBuzz(5)" },
+      { input: [15], expected: [1, 2, "Fizz", 4, "Buzz", "Fizz", 7, 8, "Fizz", "Buzz", 11, "Fizz", 13, 14, "FizzBuzz"], inputLabel: "fizzBuzz(15)" },
+      { input: [1], expected: [1], inputLabel: "fizzBuzz(1)" }
+    ]
+  },
+  {
+    id: "is-palindrome",
+    title: "8. 回文判定",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `文字列 \`str\` を受け取り、それが回文（前から読んでも後ろから読んでも同じ文字列）であれば \`true\`、そうでなければ \`false\` を返す関数 \`isPalindrome\` を作成してください。
+※大文字・小文字は区別し、空白も1文字として扱います。
+
+### 引数
+- \`str\` (String): 判定対象の文字列
+
+### 戻り値
+- Boolean: 回文であれば \`true\`、そうでなければ \`false\``,
+    template: `function isPalindrome(str) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "isPalindrome",
+    testCases: [
+      { input: ["racecar"], expected: true, inputLabel: 'isPalindrome("racecar")' },
+      { input: ["hello"], expected: false, inputLabel: 'isPalindrome("hello")' },
+      { input: ["a"], expected: true, inputLabel: 'isPalindrome("a")' },
+      { input: [""], expected: true, inputLabel: 'isPalindrome("")' }
+    ]
+  },
+  {
+    id: "remove-duplicates",
+    title: "9. 配列の重複除去",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `配列 \`arr\` を受け取り、重複する要素を取り除いた新しい配列を返す関数 \`removeDuplicates\` を作成してください。
+元の要素の出現順序は維持してください。
+
+### 引数
+- \`arr\` (Array): 任意の要素を含む配列
+
+### 戻り値
+- Array: 重複が除去された新しい配列`,
+    template: `function removeDuplicates(arr) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "removeDuplicates",
+    testCases: [
+      { input: [[1, 2, 2, 3, 3, 4]], expected: [1, 2, 3, 4], inputLabel: "removeDuplicates([1, 2, 2, 3, 3, 4])" },
+      { input: [["a", "b", "a", "c"]], expected: ["a", "b", "c"], inputLabel: 'removeDuplicates(["a", "b", "a", "c"])' },
+      { input: [[1, 1, 1]], expected: [1], inputLabel: "removeDuplicates([1, 1, 1])" },
+      { input: [[]], expected: [], inputLabel: "removeDuplicates([])" }
+    ]
+  },
+  {
+    id: "count-words",
+    title: "10. 単語数のカウント",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `半角スペースで区切られた英語の文章 \`str\` を受け取り、含まれる単語の数を返す関数 \`countWords\` を作成してください。
+※連続するスペースや、先頭・末尾のスペースは無視して正しく単語数だけをカウントしてください。
+
+### 引数
+- \`str\` (String): 英語の文章
+
+### 戻り値
+- Number: 含まれる単語の数`,
+    template: `function countWords(str) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "countWords",
+    testCases: [
+      { input: ["hello world"], expected: 2, inputLabel: 'countWords("hello world")' },
+      { input: ["  javascript  is   fun  "], expected: 3, inputLabel: 'countWords("  javascript  is   fun  ")' },
+      { input: ["single"], expected: 1, inputLabel: 'countWords("single")' },
+      { input: [""], expected: 0, inputLabel: 'countWords("")' },
+      { input: ["   "], expected: 0, inputLabel: 'countWords("   ")' }
+    ]
+  },
+  {
+    id: "factorial",
+    title: "11. 階乗の計算",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `非負の整数 \`n\` を受け取り、その階乗（n!）を返す関数 \`factorial\` を作成してください。
+※0の階乗は 1 とします。
+
+### 引数
+- \`n\` (Number): 非負の整数
+
+### 戻り値
+- Number: \`n\` の階乗`,
+    template: `function factorial(n) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "factorial",
+    testCases: [
+      { input: [5], expected: 120, inputLabel: "factorial(5)" },
+      { input: [3], expected: 6, inputLabel: "factorial(3)" },
+      { input: [0], expected: 1, inputLabel: "factorial(0)" },
+      { input: [1], expected: 1, inputLabel: "factorial(1)" }
+    ]
+  },
+  {
+    id: "fibonacci",
+    title: "12. フィボナッチ数列",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `非負の整数 \`n\` を受け取り、フィボナッチ数列の \`n\` 番目の数値を返す関数 \`fibonacci\` を作成してください。
+※0番目は 0、1番目は 1、それ以降は前の2つの数の和とします。
+
+### 引数
+- \`n\` (Number): 取得したい位置のインデックス
+
+### 戻り値
+- Number: フィボナッチ数列の \`n\` 番目の数値`,
+    template: `function fibonacci(n) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "fibonacci",
+    testCases: [
+      { input: [0], expected: 0, inputLabel: "fibonacci(0)" },
+      { input: [1], expected: 1, inputLabel: "fibonacci(1)" },
+      { input: [5], expected: 5, inputLabel: "fibonacci(5)" },
+      { input: [10], expected: 55, inputLabel: "fibonacci(10)" }
+    ]
+  },
+  {
+    id: "is-anagram",
+    title: "13. アナグラム判定",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `2つの文字列 \`str1\` と \`str2\` を受け取り、それらがアナグラム（文字の並び替えで一致する）であれば \`true\`、そうでなければ \`false\` を返す関数 \`isAnagram\` を作成してください。
+
+### 引数
+- \`str1\` (String): 1つ目の文字列
+- \`str2\` (String): 2つ目の文字列
+
+### 戻り値
+- Boolean: アナグラムであれば \`true\`、そうでなければ \`false\``,
+    template: `function isAnagram(str1, str2) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "isAnagram",
+    testCases: [
+      { input: ["listen", "silent"], expected: true, inputLabel: 'isAnagram("listen", "silent")' },
+      { input: ["hello", "world"], expected: false, inputLabel: 'isAnagram("hello", "world")' },
+      { input: ["rat", "car"], expected: false, inputLabel: 'isAnagram("rat", "car")' },
+      { input: ["", ""], expected: true, inputLabel: 'isAnagram("", "")' }
+    ]
+  },
+  {
+    id: "chunk-array",
+    title: "14. 配列のチャンク分割",
+    difficulty: "上級",
+    difficultyColor: "bg-rose-100 text-rose-800",
+    description: `配列 \`arr\` と整数 \`size\` を受け取り、配列を \`size\` ごとの小さな配列（チャンク）に分割した二次元配列を返す関数 \`chunkArray\` を作成してください。
+
+### 引数
+- \`arr\` (Array): 分割する元の配列
+- \`size\` (Number): チャンクの最大サイズ (1以上)
+
+### 戻り値
+- Array: チャンク化された二次元配列`,
+    template: `function chunkArray(arr, size) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "chunkArray",
+    testCases: [
+      { input: [[1, 2, 3, 4, 5], 2], expected: [[1, 2], [3, 4], [5]], inputLabel: "chunkArray([1, 2, 3, 4, 5], 2)" },
+      { input: [[1, 2, 3, 4], 2], expected: [[1, 2], [3, 4]], inputLabel: "chunkArray([1, 2, 3, 4], 2)" },
+      { input: [[1, 2], 3], expected: [[1, 2]], inputLabel: "chunkArray([1, 2], 3)" },
+      { input: [[], 2], expected: [], inputLabel: "chunkArray([], 2)" }
+    ]
+  },
+  {
+    id: "invert-object",
+    title: "15. オブジェクトの反転",
+    difficulty: "上級",
+    difficultyColor: "bg-rose-100 text-rose-800",
+    description: `オブジェクト \`obj\` を受け取り、そのキーと値を反転させた新しいオブジェクトを返す関数 \`invertObject\` を作成してください。
+※値はすべて文字列または数値として一意であると仮定して構いません。
+
+### 引数
+- \`obj\` (Object): 反転対象のオブジェクト
+
+### 戻り値
+- Object: キーと値が反転した新しいオブジェクト`,
+    template: `function invertObject(obj) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "invertObject",
+    testCases: [
+      { input: [{ a: "1", b: "2" }], expected: { "1": "a", "2": "b" }, inputLabel: 'invertObject({ a: "1", b: "2" })' },
+      { input: [{ name: "Alice", age: 25 }], expected: { "Alice": "name", "25": "age" }, inputLabel: 'invertObject({ name: "Alice", age: 25 })' },
+      { input: [{}], expected: {}, inputLabel: "invertObject({})" }
+    ]
+  },
+  {
+    id: "create-button",
+    title: "16. DOMの生成 (ボタン作成)",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `JavaScriptの **DOM API** の練習です。
+ボタンのテキスト \`text\` を受け取り、\`document.createElement\` を使って \`<button>\` 要素を作成してください。
+さらに、そのボタンに \`"primary-btn"\` というクラス名を付与し、最後に作成した要素の **\`outerHTML\`（HTML文字列）** を返す関数 \`createButton\` を作成してください。
+
+### 引数
+- \`text\` (String): ボタンのテキスト内容
+
+### 戻り値
+- String: 生成されたボタン要素のHTML文字列 (\`outerHTML\`)`,
+    template: `function createButton(text) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "createButton",
+    testCases: [
+      { input: ["送信"], expected: '<button class="primary-btn">送信</button>', inputLabel: 'createButton("送信")' },
+      { input: ["Click"], expected: '<button class="primary-btn">Click</button>', inputLabel: 'createButton("Click")' }
+    ]
+  },
+  {
+    id: "create-list",
+    title: "17. 動的リストの構築 (DOM操作)",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `文字列の配列 \`items\` を受け取り、\`document.createElement\` を使って \`<ul>\` 要素を作成してください。
+配列の各要素を \`<li>\` 要素として作成し、\`<ul>\` に \`appendChild\` で追加してください。
+最後に作成した \`<ul>\` 要素の **\`outerHTML\`** を返す関数 \`createList\` を作成してください。
+
+### 引数
+- \`items\` (Array of Strings): リストアイテムの配列
+
+### 戻り値
+- String: 生成されたリスト要素のHTML文字列 (\`outerHTML\`)`,
+    template: `function createList(items) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "createList",
+    testCases: [
+      { input: [["りんご", "みかん"]], expected: "<ul><li>りんご</li><li>みかん</li></ul>", inputLabel: 'createList(["りんご", "みかん"])' },
+      { input: [[]], expected: "<ul></ul>", inputLabel: "createList([])" },
+      { input: [["A", "B", "C"]], expected: "<ul><li>A</li><li>B</li><li>C</li></ul>", inputLabel: 'createList(["A", "B", "C"])' }
+    ]
+  },
+  {
+    id: "update-element",
+    title: "18. DOM要素の内容更新",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `HTML文字列 \`htmlStr\` と新しいテキスト \`newText\` を受け取る関数 \`updateElement\` を作成してください。
+
+関数内で \`document.createElement("div")\` を使って一時的なラッパー要素を作成し、そこに \`innerHTML\` を使って \`htmlStr\` を流し込みます。
+その後、流し込んだ要素（\`firstChild\` などで取得）の \`textContent\` を \`newText\` に書き換え、更新後の要素の **\`outerHTML\`** を返してください。
+
+### 引数
+- \`htmlStr\` (String): 元となる単一のHTML要素の文字列
+- \`newText\` (String): 書き換える新しいテキスト
+
+### 戻り値
+- String: テキストが書き換えられた要素のHTML文字列 (\`outerHTML\`)`,
+    template: `function updateElement(htmlStr, newText) {\n    // ここにコードを記述してください\n    // ヒント: divなどの一時要素を作って innerHTML を使いましょう。\n}`,
+    functionName: "updateElement",
+    testCases: [
+      { input: ["<span>古いテキスト</span>", "新しいテキスト"], expected: "<span>新しいテキスト</span>", inputLabel: 'updateElement("<span>古いテキスト</span>", "新しいテキスト")' },
+      { input: ["<h1 class='title'>Hello</h1>", "Bye"], expected: '<h1 class="title">Bye</h1>', inputLabel: 'updateElement("<h1 class=\'title\'>Hello</h1>", "Bye")' }
     ]
   }
 ];
@@ -220,7 +553,7 @@ function setupApiKeyPanel() {
 function getGeminiConfig() {
   const key = (localStorage.getItem("gemini_api_key") || "").trim();
   return {
-    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${key}`,
     hasKey: !!key,
   };
 }
@@ -423,6 +756,29 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
     }
 
     // 新しい課題オブジェクトを構築
+    const cleanFnName = parsed.functionName ? parsed.functionName.replace(/[^\w$]/g, "") : "solution";
+
+    let cleanTestCases = Array.isArray(parsed.testCases) ? parsed.testCases : [];
+    cleanTestCases = cleanTestCases.map((tc, idx) => {
+      let input = tc.input;
+      if (!Array.isArray(input)) {
+        input = input === undefined || input === null ? [] : [input];
+      }
+      let label = tc.inputLabel;
+      if (!label) {
+        try {
+          label = `${cleanFnName}(${input.map((x) => JSON.stringify(x)).join(", ")})`;
+        } catch (e) {
+          label = `${cleanFnName}(ケース ${idx + 1})`;
+        }
+      }
+      return {
+        input,
+        expected: tc.expected,
+        inputLabel: label,
+      };
+    });
+
     const newId = `ai-${Date.now()}`;
     const newChallenge = {
       id:              newId,
@@ -431,8 +787,8 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
       difficultyColor: meta.color,
       description:     parsed.description ? parsed.description.replace(/\\n/g, "\n") : "",
       template:        cleanTemplate,
-      functionName:    parsed.functionName,
-      testCases:       parsed.testCases,
+      functionName:    cleanFnName,
+      testCases:       cleanTestCases,
       isAiGenerated:   true,
     };
 
@@ -778,18 +1134,106 @@ function setupEditorListeners() {
 // ============================================================
 // 13. TEST EXECUTION ENGINE
 // ============================================================
+function normalizeStringQuote(str) {
+  if (typeof str !== "string") return str;
+  let s = str.trim();
+  while (
+    (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) ||
+    (s.length >= 2 && s.startsWith("'") && s.endsWith("'"))
+  ) {
+    try {
+      const parsed = JSON.parse(s);
+      if (typeof parsed === "string" && parsed !== s) {
+        s = parsed;
+      } else {
+        s = s.slice(1, -1);
+      }
+    } catch (e) {
+      s = s.slice(1, -1);
+    }
+  }
+  return s;
+}
+
+function isErrorExpected(expected) {
+  if (typeof expected !== "string") return false;
+  const s = expected.trim();
+  const errorNames = [
+    "Error",
+    "TypeError",
+    "RangeError",
+    "ReferenceError",
+    "SyntaxError",
+    "URIError",
+    "EvalError",
+  ];
+  if (errorNames.includes(s)) return true;
+  if (
+    s.endsWith("Error") ||
+    s.startsWith("Error:") ||
+    s.startsWith("エラー:")
+  )
+    return true;
+  return false;
+}
+
 function deepEqual(a, b) {
   if (a === b) return true;
-  if (a == null || b == null || typeof a !== typeof b) return false;
+
+  // 数値比較（浮動小数点数の微小誤差の許容）
+  if (typeof a === "number" && typeof b === "number") {
+    return Math.abs(a - b) < 1e-9;
+  }
+
+  // 文字列比較（二重引用符の正規化）
+  if (typeof a === "string" && typeof b === "string") {
+    const cleanA = normalizeStringQuote(a);
+    const cleanB = normalizeStringQuote(b);
+    return cleanA === cleanB;
+  }
+
+  // 型不一致の処理（AI生成のexpectedが文字列化されたJSONやプリミティブの場合）
+  if (typeof a !== typeof b) {
+    if (typeof b === "string") {
+      const cleanB = normalizeStringQuote(b);
+      if (typeof a === "string" && a === cleanB) return true;
+      if (typeof a === "number" && !isNaN(Number(cleanB)) && a === Number(cleanB)) return true;
+      if (typeof a === "boolean" && (cleanB === "true" || cleanB === "false")) return a === (cleanB === "true");
+
+      try {
+        const parsedB = JSON.parse(cleanB);
+        return deepEqual(a, parsedB);
+      } catch (e) {}
+    }
+
+    if (typeof a === "string") {
+      const cleanA = normalizeStringQuote(a);
+      if (typeof b === "string" && cleanA === b) return true;
+      if (typeof b === "number" && !isNaN(Number(cleanA)) && Number(cleanA) === b) return true;
+      if (typeof b === "boolean" && (cleanA === "true" || cleanA === "false")) return (cleanA === "true") === b;
+
+      try {
+        const parsedA = JSON.parse(cleanA);
+        return deepEqual(parsedA, b);
+      } catch (e) {}
+    }
+
+    return false;
+  }
+
+  if (a == null || b == null) return a === b;
+
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
     return a.every((v, i) => deepEqual(v, b[i]));
   }
+
   if (typeof a === "object") {
     const kA = Object.keys(a), kB = Object.keys(b);
     if (kA.length !== kB.length) return false;
-    return kA.every(k => kB.includes(k) && deepEqual(a[k], b[k]));
+    return kA.every((k) => kB.includes(k) && deepEqual(a[k], b[k]));
   }
+
   return false;
 }
 
@@ -817,10 +1261,50 @@ function runJavaScriptTests() {
   let compileError  = null;
 
   try {
-    const compiler = new Function(userCode + `\nreturn ${ch.functionName};`);
-    userFunction   = compiler();
-    if (typeof userFunction !== "function")
-      throw new Error(`関数 '${ch.functionName}' が定義されていません。`);
+    // 1. 指定された functionName で関数の取り出しを試みる
+    if (ch.functionName) {
+      const cleanFnName = ch.functionName.replace(/[^\w$]/g, "");
+      if (cleanFnName) {
+        try {
+          const compiler = new Function(userCode + `\nreturn typeof ${cleanFnName} !== 'undefined' ? ${cleanFnName} : undefined;`);
+          userFunction = compiler();
+        } catch (e) {}
+      }
+    }
+
+    // 2. 見つからない場合、userCode 内で宣言された関数名を抽出して取り出しを試みる
+    if (typeof userFunction !== "function") {
+      const fnMatches = [...userCode.matchAll(/function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g)];
+      const varMatches = [...userCode.matchAll(/(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:function|\([^)]*\)\s*=>|\w+\s*=>)/g)];
+      const candidates = [...fnMatches.map(m => m[1]), ...varMatches.map(m => m[1])];
+
+      for (const fnName of candidates) {
+        try {
+          const compiler = new Function(userCode + `\nreturn ${fnName};`);
+          const fn = compiler();
+          if (typeof fn === "function") {
+            userFunction = fn;
+            break;
+          }
+        } catch (e) {}
+      }
+    }
+
+    // 3. アロー関数や無名関数の直接 return 評価を試みる
+    if (typeof userFunction !== "function") {
+      try {
+        const compiler = new Function(`return (${userCode.trim()});`);
+        const fn = compiler();
+        if (typeof fn === "function") {
+          userFunction = fn;
+        }
+      } catch (e) {}
+    }
+
+    if (typeof userFunction !== "function") {
+      const targetName = ch.functionName ? `'${ch.functionName}'` : "解答関数";
+      throw new Error(`関数 ${targetName} が定義されていないか、正しく取得できませんでした。`);
+    }
   } catch (err) {
     compileError = err.message;
   }
@@ -832,16 +1316,51 @@ function runJavaScriptTests() {
     allPass = false;
     results.push({ inputLabel: "コンパイル・実行エラー", expected: "正常実行", actual: compileError, pass: false, error: true });
   } else {
-    ch.testCases.forEach(tc => {
+    const testCases = Array.isArray(ch.testCases) ? ch.testCases : [];
+    testCases.forEach((tc, idx) => {
+      let args;
       try {
-        const args   = JSON.parse(JSON.stringify(tc.input));
+        args = typeof structuredClone === "function" ? structuredClone(tc.input) : JSON.parse(JSON.stringify(tc.input));
+      } catch (e) {
+        try {
+          args = JSON.parse(JSON.stringify(tc.input));
+        } catch (e2) {
+          args = tc.input;
+        }
+      }
+      if (!Array.isArray(args)) {
+        args = args === undefined || args === null ? [] : [args];
+      }
+
+      const inputLabel = tc.inputLabel || `テストケース ${idx + 1}`;
+
+      try {
         const actual = userFunction(...args);
         const pass   = deepEqual(actual, tc.expected);
         if (!pass) allPass = false;
-        results.push({ inputLabel: tc.inputLabel, expected: tc.expected, actual, pass, error: false });
+        results.push({ inputLabel, expected: tc.expected, actual, pass, error: false });
       } catch (runErr) {
-        allPass = false;
-        results.push({ inputLabel: tc.inputLabel, expected: tc.expected, actual: `エラー: ${runErr.message}`, pass: false, error: true });
+        const errType = runErr.name || "Error";
+        const errMsg = runErr.message || String(runErr);
+        const actualErrStr = `${errType}: ${errMsg}`;
+        const isExpErr = isErrorExpected(tc.expected);
+
+        let pass = false;
+        if (isExpErr) {
+          const expStr = String(tc.expected).trim();
+          if (expStr === errType || expStr === "Error" || actualErrStr.includes(expStr) || errMsg.includes(expStr)) {
+            pass = true;
+          }
+        }
+
+        if (!pass) allPass = false;
+        results.push({
+          inputLabel,
+          expected: tc.expected,
+          actual: `エラー: ${actualErrStr}`,
+          pass,
+          error: !pass
+        });
       }
     });
   }
