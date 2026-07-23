@@ -898,9 +898,23 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
 }
 
 // ============================================================
-// 8. AI CODING COACH（マルチターン会話対応）
+// 8. AI CODING COACH（省略化JSON履歴・高速マルチターン対応）
 // ============================================================
-let jsCoachConversationHistory = [];
+let jsCoachHistoryLogs = [];
+
+function summarizeCoachAdvice(text) {
+  if (!text) return "";
+  let clean = text
+    .replace(/```[\s\S]*?```/g, "[コード例]")
+    .replace(/<[^>]+>/g, "")
+    .replace(/^#+\s+/gm, "")
+    .replace(/[\r\n]+/g, " ")
+    .trim();
+  if (clean.length > 200) {
+    clean = clean.slice(0, 197) + "...";
+  }
+  return clean;
+}
 
 async function requestAiCoach() {
   const ch       = challenges[currentChallengeIndex];
@@ -927,8 +941,7 @@ async function requestAiCoach() {
   aiCoachPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
   const systemPrompt = `あなたはJavaScriptプログラミングを始めたばかりの初心者を優しく指導するプログラミングコーチAIです。
-これは連続する対話セッションです。生徒は前回のアドバイスを受けてコードを修正し、再度ヒントを求めています。
-前回の会話の流れを踏まえ、生徒の進歩を認めつつ、次のステップを指導してください。
+これは連続する指導セッションです。過去の指導履歴（JSON形式）を参照し、生徒の進歩を認めつつ、次のステップを指導してください。
 
 【絶対ルール】
 1. 解答コードをそのまま提示することは絶対に禁止です。
@@ -936,10 +949,12 @@ async function requestAiCoach() {
 3. ヒントはステップ形式で提示し、学習者が自分で気づけるよう誘導してください。
 4. コードの一部のみを示す場合も、完全な解答にならないようにしてください。
 5. 日本語で、親しみやすいトーンで回答してください。
-6. 前回のアドバイスからコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
+6. 過去の指導からコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
 
-  const currentUserMessage = jsCoachConversationHistory.length === 0
-    ? `【課題タイトル】${ch.title}
+  let userPrompt = "";
+
+  if (jsCoachHistoryLogs.length === 0) {
+    userPrompt = `【課題タイトル】${ch.title}
 
 【問題説明】
 ${ch.description.replace(/<[^>]+>/g, "")}
@@ -954,37 +969,43 @@ ${userCode}
 【テスト実行結果】
 ${testResultSummary}
 
-上記の情報をもとに、このユーザーへのアドバイスをMarkdown形式で作成してください。`
-    : `前回のアドバイスを参考にコードを修正しました。改善点と、まだ残っている問題点を教えてください。
+上記の情報をもとに、このユーザーへのアドバイスをMarkdown形式で作成してください。`;
+  } else {
+    const historyJson = JSON.stringify(jsCoachHistoryLogs, null, 2);
+    userPrompt = `【課題タイトル】${ch.title}
+【問題説明】
+${ch.description.replace(/<[^>]+>/g, "")}
 
-【ユーザーのコード（修正後）】
+【これまでの指導履歴（JSON形式・省サイズ）】:
+\`\`\`json
+${historyJson}
+\`\`\`
+
+【ユーザーの最新コード】:
 \`\`\`javascript
 ${userCode}
 \`\`\`
 
-【テスト実行結果】
+【現在のテスト実行結果】:
 ${testResultSummary}
 
-前回の会話を踏まえた上で、進歩を認めつつ次のステップを教えてください。`;
-
-  // マルチターンの contents 配列を構築
-  const contents = [
-    ...jsCoachConversationHistory,
-    { role: "user", parts: [{ text: currentUserMessage }] },
-  ];
+これまでの指導履歴（JSON）と現在の最新コードを比較し、生徒のコードの改善点を具体的に褒めた上で、次に修正すべきポイントやヒントを簡潔にMarkdown形式でアドバイスしてください。`;
+  }
 
   try {
     let aiResponseText = "";
-    await callGeminiStream(systemPrompt, contents, (fullText) => {
+    await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
       aiResponseText = fullText;
       aiCoachContent.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
     });
 
-    // 会話履歴に今回のやり取りを追加
-    jsCoachConversationHistory.push(
-      { role: "user", parts: [{ text: currentUserMessage }] },
-      { role: "model", parts: [{ text: aiResponseText }] }
-    );
+    // 指導履歴に省略化JSONオブジェクトとして記録
+    jsCoachHistoryLogs.push({
+      turn: jsCoachHistoryLogs.length + 1,
+      submittedCode: userCode.length > 250 ? userCode.slice(0, 247) + "..." : userCode,
+      adviceSummary: summarizeCoachAdvice(aiResponseText),
+      testResult: lastTestResults ? `${lastTestResults.filter(r => r.pass).length}/${lastTestResults.length} PASS` : "未実行"
+    });
   } catch (err) {
     alert(`AIコーチ取得失敗: ${err.message}`);
   }
@@ -1117,8 +1138,8 @@ function selectChallenge(index) {
   aiReviewPanel.classList.add("hidden");
   stdoutContainer.classList.add("hidden");
   stdoutTerminal.textContent = "";
-  // 問題切り替え時にコーチ会話履歴をリセット
-  jsCoachConversationHistory = [];
+  // 問題切り替え時にコーチ会話履歴（JSONログ）をリセット
+  jsCoachHistoryLogs = [];
 
   updateEditorDecorations();
 }

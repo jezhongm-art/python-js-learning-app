@@ -2037,8 +2037,8 @@ function showCodingProblem() {
   aiReviewPanel.classList.add("hidden");
   stdoutContainer.classList.add("hidden");
   stdoutTerminal.textContent = "";
-  // 問題切り替え時にヒント会話履歴をリセット
-  pyHintConversationHistory = [];
+  // 問題切り替え時にヒント会話履歴（JSONログ）をリセット
+  pyHintHistoryLogs = [];
 }
 
 // ==========================================
@@ -2825,9 +2825,23 @@ descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してくださ�
 };
 
 // ==========================================
-// AIヒント機能（マルチターン会話対応）
+// AIヒント機能（省略化JSON履歴・高速マルチターン対応）
 // ==========================================
-let pyHintConversationHistory = [];
+let pyHintHistoryLogs = [];
+
+function summarizeAdviceText(text) {
+  if (!text) return "";
+  let clean = text
+    .replace(/```[\s\S]*?```/g, "[コード例]")
+    .replace(/<[^>]+>/g, "")
+    .replace(/^#+\s+/gm, "")
+    .replace(/[\r\n]+/g, " ")
+    .trim();
+  if (clean.length > 200) {
+    clean = clean.slice(0, 197) + "...";
+  }
+  return clean;
+}
 
 aiHintBtn.onclick = async () => {
   const problem = codingProblems[currentCodingIndex];
@@ -2840,18 +2854,19 @@ aiHintBtn.onclick = async () => {
   aiHintPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
   const systemPrompt = `あなたはプログラミングを始めたばかりの超初心者（forやifの使い方もまだよくわかっていない生徒）に、優しく伴走するPythonの家庭教師AIです。
-これは連続する対話セッションです。生徒は前回のアドバイスを受けてコードを修正し、再度ヒントを求めています。
-前回の会話の流れを踏まえ、生徒の進歩を認めつつ、次のステップを指導してください。
+これは連続する指導セッションです。過去の指導履歴（JSON形式）を参照し、生徒の進歩を認めつつ、次のステップを指導してください。
 
 以下の【絶対ルール】を厳守して指導してください。
 1. 直接の解答コード（生徒がコピー＆ペーストしてそのまま動く答え）は絶対に教えてはいけません。
 2. 生徒がこの課題を解くために「何を使えばよいか（for, if などの構文や、len() などの基本的な関数）」を優しく教えてください。
 3. その構文や関数の「一般的な書き方（構文のテンプレート例）」を、今回の問題に依存しない一般的なプレースホルダーを使った形で親切に教えてあげてください。
 4. バグがあれば、何行目で何が起きているかを小学生でもわかるように優しく日本語で解説し、考え方のステップをナビゲートしてください。
-5. 前回のアドバイスからコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
+5. 過去の指導からコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
 
-  const currentUserMessage = pyHintConversationHistory.length === 0
-    ? `【問題タイトル】: ${problem.title}
+  let userPrompt = "";
+
+  if (pyHintHistoryLogs.length === 0) {
+    userPrompt = `【問題タイトル】: ${problem.title}
 【問題文】: ${problem.description}
 【期待するテストケース例】: ${JSON.stringify(problem.test_cases)}
 
@@ -2860,34 +2875,38 @@ aiHintBtn.onclick = async () => {
 ${userCode}
 \`\`\`
 
-この情報を元に、超初心者に向けた丁寧なアドバイスをMarkdown形式の日本語で作成してください。`
-    : `前回のアドバイスを参考にコードを修正しました。改善点と、まだ残っている問題点を教えてください。
+この情報を元に、超初心者に向けた丁寧なアドバイスをMarkdown形式の日本語で作成してください。`;
+  } else {
+    const historyJson = JSON.stringify(pyHintHistoryLogs, null, 2);
+    userPrompt = `【問題タイトル】: ${problem.title}
+【問題文】: ${problem.description}
 
-【生徒が現在記述した解答コード（修正後）】:
+【これまでの指導履歴（JSON形式・省サイズ）】:
+\`\`\`json
+${historyJson}
+\`\`\`
+
+【生徒が現在記述した最新の解答コード】:
 \`\`\`python
 ${userCode}
 \`\`\`
 
-前回の会話を踏まえた上で、進歩を認めつつ次のステップを教えてください。`;
-
-  // マルチターンの contents 配列を構築
-  const contents = [
-    ...pyHintConversationHistory,
-    { role: "user", parts: [{ text: currentUserMessage }] },
-  ];
+これまでの指導履歴（JSON）と現在の最新コードを比較し、生徒のコードの改善点を具体的に褒めた上で、次に修正すべきポイントやヒントを簡潔にMarkdown形式でアドバイスしてください。`;
+  }
 
   try {
     let aiResponseText = "";
-    await callGeminiStream(systemPrompt, contents, (fullText) => {
+    await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
       aiResponseText = fullText;
       aiHintContent.innerHTML = sanitizeHtml(marked.parse(fullText));
     });
 
-    // 会話履歴に今回のやり取りを追加
-    pyHintConversationHistory.push(
-      { role: "user", parts: [{ text: currentUserMessage }] },
-      { role: "model", parts: [{ text: aiResponseText }] }
-    );
+    // 指導履歴に省略化JSONオブジェクトとして記録
+    pyHintHistoryLogs.push({
+      turn: pyHintHistoryLogs.length + 1,
+      submittedCode: userCode.length > 250 ? userCode.slice(0, 247) + "..." : userCode,
+      adviceSummary: summarizeAdviceText(aiResponseText)
+    });
   } catch (err) {
     notify(`${err.message}`, "AIヒント取得失敗", "error");
   }
