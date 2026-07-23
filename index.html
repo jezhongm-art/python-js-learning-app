@@ -80,7 +80,26 @@
       import sys
       import io
 
+      def clean_quote_str(obj):
+          """再帰的に文字列の最外殻にある二重/一重引用符を取り除く"""
+          if isinstance(obj, list):
+              return [clean_quote_str(x) for x in obj]
+          if isinstance(obj, tuple):
+              return tuple(clean_quote_str(x) for x in obj)
+          if isinstance(obj, dict):
+              return {clean_quote_str(k): clean_quote_str(v) for k, v in obj.items()}
+          if isinstance(obj, str):
+              s = obj.strip()
+              while len(s) >= 2 and ((s[0] == "'" and s[-1] == "'") or (s[0] == '"' and s[-1] == '"')):
+                  s = s[1:-1].strip()
+              return s
+          return obj
+
       def deep_equal(a, b):
+          if a == b:
+              return True
+          if isinstance(a, str) and isinstance(b, str):
+              return clean_quote_str(a) == clean_quote_str(b)
           if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
               if len(a) != len(b):
                   return False
@@ -92,7 +111,14 @@
                   if k not in b or not deep_equal(v, b[k]):
                       return False
               return True
-          return a == b
+          # 数値と数値文字列の同値比較 (例: 3 と "3")
+          if isinstance(a, (int, float)) and isinstance(b, str):
+              try: return float(a) == float(clean_quote_str(b))
+              except Exception: pass
+          elif isinstance(b, (int, float)) and isinstance(a, str):
+              try: return float(a) == float(clean_quote_str(a))
+              except Exception: pass
+          return clean_quote_str(a) == clean_quote_str(b)
 
       def is_exception_name(s):
           if not isinstance(s, str):
@@ -109,7 +135,7 @@
               return True
           return False
 
-      # [MODIFIED_START] 4. Brython実行エンジンのフリーズ・無限ループ対策
+      # [MODIFIED_START] 4. Brython実行エンジンのフリーズ・無限ループ対策＆判定強化
       def run_tests(user_code, test_payload_json):
           stdout_backup = sys.stdout
           captured_output = io.StringIO()
@@ -141,63 +167,56 @@
               sys.stdout = stdout_backup
               printed_log = captured_output.getvalue()
 
-              def normalize_quotes(obj):
-                  """AI生成の expected が "'olleh'" のように引用符で二重ラップされるケースを解除する。
-                  リスト・タプル・辞書は再帰的に処理。文字列は ast.literal_eval で剥ぎ取りを繰り返す。"""
-                  if isinstance(obj, list):
-                      return [normalize_quotes(x) for x in obj]
-                  if isinstance(obj, tuple):
-                      return tuple(normalize_quotes(x) for x in obj)
-                  if isinstance(obj, dict):
-                      return {normalize_quotes(k): normalize_quotes(v) for k, v in obj.items()}
-                  if isinstance(obj, str):
-                      s = obj
-                      # 引用符に囲まれている間は ast.literal_eval で剥ぎ取りを繰り返す
-                      while len(s) >= 2 and (
-                          (s[0] == "'" and s[-1] == "'") or
-                          (s[0] == '"' and s[-1] == '"')
-                      ):
-                          try:
-                              parsed = ast.literal_eval(s)
-                              if isinstance(parsed, str) and parsed != s:
-                                  s = parsed  # 1段剥いた
-                              else:
-                                  break  # これ以上剥けない
-                          except Exception:
-                              s = s[1:-1]  # literal_eval失敗時は単純に先頭末尾の引用符1文字ずつ除去
-                      return s
-                  return obj
-
-
               results = []
               for idx, case_ in enumerate(test_cases):
                   expr = case_['input']
                   raw_expected = case_['expected']
+
+                  # 1. まず ast.literal_eval で評価を試みる
+                  expected = raw_expected
                   if isinstance(raw_expected, str):
                       try:
-                          expected = ast.literal_eval(raw_expected)
-                          if isinstance(expected, str): expected = expected.replace('\\\\', '\x00').replace('\\n', '\n').replace('\\t', '\t').replace('\x00', '\\')
-                      except (ValueError, SyntaxError):
-                          s = raw_expected
-                          if len(s) >= 2 and ((s[0] == "'" and s[-1] == "'") or (s[0] == '"' and s[-1] == '"')):
-                              expected = s[1:-1].replace('\\\\', '\x00').replace('\\n', '\n').replace('\\t', '\t').replace('\x00', '\\')
-                          else:
-                              expected = raw_expected
-                  else:
-                      expected = raw_expected
-                  # expected 側だけ引用符の剥ぎ取りを適用（AI生成のexpectedが "'olleh'" のように二重引用符になるケースへの対策）
-                  expected = normalize_quotes(expected)
+                          parsed_exp = ast.literal_eval(raw_expected)
+                          expected = parsed_exp
+                      except Exception:
+                          expected = raw_expected
+
+                  # 2. 引用符の二重ラップや余分なクォートを除去
+                  expected = clean_quote_str(expected)
 
                   try:
                       actual = eval(expr, _local_namespace, _local_namespace)
                       is_pass = deep_equal(actual, expected)
-                      results.append({'index': idx, 'input': expr, 'expected': repr(expected), 'actual': repr(actual), 'pass': is_pass, 'error': None})
+                      
+                      results.append({
+                          'index': idx,
+                          'input': expr,
+                          'expected': repr(expected),
+                          'actual': repr(actual),
+                          'pass': is_pass,
+                          'error': None
+                      })
                   except Exception as e:
                       exc_type_name = e.__class__.__name__
-                      if is_exception_name(expected) and (expected == exc_type_name or expected.startswith(exc_type_name + "(")):
-                          results.append({'index': idx, 'input': expr, 'expected': repr(expected), 'actual': f"{exc_type_name}: {str(e)}", 'pass': True, 'error': None})
+                      raw_exp_str = str(raw_expected)
+                      if is_exception_name(raw_exp_str) and (raw_exp_str == exc_type_name or raw_exp_str.startswith(exc_type_name)):
+                          results.append({
+                              'index': idx,
+                              'input': expr,
+                              'expected': raw_exp_str,
+                              'actual': f"{exc_type_name}: {str(e)}",
+                              'pass': True,
+                              'error': None
+                          })
                       else:
-                          results.append({'index': idx, 'input': expr, 'expected': repr(expected), 'actual': None, 'pass': False, 'error': f"{exc_type_name}: {str(e)}"})
+                          results.append({
+                              'index': idx,
+                              'input': expr,
+                              'expected': repr(expected),
+                              'actual': None,
+                              'pass': False,
+                              'error': f"{exc_type_name}: {str(e)}"
+                          })
 
               sys.settrace(None) # 監視終了
               return json.dumps({'tests': results, 'stdout': printed_log, 'error': None})

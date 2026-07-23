@@ -2794,6 +2794,26 @@ descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してくださ�
       cleanTemplate = `${cleanTemplate}\n    # ここにコードを記述してください\n    pass`;
     }
 
+    const cleanTestCases = Array.isArray(parsedProblem.test_cases)
+      ? parsedProblem.test_cases.map((tc) => {
+          let exp = tc.expected;
+          if (typeof exp === "string") {
+            let s = exp.trim();
+            while (
+              (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) ||
+              (s.length >= 2 && s.startsWith('"') && s.endsWith('"'))
+            ) {
+              s = s.slice(1, -1).trim();
+            }
+            exp = s;
+          }
+          return {
+            input: tc.input,
+            expected: exp,
+          };
+        })
+      : [];
+
     const newProblem = {
       title: `[AI生成 - ${label}] ${parsedProblem.title}`,
       description: parsedProblem.description
@@ -2803,7 +2823,7 @@ descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してくださ�
       setup_code: parsedProblem.setup_code
         ? parsedProblem.setup_code.replace(/\\n/g, "\n")
         : "",
-      test_cases: parsedProblem.test_cases,
+      test_cases: cleanTestCases,
       isAiGenerated: true,
     };
 
