@@ -230,24 +230,24 @@ function updateDashboardUI() {
     learningProgress.aiChallengesCleared;
 
   // 条件に基づく称号・バッジ決定
-  let rank = "🐍 Pythonビギナー";
+  let rank = "Pythonビギナー";
   let badges = [];
 
   if (learningProgress.totalQuizzesAnswered > 0) {
-    rank = "💡 クイズ挑戦者";
+    rank = "クイズ挑戦者";
   }
   if (learningProgress.highestQuizScore >= 5) {
-    badges.push("⚡ 爆速クイズ王");
+    badges.push("爆速クイズ王");
   }
   if (learningProgress.completedProblems.length > 0) {
-    rank = "💻 駆け出しプログラマー";
+    rank = "駆け出しプログラマー";
   }
   if (learningProgress.aiChallengesCleared > 0) {
-    badges.push("🧠 AIチャレンジャー");
+    badges.push("AIチャレンジャー");
   }
   if (learningProgress.completedProblems.length >= 10) {
-    rank = "🏆 アルゴリズムマスター";
-    badges.push("👑 Pythonicエキスパート");
+    rank = "アルゴリズムマスター";
+    badges.push("Pythonicエキスパート");
   }
 
   const badgeString =
@@ -1999,7 +1999,7 @@ function renderCodingSelect() {
   if (!codingSelect) return;
   codingSelect.innerHTML = codingProblems
     .map((ch, idx) => {
-      const prefix = ch.isAiGenerated ? "✨ [AI] " : "";
+      const prefix = ch.isAiGenerated ? "[AI] " : "";
       const title = ch.title.replace(/^\[AI\]\s*/, "").replace(/^\d+\.\s*/, "");
       return `<option value="${idx}">${prefix}${title}</option>`;
     })
@@ -2095,7 +2095,7 @@ function runCodingTests() {
     if (userCode.includes(pattern)) {
       testResults.innerHTML = `
             <div class="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-sm font-medium">
-              ⚠️ セキュリティ制限：安全性に関わる可能性のある表現が検出されたため、検証を中止しました。コードを修正してください。
+              セキュリティ制限：安全性に関わる可能性のある表現が検出されたため、検証を中止しました。コードを修正してください。
             </div>`;
       return;
     }
@@ -2155,7 +2155,7 @@ function executePythonTests(userCode, problem) {
     if (res && res.error) {
       testResults.innerHTML = `
             <div class="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-sm">
-              <strong class="block font-semibold mb-1">💡 構文エラー / 実行時エラーが発生しました:</strong>
+              <strong class="block font-semibold mb-1">構文エラー / 実行時エラーが発生しました:</strong>
               <code class="block whitespace-pre-wrap bg-rose-100 p-3 rounded text-xs mt-1 font-mono">${escapeHtml(res.error)}</code>
             </div>`;
       testResults.scrollIntoView({
@@ -2578,7 +2578,7 @@ aiQuizGenerateBtn.onclick = async () => {
 
   const label = difficultyLabels[difficulty];
   showAiLoader(
-    "✨ AIクイズを作成中...",
+    "AIクイズを作成中...",
     `Gemini 3.5 Flashが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
   );
 
@@ -2697,7 +2697,7 @@ aiCodingGenerateBtn.onclick = async () => {
 
   const label = difficultyLabels[difficulty];
   showAiLoader(
-    "✨ AI課題をビルド中...",
+    "AI課題をビルド中...",
     `Gemini 3.5 Flashが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
   );
 
@@ -2868,7 +2868,7 @@ aiHintBtn.onclick = async () => {
   const userCode = codeEditor.value;
 
   aiHintContent.innerHTML =
-    '<span class="animate-pulse text-indigo-500 font-bold">✨ AIがコードを分析し、タイピングしています...</span>';
+    '<span class="animate-pulse text-indigo-500 font-bold">AIがコードを分析し、タイピングしています...</span>';
   aiHintPanel.classList.remove("hidden");
   aiReviewPanel.classList.add("hidden");
   aiHintPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -2940,7 +2940,7 @@ aiReviewBtn.onclick = async () => {
   const userCode = codeEditor.value;
 
   aiReviewContent.innerHTML =
-    '<span class="animate-pulse text-purple-500 font-bold">🎓 AIがコードを分析し、タイピングしています...</span>';
+    '<span class="animate-pulse text-purple-500 font-bold">AIがコードを分析し、タイピングしています...</span>';
   aiReviewPanel.classList.remove("hidden");
   aiHintPanel.classList.add("hidden");
   aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });

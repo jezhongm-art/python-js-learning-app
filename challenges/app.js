@@ -783,7 +783,7 @@ async function generateAiChallenge() {
   const topic      = rawTopic || pool[Math.floor(Math.random() * pool.length)];
   const meta       = difficultyMeta[difficulty];
 
-  showAiLoader("✨ AI課題を生成中...", `Gemini AIが「${meta.label}」難易度のJavaScript課題を設計しています。`);
+  showAiLoader("AI課題を生成中...", `Gemini AIが「${meta.label}」難易度のJavaScript課題を設計しています。`);
 
   const diffConstraint = {
     easy:   "初心者向け。基本的な演算子やループ、条件分岐、または単純なDOM要素のテキスト書き換えやクラス操作。",
@@ -935,7 +935,7 @@ async function requestAiCoach() {
       ).join("\n");
   }
 
-  aiCoachContent.innerHTML = '<span class="animate-pulse text-indigo-500 font-bold">✨ AIコーチがコードを分析し、タイピングしています...</span>';
+  aiCoachContent.innerHTML = '<span class="animate-pulse text-indigo-500 font-bold">AIコーチがコードを分析し、タイピングしています...</span>';
   aiCoachPanel.classList.remove("hidden");
   aiReviewPanel.classList.add("hidden");
   aiCoachPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1034,7 +1034,7 @@ function setupAiButtons() {
       return;
     }
 
-    aiReviewContent.innerHTML = '<span class="animate-pulse text-purple-500 font-bold">🎓 AIシニアエンジニアがコードを詳細レビュー中です...</span>';
+    aiReviewContent.innerHTML = '<span class="animate-pulse text-purple-500 font-bold">AIシニアエンジニアがコードを詳細レビュー中です...</span>';
     aiReviewPanel.classList.remove("hidden");
     aiCoachPanel.classList.add("hidden");
     aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1082,7 +1082,7 @@ ${userCode}
 function renderChallengeList() {
   challengeSelect.innerHTML = challenges
     .map((ch, idx) => {
-      const prefix = ch.isAiGenerated ? "✨ [AI] " : "";
+      const prefix = ch.isAiGenerated ? "[AI] " : "";
       const title = ch.title.replace(/^\[AI\]\s*/, "").replace(/^\d+\.\s*/, "");
       return `<option value="${idx}">${prefix}${title}</option>`;
     })

@@ -341,7 +341,7 @@
         >
           <div class="space-y-0.5">
             <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200">
-              🔑 Gemini 3.6 Flash APIキーの設定
+              Gemini 3.6 Flash APIキーの設定
             </h4>
             <p class="text-xs text-slate-500 dark:text-slate-400">
               お持ちのGemini
@@ -350,7 +350,7 @@
             <p
               class="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1"
             >
-              ⚠️ セキュリティに関する注意:
+              セキュリティに関する注意:
               APIキーはブラウザ内に平文で保存されます。共有PCでの使用や、ブラウザの開発者ツールからの閲覧が可能です。使用後はキーのクリアを推奨します。
             </p>
           </div>
@@ -440,7 +440,7 @@
               id="dashboard-rank"
               class="text-xs text-indigo-700 dark:text-indigo-400 font-semibold mt-0.5"
             >
-              🐍 Pythonビギナー (進捗をロード中...)
+              Pythonビギナー (進捗をロード中...)
             </p>
           </div>
         </div>
@@ -497,7 +497,6 @@
         >
           <div class="space-y-1">
             <div class="flex items-center gap-2">
-              <span class="text-lg">✨</span>
               <h3
                 class="text-sm font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider"
               >
@@ -548,7 +547,7 @@
               <span
                 id="quiz-type-badge"
                 class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-400"
-                >✨ AI生成問題</span
+                >AI生成問題</span
               >
             </h2>
             <span
@@ -596,7 +595,6 @@
         >
           <div class="space-y-1">
             <div class="flex items-center gap-2">
-              <span class="text-lg">✨</span>
               <h3
                 class="text-sm font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider"
               >
@@ -647,7 +645,7 @@
           <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
             <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               Python 基礎コーディング問題
-              <span id="coding-type-badge" class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400">✨ AI生成問題</span>
+              <span id="coding-type-badge" class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400">AI生成問題</span>
             </h2>
             <select id="coding-select" class="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:max-w-[250px] truncate cursor-pointer"></select>
           </div>
@@ -747,7 +745,10 @@
                   id="ai-hint-btn"
                   class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-900/50 px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2"
                 >
-                  ✨ AIにヒントをもらう
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  AIにヒントをもらう
                 </button>
 
                 <!-- AIコードレビュー＆模範解答ボタン -->
@@ -755,7 +756,10 @@
                   id="ai-review-btn"
                   class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:hover:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900/50 px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2"
                 >
-                  🎓 AIレビュー＆模範解答
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  AIレビュー＆模範解答
                 </button>
               </div>
 
@@ -805,9 +809,9 @@
               class="hidden bg-indigo-50/50 border border-indigo-100 p-6 rounded-lg space-y-3"
             >
               <h4
-                class="text-sm font-bold text-indigo-800 flex items-center gap-1.5 border-b border-indigo-100 pb-2"
+                class="text-sm font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5 border-b border-indigo-100 dark:border-indigo-900/40 pb-2"
               >
-                <span>✨ AI先生のアドバイス</span>
+                <span>AI先生のアドバイス</span>
               </h4>
               <!-- proseクラスによってMarkdownの中の見出しや箇条書き、プログラムブロックが完璧に美化されます -->
               <div
@@ -824,7 +828,7 @@
               <h4
                 class="text-sm font-bold text-purple-800 dark:text-purple-300 flex items-center gap-1.5 border-b border-purple-100 dark:border-purple-900/30 pb-2"
               >
-                <span>🎓 AIコードレビュー ＆ 模範コード</span>
+                <span>AIコードレビュー ＆ 模範コード</span>
               </h4>
               <div
                 id="ai-review-content"
@@ -868,7 +872,7 @@
             id="ai-loading-title"
             class="text-lg font-bold text-slate-800 dark:text-slate-100"
           >
-            ✨ AIが思考中...
+            AIが思考中...
           </h4>
           <p
             id="ai-loading-desc"
@@ -916,7 +920,7 @@
               id="confirm-modal-title"
               class="text-base font-bold text-slate-900 dark:text-slate-100"
             >
-              ⚠️ 無限ループ発生の警告
+              無限ループ発生の警告
             </h4>
             <p
               class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed"
