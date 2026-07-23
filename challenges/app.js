@@ -642,7 +642,7 @@ function getGeminiConfig() {
 /**
  * Call Gemini API as an SSE stream.
  */
-async function callGeminiStream(systemPrompt, userPrompt, onChunk) {
+async function callGeminiStream(systemPrompt, userPromptOrContents, onChunk) {
   const cfg = getGeminiConfig();
   const streamUrl = cfg.url.replace(":generateContent", ":streamGenerateContent") + "&alt=sse";
 
@@ -651,8 +651,13 @@ async function callGeminiStream(systemPrompt, userPrompt, onChunk) {
     throw new Error("Gemini APIキーが設定されていません。画面右上の「APIキー」ボタンから設定してください。");
   }
 
+  // contentsが配列で渡された場合はマルチターン会話として使用
+  const contents = Array.isArray(userPromptOrContents)
+    ? userPromptOrContents
+    : [{ role: "user", parts: [{ text: userPromptOrContents }] }];
+
   const payload = {
-    contents: [{ parts: [{ text: userPrompt }] }],
+    contents,
     systemInstruction: { parts: [{ text: systemPrompt }] },
   };
 
@@ -893,8 +898,10 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
 }
 
 // ============================================================
-// 8. AI CODING COACH
+// 8. AI CODING COACH（マルチターン会話対応）
 // ============================================================
+let jsCoachConversationHistory = [];
+
 async function requestAiCoach() {
   const ch       = challenges[currentChallengeIndex];
   const userCode = codeEditor.value;
@@ -920,15 +927,19 @@ async function requestAiCoach() {
   aiCoachPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
   const systemPrompt = `あなたはJavaScriptプログラミングを始めたばかりの初心者を優しく指導するプログラミングコーチAIです。
+これは連続する対話セッションです。生徒は前回のアドバイスを受けてコードを修正し、再度ヒントを求めています。
+前回の会話の流れを踏まえ、生徒の進歩を認めつつ、次のステップを指導してください。
 
 【絶対ルール】
 1. 解答コードをそのまま提示することは絶対に禁止です。
 2. 「何を使えばよいか」「なぜ現在の実装が問題か」を論理的に説明してください。
 3. ヒントはステップ形式で提示し、学習者が自分で気づけるよう誘導してください。
 4. コードの一部のみを示す場合も、完全な解答にならないようにしてください。
-5. 日本語で、親しみやすいトーンで回答してください。`;
+5. 日本語で、親しみやすいトーンで回答してください。
+6. 前回のアドバイスからコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
 
-  const userPrompt = `【課題タイトル】${ch.title}
+  const currentUserMessage = jsCoachConversationHistory.length === 0
+    ? `【課題タイトル】${ch.title}
 
 【問題説明】
 ${ch.description.replace(/<[^>]+>/g, "")}
@@ -943,12 +954,37 @@ ${userCode}
 【テスト実行結果】
 ${testResultSummary}
 
-上記の情報をもとに、このユーザーへのアドバイスをMarkdown形式で作成してください。`;
+上記の情報をもとに、このユーザーへのアドバイスをMarkdown形式で作成してください。`
+    : `前回のアドバイスを参考にコードを修正しました。改善点と、まだ残っている問題点を教えてください。
+
+【ユーザーのコード（修正後）】
+\`\`\`javascript
+${userCode}
+\`\`\`
+
+【テスト実行結果】
+${testResultSummary}
+
+前回の会話を踏まえた上で、進歩を認めつつ次のステップを教えてください。`;
+
+  // マルチターンの contents 配列を構築
+  const contents = [
+    ...jsCoachConversationHistory,
+    { role: "user", parts: [{ text: currentUserMessage }] },
+  ];
 
   try {
-    await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
+    let aiResponseText = "";
+    await callGeminiStream(systemPrompt, contents, (fullText) => {
+      aiResponseText = fullText;
       aiCoachContent.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
     });
+
+    // 会話履歴に今回のやり取りを追加
+    jsCoachConversationHistory.push(
+      { role: "user", parts: [{ text: currentUserMessage }] },
+      { role: "model", parts: [{ text: aiResponseText }] }
+    );
   } catch (err) {
     alert(`AIコーチ取得失敗: ${err.message}`);
   }
@@ -1081,6 +1117,8 @@ function selectChallenge(index) {
   aiReviewPanel.classList.add("hidden");
   stdoutContainer.classList.add("hidden");
   stdoutTerminal.textContent = "";
+  // 問題切り替え時にコーチ会話履歴をリセット
+  jsCoachConversationHistory = [];
 
   updateEditorDecorations();
 }
