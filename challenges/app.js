@@ -1024,7 +1024,7 @@ function setupAiButtons() {
     finally { aiCoachBtn.disabled = false; }
   };
 
-  // AIレビュー＆模範解答リクエストロジック
+  // AIレビュー＆模範解答リクエストロジック (事前テスト検証対応)
   aiReviewBtn.onclick = async () => {
     const ch       = challenges[currentChallengeIndex];
     const userCode = codeEditor.value;
@@ -1039,13 +1039,18 @@ function setupAiButtons() {
     aiCoachPanel.classList.add("hidden");
     aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
+    const targetFnName = ch.functionName || "solution";
+
     const systemPrompt = `あなたは卓越したJavaScriptシニアフロントエンドエンジニアであり、素晴らしい技術指導者です。
-生徒が書いたJavaScriptコード（ES6+）をレビューし、アルゴリズムの効率性、パフォーマンス、可読性、モダンな書き方（スプレッド構文、アロー関数、配列メソッドの使いこなし等）の観点から徹底評価してください。
-また、もっとも模範的かつクリーンな「模範解答コード例」と、その時間計算量および空間計算量の解説を提供してください。
-解答コードブロックは必ずマークダウン（\`\`\`javascript）で記述してください。`;
+【最優先絶対ルール】
+1. 模範解答コードブロック（\`\`\`javascript ... \`\`\`）内の関数名は、必ず「${targetFnName}」という名称で正確に定義してください。異なる関数名を使うと自動採点でエラーになります。
+2. 提示されたすべてのテストケース（DOM操作やエッジケース処理を含む）に100%合格する、完全かつ動作可能なコード例を提示してください。
+3. コードプレースホルダー（TODOなど）を含めず、そのままコピー＆ペーストして採点実行が通る完成コードにしてください。
+4. 解答コードブロックは必ずマークダウン（\`\`\`javascript）で記述してください。`;
 
     const userPrompt = `【課題タイトル】${ch.title}
 【課題説明】: ${ch.description.replace(/<[^>]+>/g, "")}
+【検証される関数名】: ${targetFnName}
 【期待されるアサーションテスト】: ${JSON.stringify(ch.testCases)}
 
 【生徒が現在書いた解答コード】:
@@ -1054,14 +1059,42 @@ ${userCode}
 \`\`\`
 
 この情報を元に、以下の3つの構成でMarkdown形式の丁寧なレビューを日本語で行ってください。
-1. **コードの評価・アドバイス**: 良かった点、リファクタリング（洗練）できる箇所、バグやエッジケース（空配列など）への対策。
-2. **もっとも洗練された模範解答コード例**: モダンで美しいJavaScriptコード例。
+1. **コードの評価・アドバイス**: 良かった点、リファクタリング（洗練）できる箇所、バグやエッジケースへの対策。
+2. **もっとも洗練された模範解答コード例**: 関数名を「${targetFnName}」とし、全テストケースを通るモダンなJavaScriptコード例。
 3. **計算量と設計のアプローチ解説**: 計算量（O記法）も交えた技術解説。`;
 
     try {
-      await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
-        aiReviewContent.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
+      let fullText = "";
+      await callGeminiStream(systemPrompt, userPrompt, (text) => {
+        fullText = text;
+        aiReviewContent.innerHTML = DOMPurify.sanitize(marked.parse(text));
       });
+
+      // 模範解答コードの自動バックグラウンド検証
+      const codeMatch = fullText.match(/```(?:javascript|js)\s*([\s\S]*?)```/i);
+      if (codeMatch && codeMatch[1]) {
+        const modelCode = codeMatch[1].trim();
+        // 現在のコードエディタのバックアップを取って、模範解答をテスト評価
+        const savedUserCode = codeEditor.value;
+        codeEditor.value = modelCode;
+        runJavaScriptTests();
+        const modelResults = lastTestResults;
+        codeEditor.value = savedUserCode; // 元に戻す
+
+        if (modelResults && modelResults.length > 0) {
+          const passCount = modelResults.filter(r => r.pass).length;
+          const totalCount = modelResults.length;
+          const verifyStatus = document.createElement("div");
+          if (passCount === totalCount) {
+            verifyStatus.className = "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
+            verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。そのままコピー＆ペーストして実行・採点いただけます。`;
+          } else {
+            verifyStatus.className = "mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2";
+            verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> 検証結果: テスト合格 (${passCount}/${totalCount})。一部の前提条件に関する調整が必要な場合があります。`;
+          }
+          aiReviewContent.appendChild(verifyStatus);
+        }
+      }
     } catch (err) {
       alert(`AIレビュー取得失敗: ${err.message}`);
     }

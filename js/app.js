@@ -146,7 +146,7 @@ function updateKeyStatus() {
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          APIキーが保存されています (Gemini 3.5 Flash で稼働中)
+          APIキーが保存されています (Gemini 3.6 Flash で稼働中)
         `;
     apiKeyStatus.classList.remove("hidden");
   } else {
@@ -2425,7 +2425,7 @@ async function callGemini(
         }
         if (response.status === 404) {
           throw new Error(
-            "指定されたGemini 3.5 Flashモデルが見つかりません。APIアクセス権が有効かご確認ください。",
+            "指定されたGemini 3.6 Flashモデルが見つかりません。APIアクセス権が有効かご確認ください。",
           );
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -2579,7 +2579,7 @@ aiQuizGenerateBtn.onclick = async () => {
   const label = difficultyLabels[difficulty];
   showAiLoader(
     "AIクイズを作成中...",
-    `Gemini 3.5 Flashが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
+    `Gemini 3.6 Flashが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
   );
 
   let difficultyPromptConstraint = "";
@@ -2698,7 +2698,7 @@ aiCodingGenerateBtn.onclick = async () => {
   const label = difficultyLabels[difficulty];
   showAiLoader(
     "AI課題をビルド中...",
-    `Gemini 3.5 Flashが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
+    `Gemini 3.6 Flashが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
   );
 
   let difficultyPromptConstraint = "";
@@ -2933,7 +2933,7 @@ ${userCode}
 };
 
 // ==========================================
-// AIレビュー＆模範解答機能 (新規追加)
+// AIレビュー＆模範解答機能 (事前テスト検証対応)
 // ==========================================
 aiReviewBtn.onclick = async () => {
   const problem = codingProblems[currentCodingIndex];
@@ -2945,13 +2945,23 @@ aiReviewBtn.onclick = async () => {
   aiHintPanel.classList.add("hidden");
   aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
+  // テストケースから評価対象の関数名を特定
+  let targetFnName = "solution";
+  if (problem.test_cases && problem.test_cases.length > 0 && problem.test_cases[0].input) {
+    const match = problem.test_cases[0].input.match(/^([a-zA-Z_]\w*)\s*\(/);
+    if (match) targetFnName = match[1];
+  }
+
   const systemPrompt = `あなたはシニアPythonエンジニアであり、素晴らしい技術指導者です。
-生徒が書いたコードをレビューし、リファクタリング、パフォーマンス、Pythonicさ（PEP 8適合など）の観点から徹底評価してください。
-また、もっとも模範的かつクリーンな「模範解答コード例」と、その時間計算量および空間計算量の解説を提供してください。
-解答コードブロックは必ずマークダウン（\`\`\`python）で記述してください。`;
+【最優先絶対ルール】
+1. 模範解答コードブロック（\`\`\`python ... \`\`\`）内の関数名は、必ず「${targetFnName}」という名称で正確に定義してください。異なる関数名を使うと自動採点でエラーになります。
+2. 提示されたすべてのテストケース（型チェックによるTypeErrorのraise指定を含む）に100%合格する、完全かつ動作可能なコード例を提示してください。
+3. コードプレースホルダー（passやTODOなど）を含めず、そのままコピー＆ペーストして採点実行が通る完成コードにしてください。
+4. 解答コードブロックは必ずマークダウン（\`\`\`python）で記述してください。`;
 
   const userPrompt = `【課題タイトル】: ${problem.title}
 【課題説明】: ${problem.description}
+【検証される関数名】: ${targetFnName}
 【期待されるアサーションテスト】: ${JSON.stringify(problem.test_cases)}
 
 【生徒が現在書いた解答コード】:
@@ -2961,13 +2971,44 @@ ${userCode}
 
 この情報を元に、以下の3つの構成でMarkdown形式の丁寧なレビューを行ってください。
 1. **生徒のコードの評価・アドバイス**: 良かった点、リファクタリングできる点、バグがあればその指摘。
-2. **もっとも洗練された模範解答コード例**: PEP 8に沿った美しいコード例。
+2. **もっとも洗練された模範解答コード例**: 関数名を「${targetFnName}」とし、全テストケースを通るPEP 8適合コード。
 3. **計算量と設計のアプローチ解説**: なぜこの模範コードが優れているのか、計算量（O記法）も交えた技術解説。`;
 
   try {
-    await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
-      aiReviewContent.innerHTML = sanitizeHtml(marked.parse(fullText));
+    let fullText = "";
+    await callGeminiStream(systemPrompt, userPrompt, (text) => {
+      fullText = text;
+      aiReviewContent.innerHTML = sanitizeHtml(marked.parse(text));
     });
+
+    // 模範解答コードの自動バックグラウンド検証
+    const codeMatch = fullText.match(/```python\s*([\s\S]*?)```/);
+    if (codeMatch && codeMatch[1]) {
+      const modelCode = codeMatch[1].trim();
+      if (window.run_python_tests) {
+        const payload = JSON.stringify({
+          setup_code: problem.setup_code || "",
+          test_cases: problem.test_cases || [],
+        });
+        const testResRaw = window.run_python_tests(modelCode, payload);
+        const testRes = JSON.parse(testResRaw);
+        if (testRes && testRes.tests) {
+          const passCount = testRes.tests.filter((t) => t.pass).length;
+          const totalCount = testRes.tests.length;
+          const verifyStatus = document.createElement("div");
+          if (passCount === totalCount) {
+            verifyStatus.className =
+              "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
+            verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。そのままコピー＆ペーストして実行・採点いただけます。`;
+          } else {
+            verifyStatus.className =
+              "mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2";
+            verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> 検証結果: テスト合格 (${passCount}/${totalCount})。一部の前提条件に関する調整が必要な場合があります。`;
+          }
+          aiReviewContent.appendChild(verifyStatus);
+        }
+      }
+    }
   } catch (err) {
     notify(`${err.message}`, "AIレビュー取得失敗", "error");
   }
