@@ -516,27 +516,31 @@ class GitAutoCommitGUI:
             self.log(f"[{self.target_dir}] の変更をチェック中...")
 
             _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
-            if not status_out.strip():
-                self.log("変更されたファイルがないため、処理をスキップしました。", "INFO")
-                self.root.after(0, self._finish_push_thread)
-                return
+            has_changes = bool(status_out.strip())
 
-            # 1. git add .
-            self.log("git add . を実行中...", "RUN")
-            ok, _, err = run_git_command(["add", "."], cwd=self.target_dir)
-            if not ok:
-                self.log(f"git add 失敗: {err}", "ERROR")
-                self.root.after(0, self._finish_push_thread)
-                return
+            # 1. git add . (変更がある場合のみ)
+            if has_changes:
+                self.log("git add . を実行中...", "RUN")
+                ok, _, err = run_git_command(["add", "."], cwd=self.target_dir)
+                if not ok:
+                    self.log(f"git add 失敗: {err}", "ERROR")
+                    self.root.after(0, self._finish_push_thread)
+                    return
+            else:
+                self.log("変更ファイルなし。空コミット (--allow-empty) で記録します。", "INFO")
 
-            # 2. git commit
+            # 2. git commit (変更なしでも --allow-empty で記録可能)
             msg = (
                 custom_message
                 if custom_message
                 else f"Auto commit: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             )
+            commit_args = ["commit", "-m", msg]
+            if not has_changes:
+                commit_args.append("--allow-empty")
+
             self.log(f"git commit -m '{msg}' を実行中...", "RUN")
-            ok, out, err = run_git_command(["commit", "-m", msg], cwd=self.target_dir)
+            ok, out, err = run_git_command(commit_args, cwd=self.target_dir)
             if not ok:
                 self.log(f"git commit 失敗: {err}", "ERROR")
                 self.root.after(0, self._finish_push_thread)
@@ -556,6 +560,17 @@ class GitAutoCommitGUI:
                 ok, out, err = run_git_command(
                     ["push", "-u", "origin", self.current_branch], cwd=self.target_dir
                 )
+
+            # Push拒否時: リモートに既存履歴がある場合の自動統合
+            if not ok and "fetch first" in err:
+                self.log("リモートに既存の履歴があります。自動統合を試みます (pull --allow-unrelated-histories)...", "RUN")
+                ok_pull, _, err_pull = run_git_command(
+                    ["pull", "origin", self.current_branch, "--allow-unrelated-histories", "--no-edit"], cwd=self.target_dir
+                )
+                if ok_pull:
+                    ok, out, err = run_git_command(
+                        ["push", "origin", self.current_branch], cwd=self.target_dir
+                    )
 
             if ok:
                 self.log("🎉 GitHubへの Push が正常に完了しました！", "SUCCESS")
