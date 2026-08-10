@@ -2,7 +2,7 @@
 """
 Auto Git Commit & Push GUI Tool
 TkinterによるGitコミット・プッシュ自動化デスクトップアプリ
-(高DPI・ノートPC拡大率くっきり高画質対応版)
+(高DPI対応 ＆ 任意フォルダ・リポジトリ切替対応版)
 """
 
 import datetime
@@ -12,8 +12,7 @@ import sys
 import threading
 import time
 import tkinter as tk
-from tkinter import font as tkfont
-from tkinter import ttk
+from tkinter import filedialog, ttk
 
 # ==========================================
 # Windows 高DPI (スケーリング・拡大率) 対応
@@ -21,12 +20,10 @@ from tkinter import ttk
 if sys.platform == "win32":
     try:
         import ctypes
-        # Process Per Monitor DPI Aware (Windows 8.1 / 10 / 11)
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
     except Exception:
         try:
             import ctypes
-            # DPI Aware fallback (Windows Vista / 7 / 8)
             ctypes.windll.user32.SetProcessDPIAware()
         except Exception:
             pass
@@ -41,11 +38,12 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 
 
 def run_git_command(args, cwd=None):
-    """Gitコマンドを実行し結果を返す"""
+    """Gitコマンドを指定したディレクトリ(cwd)で実行し結果を返す"""
+    target_cwd = cwd or os.getcwd()
     try:
         result = subprocess.run(
             ["git"] + args,
-            cwd=cwd or os.getcwd(),
+            cwd=target_cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -58,12 +56,15 @@ def run_git_command(args, cwd=None):
 
 
 class GitAutoCommitGUI:
-    def __init__(self, root):
+    def __init__(self, root, initial_dir=None):
         self.root = root
         self.root.title("Git 自動コミット & Push ツール")
 
+        # 対象のGitリポジトリフォルダ
+        self.target_dir = os.path.abspath(initial_dir or os.getcwd())
+
         # 視認性向上のための高解像度初期サイズ
-        self.root.geometry("780x760")
+        self.root.geometry("800x780")
         self.root.minsize(680, 600)
 
         # カラーテーマ設定 (ハイコントラスト Slate & Indigo)
@@ -104,7 +105,6 @@ class GitAutoCommitGUI:
         self.style = ttk.Style()
         self.style.theme_use("clam")
 
-        # ttk全体のデフォルト背景・文字
         self.style.configure(".", background=self.bg_color, foreground=self.text_color)
         self.style.configure("TFrame", background=self.bg_color)
         self.style.configure("Card.TFrame", background=self.card_bg, relief="flat")
@@ -114,7 +114,6 @@ class GitAutoCommitGUI:
         self.style.configure("Muted.TLabel", background=self.card_bg, foreground=self.text_muted, font=self.font_small)
         self.style.configure("Title.TLabel", background=self.card_bg, foreground=self.text_color, font=self.font_title)
 
-        # Combobox視認性調整
         self.style.configure("TCombobox", 
                              fieldbackground="#0f172a", 
                              background=self.card_bg, 
@@ -130,7 +129,7 @@ class GitAutoCommitGUI:
         main_container.pack(fill=tk.BOTH, expand=True)
 
         # ==========================================
-        # 1. ヘッダーカード (リポジトリ情報)
+        # 1. ヘッダーカード (リポジトリ選択・切り替え)
         # ==========================================
         header_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
         header_card.pack(fill=tk.X, pady=(0, 12))
@@ -156,13 +155,32 @@ class GitAutoCommitGUI:
         )
         self.branch_badge.pack(side=tk.RIGHT)
 
-        repo_path = os.getcwd()
-        repo_lbl = ttk.Label(
-            header_card,
-            text=f"リポジトリ: {repo_path}",
+        # フォルダ選択エリア
+        repo_frame = ttk.Frame(header_card, style="Card.TFrame")
+        repo_frame.pack(fill=tk.X, pady=(8, 0))
+
+        self.repo_lbl = ttk.Label(
+            repo_frame,
+            text=f"対象フォルダ: {self.target_dir}",
             style="Muted.TLabel",
         )
-        repo_lbl.pack(anchor=tk.W, pady=(6, 0))
+        self.repo_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        self.btn_select_dir = tk.Button(
+            repo_frame,
+            text="フォルダ選択...",
+            bg="#334155",
+            fg="#ffffff",
+            activebackground="#475569",
+            activeforeground="#ffffff",
+            font=self.font_small,
+            bd=0,
+            padx=10,
+            pady=2,
+            cursor="hand2",
+            command=self.select_directory,
+        )
+        self.btn_select_dir.pack(side=tk.RIGHT)
 
         # ==========================================
         # 2. 変更ファイルステータス
@@ -193,7 +211,6 @@ class GitAutoCommitGUI:
         )
         self.btn_refresh.pack(side=tk.RIGHT)
 
-        # ファイルリスト表示テキストボックス（文字を大きく見やすく）
         self.file_list_text = tk.Text(
             status_card,
             height=4,
@@ -269,7 +286,6 @@ class GitAutoCommitGUI:
             watch_header, text="自動同期 (定期監視)", style="Title.TLabel"
         ).pack(side=tk.LEFT)
 
-        # 間隔選択プルダウン
         ttk.Label(watch_header, text="実行間隔:", style="Card.TLabel").pack(
             side=tk.LEFT, padx=(20, 6)
         )
@@ -346,6 +362,18 @@ class GitAutoCommitGUI:
         )
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
+    def select_directory(self):
+        """任意のGitリポジトリ/プロジェクトフォルダを選択"""
+        chosen = filedialog.askdirectory(
+            title="コミット対象のGitリポジトリフォルダを選択",
+            initialdir=self.target_dir,
+        )
+        if chosen:
+            self.target_dir = os.path.abspath(chosen)
+            self.repo_lbl.config(text=f"対象フォルダ: {self.target_dir}")
+            self.log(f"操作対象フォルダを変更しました: {self.target_dir}", "INFO")
+            self.refresh_status()
+
     def log(self, message, level="INFO"):
         """ログ領域への出力メッセージ追加"""
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
@@ -359,14 +387,24 @@ class GitAutoCommitGUI:
         self.log_text.delete("1.0", tk.END)
 
     def refresh_status(self):
-        """現在のブランチと未コミット変更ファイルの取得"""
+        """選択中ディレクトリのブランチ名と未コミット変更ファイルの取得"""
+        # Gitリポジトリかチェック
+        is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
+        if not is_git:
+            self.branch_badge.config(text="git未初期化", bg="#991b1b", fg="#fecaca")
+            self.file_list_text.config(state=tk.NORMAL)
+            self.file_list_text.delete("1.0", tk.END)
+            self.file_list_text.insert(tk.END, "⚠️ 選択されたフォルダはGitリポジトリではありません。(git initが必要)")
+            self.file_list_text.config(state=tk.DISABLED)
+            return
+
         # ブランチ名取得
-        _, branch, _ = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
+        _, branch, _ = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], cwd=self.target_dir)
         self.current_branch = branch or "main"
-        self.branch_badge.config(text=f"branch: {self.current_branch}")
+        self.branch_badge.config(text=f"branch: {self.current_branch}", bg="#312e81", fg="#e0e7ff")
 
         # 未コミットファイルのチェック
-        _, status_out, _ = run_git_command(["status", "--porcelain"])
+        _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
         self.file_list_text.config(state=tk.NORMAL)
         self.file_list_text.delete("1.0", tk.END)
 
@@ -383,7 +421,6 @@ class GitAutoCommitGUI:
         """「今すぐコミット & Push 実行」ボタンクリック時の処理"""
         msg = self.entry_msg.get().strip()
 
-        # スレッドで非同期実行
         self.btn_push.config(state=tk.DISABLED, bg="#475569")
         threading.Thread(
             target=self._run_commit_push_thread, args=(msg,), daemon=True
@@ -391,10 +428,10 @@ class GitAutoCommitGUI:
 
     def _run_commit_push_thread(self, custom_message):
         try:
-            self.log("作業ディレクトリの変更をチェック中...")
+            self.log(f"[{self.target_dir}] の変更をチェック中...")
 
             # 変更があるか確認
-            _, status_out, _ = run_git_command(["status", "--porcelain"])
+            _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
             if not status_out.strip():
                 self.log("変更されたファイルがないため、処理をスキップしました。", "INFO")
                 self.root.after(0, self._finish_push_thread)
@@ -402,7 +439,7 @@ class GitAutoCommitGUI:
 
             # 1. git add .
             self.log("git add . を実行中...", "RUN")
-            ok, _, err = run_git_command(["add", "."])
+            ok, _, err = run_git_command(["add", "."], cwd=self.target_dir)
             if not ok:
                 self.log(f"git add 失敗: {err}", "ERROR")
                 self.root.after(0, self._finish_push_thread)
@@ -415,7 +452,7 @@ class GitAutoCommitGUI:
                 else f"Auto commit: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             )
             self.log(f"git commit -m '{msg}' を実行中...", "RUN")
-            ok, out, err = run_git_command(["commit", "-m", msg])
+            ok, out, err = run_git_command(["commit", "-m", msg], cwd=self.target_dir)
             if not ok:
                 self.log(f"git commit 失敗: {err}", "ERROR")
                 self.root.after(0, self._finish_push_thread)
@@ -429,19 +466,18 @@ class GitAutoCommitGUI:
                 f"git push origin {self.current_branch} を実行中...", "RUN"
             )
             ok, out, err = run_git_command(
-                ["push", "origin", self.current_branch]
+                ["push", "origin", self.current_branch], cwd=self.target_dir
             )
             if not ok:
-                # 初回対策 -u
                 ok, out, err = run_git_command(
-                    ["push", "-u", "origin", self.current_branch]
+                    ["push", "-u", "origin", self.current_branch], cwd=self.target_dir
                 )
 
             if ok:
                 self.log("🎉 GitHubへの Push が正常に完了しました！", "SUCCESS")
                 self.root.after(
                     0, lambda: self.entry_msg.delete(0, tk.END)
-                )  # 入力欄をクリア
+                )
             else:
                 self.log(f"Push失敗: {err}", "ERROR")
 
@@ -455,7 +491,6 @@ class GitAutoCommitGUI:
     def toggle_watch_mode(self):
         """自動同期のON/OFF切り替え"""
         if self.is_watching:
-            # 停止
             self.is_watching = False
             self.btn_watch_toggle.config(
                 text="自動同期を開始", bg=self.success_color
@@ -463,13 +498,11 @@ class GitAutoCommitGUI:
             self.watch_status_lbl.config(text="ステータス: 停止中")
             self.log("自動同期（監視モード）を停止しました。", "INFO")
         else:
-            # 開始
             self.is_watching = True
             self.btn_watch_toggle.config(
                 text="自動同期を停止", bg=self.error_color
             )
 
-            # 間隔の計算
             interval_str = self.combo_interval.get()
             minutes = int(interval_str.replace("分", ""))
             interval_sec = minutes * 60
@@ -478,20 +511,17 @@ class GitAutoCommitGUI:
                 text=f"ステータス: 稼働中 ({interval_str}間隔)"
             )
             self.log(
-                f"自動同期（監視モード）を開始しました (間隔: {interval_str})",
+                f"自動同期（監視モード）を開始しました (対象: {self.target_dir}, 間隔: {interval_str})",
                 "INFO",
             )
 
-            # スレッド開始
             threading.Thread(
                 target=self._watch_loop, args=(interval_sec,), daemon=True
             ).start()
 
     def _watch_loop(self, interval_sec):
         while self.is_watching:
-            # 定期実行
             self._run_commit_push_thread("")
-            # カウントダウンしながら待機
             for _ in range(interval_sec):
                 if not self.is_watching:
                     break
@@ -499,8 +529,9 @@ class GitAutoCommitGUI:
 
 
 def main():
+    initial_dir = sys.argv[1] if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]) else None
     root = tk.Tk()
-    app = GitAutoCommitGUI(root)
+    app = GitAutoCommitGUI(root, initial_dir=initial_dir)
     root.mainloop()
 
 
