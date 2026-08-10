@@ -2,7 +2,7 @@
 """
 Auto Git Commit & Push GUI Tool
 TkinterによるGitコミット・プッシュ自動化デスクトップアプリ
-(高DPI対応 ＆ 任意フォルダ・リポジトリ切替対応版)
+(高DPI対応 ＆ 任意フォルダ・リポジトリ・リモートURL変更対応版)
 """
 
 import datetime
@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 import tkinter as tk
-from tkinter import filedialog, ttk
+from tkinter import filedialog, simpledialog, ttk
 
 # ==========================================
 # Windows 高DPI (スケーリング・拡大率) 対応
@@ -64,8 +64,8 @@ class GitAutoCommitGUI:
         self.target_dir = os.path.abspath(initial_dir or os.getcwd())
 
         # 視認性向上のための高解像度初期サイズ
-        self.root.geometry("800x780")
-        self.root.minsize(680, 600)
+        self.root.geometry("820x820")
+        self.root.minsize(700, 620)
 
         # カラーテーマ設定 (ハイコントラスト Slate & Indigo)
         self.bg_color = "#0f172a"       # slate-900
@@ -93,6 +93,7 @@ class GitAutoCommitGUI:
         self.is_watching = False
         self.watch_thread = None
         self.current_branch = "main"
+        self.remote_url = "未設定"
 
         # UIコンポーネント構築
         self._setup_styles()
@@ -129,7 +130,7 @@ class GitAutoCommitGUI:
         main_container.pack(fill=tk.BOTH, expand=True)
 
         # ==========================================
-        # 1. ヘッダーカード (リポジトリ選択・切り替え)
+        # 1. ヘッダーカード (リポジトリ選択・URL表示・切り替え)
         # ==========================================
         header_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
         header_card.pack(fill=tk.X, pady=(0, 12))
@@ -157,7 +158,7 @@ class GitAutoCommitGUI:
 
         # フォルダ選択エリア
         repo_frame = ttk.Frame(header_card, style="Card.TFrame")
-        repo_frame.pack(fill=tk.X, pady=(8, 0))
+        repo_frame.pack(fill=tk.X, pady=(8, 4))
 
         self.repo_lbl = ttk.Label(
             repo_frame,
@@ -181,6 +182,33 @@ class GitAutoCommitGUI:
             command=self.select_directory,
         )
         self.btn_select_dir.pack(side=tk.RIGHT)
+
+        # リモートURL表示・変更エリア
+        url_frame = ttk.Frame(header_card, style="Card.TFrame")
+        url_frame.pack(fill=tk.X, pady=(4, 0))
+
+        self.url_lbl = ttk.Label(
+            url_frame,
+            text="コミット先URL (origin): 未設定",
+            style="Muted.TLabel",
+        )
+        self.url_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        self.btn_change_url = tk.Button(
+            url_frame,
+            text="URL変更...",
+            bg="#334155",
+            fg="#ffffff",
+            activebackground="#475569",
+            activeforeground="#ffffff",
+            font=self.font_small,
+            bd=0,
+            padx=10,
+            pady=2,
+            cursor="hand2",
+            command=self.change_remote_url,
+        )
+        self.btn_change_url.pack(side=tk.RIGHT)
 
         # ==========================================
         # 2. 変更ファイルステータス
@@ -374,6 +402,29 @@ class GitAutoCommitGUI:
             self.log(f"操作対象フォルダを変更しました: {self.target_dir}", "INFO")
             self.refresh_status()
 
+    def change_remote_url(self):
+        """リモートURL (origin) を変更"""
+        new_url = simpledialog.askstring(
+            "コミット先URLの変更",
+            "新しいGitHubリポジトリのURLを入力してください:\n(例: https://github.com/ユーザー名/リポジトリ名.git)",
+            initialvalue=self.remote_url if self.remote_url != "未設定" else "https://github.com/",
+            parent=self.root,
+        )
+        if new_url and new_url.strip():
+            new_url = new_url.strip()
+            # 既存のoriginがあるかチェック
+            ok_check, _, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
+            if ok_check:
+                ok, _, err = run_git_command(["remote", "set-url", "origin", new_url], cwd=self.target_dir)
+            else:
+                ok, _, err = run_git_command(["remote", "add", "origin", new_url], cwd=self.target_dir)
+
+            if ok:
+                self.log(f"コミット先URLを変更しました: {new_url}", "SUCCESS")
+                self.refresh_status()
+            else:
+                self.log(f"URL変更失敗: {err}", "ERROR")
+
     def log(self, message, level="INFO"):
         """ログ領域への出力メッセージ追加"""
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
@@ -387,11 +438,14 @@ class GitAutoCommitGUI:
         self.log_text.delete("1.0", tk.END)
 
     def refresh_status(self):
-        """選択中ディレクトリのブランチ名と未コミット変更ファイルの取得"""
+        """選択中ディレクトリのブランチ名・リモートURL・未コミット変更ファイルの取得"""
+
         # Gitリポジトリかチェック
         is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
         if not is_git:
             self.branch_badge.config(text="git未初期化", bg="#991b1b", fg="#fecaca")
+            self.url_lbl.config(text="コミット先URL (origin): 未設定")
+            self.remote_url = "未設定"
             self.file_list_text.config(state=tk.NORMAL)
             self.file_list_text.delete("1.0", tk.END)
             self.file_list_text.insert(tk.END, "⚠️ 選択されたフォルダはGitリポジトリではありません。(git initが必要)")
@@ -402,6 +456,15 @@ class GitAutoCommitGUI:
         _, branch, _ = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], cwd=self.target_dir)
         self.current_branch = branch or "main"
         self.branch_badge.config(text=f"branch: {self.current_branch}", bg="#312e81", fg="#e0e7ff")
+
+        # リモートURL取得
+        ok_url, url_out, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
+        if ok_url and url_out:
+            self.remote_url = url_out
+            self.url_lbl.config(text=f"コミット先URL (origin): {self.remote_url}")
+        else:
+            self.remote_url = "未設定"
+            self.url_lbl.config(text="コミット先URL (origin): 未設定 (右のURL変更ボタンで登録できます)")
 
         # 未コミットファイルのチェック
         _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
