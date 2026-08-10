@@ -44,7 +44,7 @@ class GitAutoCommitGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Git 自動コミット & Push ツール")
-        self.root.geometry("640 x 680")
+        self.root.geometry("640x680")
         self.root.minsize(580, 550)
 
         # カラーテーマ設定 (Dark Slate & Indigo)
