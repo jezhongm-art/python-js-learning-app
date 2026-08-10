@@ -2,6 +2,7 @@
 """
 Auto Git Commit & Push GUI Tool
 TkinterによるGitコミット・プッシュ自動化デスクトップアプリ
+(高DPI・ノートPC拡大率くっきり高画質対応版)
 """
 
 import datetime
@@ -12,9 +13,25 @@ import threading
 import time
 import tkinter as tk
 from tkinter import font as tkfont
-from tkinter import messagebox, ttk
+from tkinter import ttk
 
-# Windows環境での文字コード対策
+# ==========================================
+# Windows 高DPI (スケーリング・拡大率) 対応
+# ==========================================
+if sys.platform == "win32":
+    try:
+        import ctypes
+        # Process Per Monitor DPI Aware (Windows 8.1 / 10 / 11)
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        try:
+            import ctypes
+            # DPI Aware fallback (Windows Vista / 7 / 8)
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+# Windows環境での標準出力文字コード対策
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -44,21 +61,32 @@ class GitAutoCommitGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Git 自動コミット & Push ツール")
-        self.root.geometry("640x680")
-        self.root.minsize(580, 550)
 
-        # カラーテーマ設定 (Dark Slate & Indigo)
-        self.bg_color = "#0f172a"  # slate-900
-        self.card_bg = "#1e293b"  # slate-800
-        self.text_color = "#f8fafc"  # slate-50
-        self.text_muted = "#94a3b8"  # slate-400
-        self.accent_color = "#6366f1"  # indigo-500
-        self.accent_hover = "#4f46e5"  # indigo-600
+        # 視認性向上のための高解像度初期サイズ
+        self.root.geometry("780x760")
+        self.root.minsize(680, 600)
+
+        # カラーテーマ設定 (ハイコントラスト Slate & Indigo)
+        self.bg_color = "#0f172a"       # slate-900
+        self.card_bg = "#1e293b"        # slate-800
+        self.card_border = "#334155"    # slate-700
+        self.text_color = "#ffffff"     # くっきり純白
+        self.text_muted = "#cbd5e1"     # slate-300
+        self.accent_color = "#6366f1"   # indigo-500
+        self.accent_hover = "#4f46e5"   # indigo-600
         self.success_color = "#10b981"  # emerald-500
         self.warning_color = "#f59e0b"  # amber-500
-        self.error_color = "#ef4444"  # red-500
+        self.error_color = "#ef4444"    # red-500
 
         self.root.configure(bg=self.bg_color)
+
+        # フォント設定 (Meiryo / Yu Gothic UI)
+        self.font_family = "Yu Gothic UI" if sys.platform == "win32" else "Helvetica"
+        self.font_title = (self.font_family, 13, "bold")
+        self.font_body = (self.font_family, 10)
+        self.font_bold = (self.font_family, 10, "bold")
+        self.font_small = (self.font_family, 9)
+        self.font_mono = ("Consolas", 10)
 
         # 状態変数
         self.is_watching = False
@@ -76,45 +104,33 @@ class GitAutoCommitGUI:
         self.style = ttk.Style()
         self.style.theme_use("clam")
 
-        # カスタムスタイル設定
+        # ttk全体のデフォルト背景・文字
         self.style.configure(".", background=self.bg_color, foreground=self.text_color)
-        self.style.configure(
-            "TFrame", background=self.bg_color
-        )
-        self.style.configure(
-            "Card.TFrame", background=self.card_bg, relief="flat", borderwidth=0
-        )
-        self.style.configure(
-            "TLabel",
-            background=self.bg_color,
-            foreground=self.text_color,
-            font=("Segoe UI", 9),
-        )
-        self.style.configure(
-            "Card.TLabel",
-            background=self.card_bg,
-            foreground=self.text_color,
-            font=("Segoe UI", 9),
-        )
-        self.style.configure(
-            "Muted.TLabel",
-            background=self.card_bg,
-            foreground=self.text_muted,
-            font=("Segoe UI", 8),
-        )
-        self.style.configure(
-            "Title.TLabel",
-            background=self.card_bg,
-            foreground=self.text_color,
-            font=("Segoe UI", 12, "bold"),
-        )
+        self.style.configure("TFrame", background=self.bg_color)
+        self.style.configure("Card.TFrame", background=self.card_bg, relief="flat")
+        
+        self.style.configure("TLabel", background=self.bg_color, foreground=self.text_color, font=self.font_body)
+        self.style.configure("Card.TLabel", background=self.card_bg, foreground=self.text_color, font=self.font_body)
+        self.style.configure("Muted.TLabel", background=self.card_bg, foreground=self.text_muted, font=self.font_small)
+        self.style.configure("Title.TLabel", background=self.card_bg, foreground=self.text_color, font=self.font_title)
+
+        # Combobox視認性調整
+        self.style.configure("TCombobox", 
+                             fieldbackground="#0f172a", 
+                             background=self.card_bg, 
+                             foreground="#ffffff", 
+                             darkcolor=self.card_border, 
+                             lightcolor=self.card_border,
+                             selectbackground=self.accent_color,
+                             selectforeground="#ffffff",
+                             font=self.font_bold)
 
     def _create_widgets(self):
         main_container = ttk.Frame(self.root, padding=16)
         main_container.pack(fill=tk.BOTH, expand=True)
 
         # ==========================================
-        # ヘッダーカード (リポジトリ情報)
+        # 1. ヘッダーカード (リポジトリ情報)
         # ==========================================
         header_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
         header_card.pack(fill=tk.X, pady=(0, 12))
@@ -133,10 +149,10 @@ class GitAutoCommitGUI:
             header_top,
             text="branch: main",
             bg="#312e81",
-            fg="#c7d2fe",
-            font=("Segoe UI", 8, "bold"),
-            padx=8,
-            pady=2,
+            fg="#e0e7ff",
+            font=(self.font_family, 9, "bold"),
+            padx=10,
+            pady=4,
         )
         self.branch_badge.pack(side=tk.RIGHT)
 
@@ -146,16 +162,16 @@ class GitAutoCommitGUI:
             text=f"リポジトリ: {repo_path}",
             style="Muted.TLabel",
         )
-        repo_lbl.pack(anchor=tk.W, pady=(4, 0))
+        repo_lbl.pack(anchor=tk.W, pady=(6, 0))
 
         # ==========================================
-        # 変更ファイルステータス
+        # 2. 変更ファイルステータス
         # ==========================================
         status_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
         status_card.pack(fill=tk.X, pady=(0, 12))
 
         status_header = ttk.Frame(status_card, style="Card.TFrame")
-        status_header.pack(fill=tk.X, pady=(0, 6))
+        status_header.pack(fill=tk.X, pady=(0, 8))
 
         ttk.Label(
             status_header, text="未コミットの変更ファイル", style="Title.TLabel"
@@ -163,37 +179,38 @@ class GitAutoCommitGUI:
 
         self.btn_refresh = tk.Button(
             status_header,
-            text="更新",
+            text="手動更新",
             bg="#334155",
-            fg="#f8fafc",
+            fg="#ffffff",
             activebackground="#475569",
             activeforeground="#ffffff",
-            font=("Segoe UI", 9, "bold"),
+            font=self.font_bold,
             bd=0,
-            padx=10,
-            pady=3,
+            padx=12,
+            pady=4,
             cursor="hand2",
             command=self.refresh_status,
         )
         self.btn_refresh.pack(side=tk.RIGHT)
 
-        # ファイルリスト表示用テキスト
+        # ファイルリスト表示テキストボックス（文字を大きく見やすく）
         self.file_list_text = tk.Text(
             status_card,
             height=4,
-            bg="#0f172a",
+            bg="#020617",
             fg="#38bdf8",
-            font=("Consolas", 9),
+            font=self.font_mono,
             bd=1,
             relief="solid",
-            highlightthickness=0,
-            padx=8,
-            pady=6,
+            highlightthickness=1,
+            highlightcolor=self.card_border,
+            padx=10,
+            pady=8,
         )
         self.file_list_text.pack(fill=tk.X)
 
         # ==========================================
-        # 手動コミット操作エリア
+        # 3. 手動コミット操作エリア
         # ==========================================
         action_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
         action_card.pack(fill=tk.X, pady=(0, 12))
@@ -203,29 +220,26 @@ class GitAutoCommitGUI:
         ).pack(anchor=tk.W, pady=(0, 6))
 
         msg_frame = ttk.Frame(action_card, style="Card.TFrame")
-        msg_frame.pack(fill=tk.X, pady=(0, 10))
+        msg_frame.pack(fill=tk.X, pady=(0, 8))
 
         self.entry_msg = tk.Entry(
             msg_frame,
             bg="#0f172a",
-            fg="#f8fafc",
-            insertbackground="#f8fafc",
-            font=("Segoe UI", 10),
+            fg="#ffffff",
+            insertbackground="#ffffff",
+            font=(self.font_family, 11),
             bd=1,
             relief="solid",
             highlightthickness=1,
             highlightcolor=self.accent_color,
         )
-        self.entry_msg.pack(fill=tk.X, ipady=5)
-        self.entry_msg.insert(
-            0, ""
-        )  # 空欄の場合は自動で "Auto commit: YYYY-MM-DD HH:MM:SS" になります
+        self.entry_msg.pack(fill=tk.X, ipady=6)
 
         ttk.Label(
             action_card,
-            text="※ 空欄のままで実行すると、現在日時がメッセージに自動設定されます。",
+            text="※ 空欄のままで実行すると、現在日時（例: Auto commit: YYYY-MM-DD HH:MM:SS）が自動設定されます。",
             style="Muted.TLabel",
-        ).pack(anchor=tk.W, pady=(0, 10))
+        ).pack(anchor=tk.W, pady=(0, 12))
 
         self.btn_push = tk.Button(
             action_card,
@@ -234,16 +248,16 @@ class GitAutoCommitGUI:
             fg="#ffffff",
             activebackground=self.accent_hover,
             activeforeground="#ffffff",
-            font=("Segoe UI", 10, "bold"),
+            font=(self.font_family, 11, "bold"),
             bd=0,
-            pady=8,
+            pady=10,
             cursor="hand2",
             command=self.on_manual_push_click,
         )
         self.btn_push.pack(fill=tk.X)
 
         # ==========================================
-        # 自動監視設定エリア
+        # 4. 自動監視設定エリア
         # ==========================================
         watch_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
         watch_card.pack(fill=tk.X, pady=(0, 12))
@@ -257,12 +271,12 @@ class GitAutoCommitGUI:
 
         # 間隔選択プルダウン
         ttk.Label(watch_header, text="実行間隔:", style="Card.TLabel").pack(
-            side=tk.LEFT, padx=(16, 4)
+            side=tk.LEFT, padx=(20, 6)
         )
         self.combo_interval = ttk.Combobox(
             watch_header,
             values=["1分", "3分", "5分", "10分", "30分"],
-            width=6,
+            width=7,
             state="readonly",
         )
         self.combo_interval.current(2)  # デフォルト5分
@@ -275,10 +289,10 @@ class GitAutoCommitGUI:
             fg="#ffffff",
             activebackground="#059669",
             activeforeground="#ffffff",
-            font=("Segoe UI", 9, "bold"),
+            font=self.font_bold,
             bd=0,
-            padx=12,
-            pady=4,
+            padx=14,
+            pady=5,
             cursor="hand2",
             command=self.toggle_watch_mode,
         )
@@ -289,10 +303,10 @@ class GitAutoCommitGUI:
             text="ステータス: 停止中",
             style="Muted.TLabel",
         )
-        self.watch_status_lbl.pack(anchor=tk.W, pady=(6, 0))
+        self.watch_status_lbl.pack(anchor=tk.W, pady=(8, 0))
 
         # ==========================================
-        # ログ表示エリア
+        # 5. ログ表示エリア
         # ==========================================
         log_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
         log_card.pack(fill=tk.BOTH, expand=True)
@@ -308,12 +322,13 @@ class GitAutoCommitGUI:
             log_header,
             text="ログ消去",
             bg="#334155",
-            fg="#94a3b8",
+            fg="#cbd5e1",
             activebackground="#475569",
-            font=("Segoe UI", 8),
+            activeforeground="#ffffff",
+            font=self.font_small,
             bd=0,
-            padx=6,
-            pady=1,
+            padx=8,
+            pady=2,
             command=self.clear_log,
         )
         btn_clear_log.pack(side=tk.RIGHT)
@@ -322,10 +337,12 @@ class GitAutoCommitGUI:
             log_card,
             bg="#020617",
             fg="#cbd5e1",
-            font=("Consolas", 8),
-            bd=0,
-            padx=8,
-            pady=6,
+            font=self.font_mono,
+            bd=1,
+            relief="solid",
+            highlightthickness=0,
+            padx=10,
+            pady=8,
         )
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
@@ -363,10 +380,10 @@ class GitAutoCommitGUI:
         self.file_list_text.config(state=tk.DISABLED)
 
     def on_manual_push_click(self):
-        """「今すぐコミット & Push 実行」ボタンが押された時の処理」"""
+        """「今すぐコミット & Push 実行」ボタンクリック時の処理"""
         msg = self.entry_msg.get().strip()
 
-        # スレッドで非同期にコミット＆Pushを実行
+        # スレッドで非同期実行
         self.btn_push.config(state=tk.DISABLED, bg="#475569")
         threading.Thread(
             target=self._run_commit_push_thread, args=(msg,), daemon=True
