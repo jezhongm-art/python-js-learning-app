@@ -2,7 +2,7 @@
 """
 Auto Git Commit & Push GUI Tool
 TkinterによるGitコミット・プッシュ自動化デスクトップアプリ
-(高DPI対応 ＆ 任意フォルダ・リポジトリ・リモートURL変更対応版)
+(高DPI対応 ＆ 任意フォルダ・リポジトリ・リモートURL変更・自動git init対応版)
 """
 
 import datetime
@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 import tkinter as tk
-from tkinter import filedialog, simpledialog, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 # ==========================================
 # Windows 高DPI (スケーリング・拡大率) 対応
@@ -390,10 +390,32 @@ class GitAutoCommitGUI:
         )
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
+    def ensure_git_repo(self):
+        """Gitリポジトリ未初期化の場合、確認ダイアログを出して git init を実行"""
+        is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
+        if not is_git:
+            answer = messagebox.askyesno(
+                "Git初期化の確認",
+                f"選択されたフォルダはまだGitリポジトリではありません。\n\nフォルダ:\n{self.target_dir}\n\nこのフォルダで 'git init'（Gitリポジトリ初期化）を実行しますか？",
+                parent=self.root,
+            )
+            if answer:
+                ok_init, _, err_init = run_git_command(["init"], cwd=self.target_dir)
+                if ok_init:
+                    run_git_command(["branch", "-M", "main"], cwd=self.target_dir)
+                    self.log(f"Gitリポジトリを初期化しました (git init): {self.target_dir}", "SUCCESS")
+                    self.refresh_status()
+                    return True
+                else:
+                    self.log(f"Git初期化失敗: {err_init}", "ERROR")
+                    return False
+            return False
+        return True
+
     def select_directory(self):
         """任意のGitリポジトリ/プロジェクトフォルダを選択"""
         chosen = filedialog.askdirectory(
-            title="コミット対象のGitリポジトリフォルダを選択",
+            title="コミット対象のフォルダを選択",
             initialdir=self.target_dir,
         )
         if chosen:
@@ -403,7 +425,10 @@ class GitAutoCommitGUI:
             self.refresh_status()
 
     def change_remote_url(self):
-        """リモートURL (origin) を変更"""
+        """リモートURL (origin) を変更（未初期化の場合は自動初期化）"""
+        if not self.ensure_git_repo():
+            return
+
         new_url = simpledialog.askstring(
             "コミット先URLの変更",
             "新しいGitHubリポジトリのURLを入力してください:\n(例: https://github.com/ユーザー名/リポジトリ名.git)",
@@ -412,7 +437,6 @@ class GitAutoCommitGUI:
         )
         if new_url and new_url.strip():
             new_url = new_url.strip()
-            # 既存のoriginがあるかチェック
             ok_check, _, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
             if ok_check:
                 ok, _, err = run_git_command(["remote", "set-url", "origin", new_url], cwd=self.target_dir)
@@ -439,8 +463,6 @@ class GitAutoCommitGUI:
 
     def refresh_status(self):
         """選択中ディレクトリのブランチ名・リモートURL・未コミット変更ファイルの取得"""
-
-        # Gitリポジトリかチェック
         is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
         if not is_git:
             self.branch_badge.config(text="git未初期化", bg="#991b1b", fg="#fecaca")
@@ -448,16 +470,14 @@ class GitAutoCommitGUI:
             self.remote_url = "未設定"
             self.file_list_text.config(state=tk.NORMAL)
             self.file_list_text.delete("1.0", tk.END)
-            self.file_list_text.insert(tk.END, "⚠️ 選択されたフォルダはGitリポジトリではありません。(git initが必要)")
+            self.file_list_text.insert(tk.END, "⚠️ 選択されたフォルダはGitリポジトリではありません。(URL変更時またはPush時に自動初期化可能)")
             self.file_list_text.config(state=tk.DISABLED)
             return
 
-        # ブランチ名取得
         _, branch, _ = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], cwd=self.target_dir)
         self.current_branch = branch or "main"
         self.branch_badge.config(text=f"branch: {self.current_branch}", bg="#312e81", fg="#e0e7ff")
 
-        # リモートURL取得
         ok_url, url_out, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
         if ok_url and url_out:
             self.remote_url = url_out
@@ -466,7 +486,6 @@ class GitAutoCommitGUI:
             self.remote_url = "未設定"
             self.url_lbl.config(text="コミット先URL (origin): 未設定 (右のURL変更ボタンで登録できます)")
 
-        # 未コミットファイルのチェック
         _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
         self.file_list_text.config(state=tk.NORMAL)
         self.file_list_text.delete("1.0", tk.END)
@@ -482,6 +501,9 @@ class GitAutoCommitGUI:
 
     def on_manual_push_click(self):
         """「今すぐコミット & Push 実行」ボタンクリック時の処理"""
+        if not self.ensure_git_repo():
+            return
+
         msg = self.entry_msg.get().strip()
 
         self.btn_push.config(state=tk.DISABLED, bg="#475569")
@@ -493,7 +515,6 @@ class GitAutoCommitGUI:
         try:
             self.log(f"[{self.target_dir}] の変更をチェック中...")
 
-            # 変更があるか確認
             _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
             if not status_out.strip():
                 self.log("変更されたファイルがないため、処理をスキップしました。", "INFO")
@@ -553,6 +574,9 @@ class GitAutoCommitGUI:
 
     def toggle_watch_mode(self):
         """自動同期のON/OFF切り替え"""
+        if not self.ensure_git_repo():
+            return
+
         if self.is_watching:
             self.is_watching = False
             self.btn_watch_toggle.config(
