@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Auto Git Commit & Push GUI Tool
-TkinterによるGitコミット・プッシュ自動化デスクトップアプリ
-(高DPI対応 ＆ 任意フォルダ・リポジトリ・リモートURL変更・履歴自動補完・自動git init対応版)
+Auto Git Commit & Push GUI Tool (Flet Modern UI Edition)
+Flet (Flutter for Python) を活用したモダン・高精細なGit自動化デスクトップアプリ
 """
 
 import datetime
@@ -12,33 +11,10 @@ import subprocess
 import sys
 import threading
 import time
-import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog, ttk
+import flet as ft
 
-# 履歴設定ファイルのパス (ホームディレクトリに保存)
+# 履歴設定ファイルのパス
 HISTORY_FILE = os.path.expanduser("~/.git_auto_commit_history.json")
-
-# ==========================================
-# Windows 高DPI (スケーリング・拡大率) 対応
-# ==========================================
-if sys.platform == "win32":
-    try:
-        import ctypes
-        ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    except Exception:
-        try:
-            import ctypes
-            ctypes.windll.user32.SetProcessDPIAware()
-        except Exception:
-            pass
-
-# Windows環境での標準出力文字コード対策
-if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
-    except AttributeError:
-        pass
 
 
 def run_git_command(args, cwd=None):
@@ -79,684 +55,671 @@ def save_history(history_data):
         print(f"履歴保存エラー: {e}")
 
 
-class GitAutoCommitGUI:
-    def __init__(self, root, initial_dir=None):
-        self.root = root
-        self.root.title("Git 自動コミット & Push ツール (履歴自動補完機能付き)")
+def main(page: ft.Page):
+    page.title = "Git Auto Commit & Push"
+    page.theme_mode = ft.ThemeMode.DARK
+    page.padding = 20
+    page.spacing = 14
+    page.window.width = 860
+    page.window.height = 880
+    page.window.min_width = 720
+    page.window.min_height = 650
+    page.scroll = ft.ScrollMode.AUTO
 
-        # 履歴データのロード
-        self.history = load_history()
+    # Flet テーマカラーの設定
+    page.theme = ft.Theme(
+        color_scheme_seed="indigo",
+        visual_density=ft.VisualDensity.COMFORTABLE,
+    )
 
-        # 対象のGitリポジトリフォルダ
-        self.target_dir = os.path.abspath(initial_dir or os.getcwd())
+    # アプリの状態データ
+    history = load_history()
+    target_dir = [os.path.abspath(sys.argv[1] if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]) else os.getcwd())]
+    current_branch = ["main"]
+    remote_url = ["未設定"]
+    is_watching = [False]
 
-        # 視認性向上のための高解像度初期サイズ
-        self.root.geometry("860x860")
-        self.root.minsize(720, 650)
+    # FilePicker (フォルダ選択ダイアログ)
+    file_picker = ft.FilePicker()
+    page.overlay.append(file_picker)
 
-        # カラーテーマ設定 (ハイコントラスト Slate & Indigo)
-        self.bg_color = "#0f172a"       # slate-900
-        self.card_bg = "#1e293b"        # slate-800
-        self.card_border = "#334155"    # slate-700
-        self.text_color = "#ffffff"     # くっきり純白
-        self.text_muted = "#cbd5e1"     # slate-300
-        self.accent_color = "#6366f1"   # indigo-500
-        self.accent_hover = "#4f46e5"   # indigo-600
-        self.success_color = "#10b981"  # emerald-500
-        self.warning_color = "#f59e0b"  # amber-500
-        self.error_color = "#ef4444"    # red-500
+    # -------------------------------------------------------------
+    # ログ出力関数
+    # -------------------------------------------------------------
+    log_list_view = ft.ListView(expand=True, spacing=6, padding=10, auto_scroll=True)
 
-        self.root.configure(bg=self.bg_color)
+    def log(message: str, level: str = "INFO"):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        text_color = "grey300"
+        icon = ft.Icons.INFO_OUTLINED
+        icon_color = "blue400"
 
-        # フォント設定 (Meiryo / Yu Gothic UI)
-        self.font_family = "Yu Gothic UI" if sys.platform == "win32" else "Helvetica"
-        self.font_title = (self.font_family, 13, "bold")
-        self.font_body = (self.font_family, 10)
-        self.font_bold = (self.font_family, 10, "bold")
-        self.font_small = (self.font_family, 9)
-        self.font_mono = ("Consolas", 10)
+        if level == "RUN":
+            icon = ft.Icons.PLAY_ARROW_ROUNDED
+            icon_color = "indigo400"
+        elif level == "SUCCESS" or level == "OK":
+            icon = ft.Icons.CHECK_CIRCLE_ROUNDED
+            icon_color = "green400"
+            text_color = "green200"
+        elif level == "ERROR":
+            icon = ft.Icons.ERROR_ROUNDED
+            icon_color = "red400"
+            text_color = "red200"
+        elif level == "WARNING":
+            icon = ft.Icons.WARNING_ROUNDED
+            icon_color = "amber400"
+            text_color = "amber200"
 
-        # 状態変数
-        self.is_watching = False
-        self.watch_thread = None
-        self.current_branch = "main"
-        self.remote_url = "未設定"
-
-        # UIコンポーネント構築
-        self._setup_styles()
-        self._create_widgets()
-
-        # 初期ステータス取得
-        self.refresh_status()
-
-    def _setup_styles(self):
-        self.style = ttk.Style()
-        self.style.theme_use("clam")
-
-        self.style.configure(".", background=self.bg_color, foreground=self.text_color)
-        self.style.configure("TFrame", background=self.bg_color)
-        self.style.configure("Card.TFrame", background=self.card_bg, relief="flat")
-        
-        self.style.configure("TLabel", background=self.bg_color, foreground=self.text_color, font=self.font_body)
-        self.style.configure("Card.TLabel", background=self.card_bg, foreground=self.text_color, font=self.font_body)
-        self.style.configure("Muted.TLabel", background=self.card_bg, foreground=self.text_muted, font=self.font_small)
-        self.style.configure("Title.TLabel", background=self.card_bg, foreground=self.text_color, font=self.font_title)
-
-        self.style.configure("TCombobox", 
-                             fieldbackground="#0f172a", 
-                             background=self.card_bg, 
-                             foreground="#ffffff", 
-                             darkcolor=self.card_border, 
-                             lightcolor=self.card_border,
-                             selectbackground=self.accent_color,
-                             selectforeground="#ffffff",
-                             font=self.font_bold)
-
-    def _create_widgets(self):
-        main_container = ttk.Frame(self.root, padding=16)
-        main_container.pack(fill=tk.BOTH, expand=True)
-
-        # ==========================================
-        # 1. ヘッダーカード (リポジトリ選択・履歴切り替え・URL表示)
-        # ==========================================
-        header_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
-        header_card.pack(fill=tk.X, pady=(0, 12))
-
-        header_top = ttk.Frame(header_card, style="Card.TFrame")
-        header_top.pack(fill=tk.X)
-
-        title_lbl = ttk.Label(
-            header_top,
-            text="Git Auto Commit & Push",
-            style="Title.TLabel",
+        log_item = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(name=icon, color=icon_color, size=16),
+                    ft.Text(f"[{timestamp}]", size=12, color="grey500", weight=ft.FontWeight.BOLD),
+                    ft.Text(message, size=12, color=text_color, selectable=True, expand=True),
+                ],
+                tight=True,
+                spacing=8,
+            ),
+            padding=ft.Padding(4, 2, 4, 2),
+            border_radius=4,
         )
-        title_lbl.pack(side=tk.LEFT)
+        log_list_view.controls.append(log_item)
+        page.update()
 
-        self.branch_badge = tk.Label(
-            header_top,
-            text="branch: main",
-            bg="#312e81",
-            fg="#e0e7ff",
-            font=(self.font_family, 9, "bold"),
-            padx=10,
-            pady=4,
-        )
-        self.branch_badge.pack(side=tk.RIGHT)
+    def clear_log(e=None):
+        log_list_view.controls.clear()
+        page.update()
 
-        # 履歴選択ドロップダウン
-        history_frame = ttk.Frame(header_card, style="Card.TFrame")
-        history_frame.pack(fill=tk.X, pady=(10, 4))
-
-        ttk.Label(
-            history_frame, text="過去の履歴から選択:", style="Card.TLabel"
-        ).pack(side=tk.LEFT, padx=(0, 8))
-
-        self.combo_history = ttk.Combobox(
-            history_frame,
-            state="readonly",
-            font=self.font_small,
-        )
-        self.combo_history.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
-        self.combo_history.bind("<<ComboboxSelected>>", self.on_history_selected)
-
-        # フォルダ選択エリア
-        repo_frame = ttk.Frame(header_card, style="Card.TFrame")
-        repo_frame.pack(fill=tk.X, pady=(4, 4))
-
-        self.repo_lbl = ttk.Label(
-            repo_frame,
-            text=f"対象フォルダ: {self.target_dir}",
-            style="Muted.TLabel",
-        )
-        self.repo_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        self.btn_select_dir = tk.Button(
-            repo_frame,
-            text="フォルダ選択...",
-            bg="#334155",
-            fg="#ffffff",
-            activebackground="#475569",
-            activeforeground="#ffffff",
-            font=self.font_small,
-            bd=0,
-            padx=10,
-            pady=2,
-            cursor="hand2",
-            command=self.select_directory,
-        )
-        self.btn_select_dir.pack(side=tk.RIGHT)
-
-        # リモートURL表示・変更エリア
-        url_frame = ttk.Frame(header_card, style="Card.TFrame")
-        url_frame.pack(fill=tk.X, pady=(4, 0))
-
-        self.url_lbl = ttk.Label(
-            url_frame,
-            text="コミット先URL (origin): 未設定",
-            style="Muted.TLabel",
-        )
-        self.url_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        self.btn_change_url = tk.Button(
-            url_frame,
-            text="URL変更...",
-            bg="#334155",
-            fg="#ffffff",
-            activebackground="#475569",
-            activeforeground="#ffffff",
-            font=self.font_small,
-            bd=0,
-            padx=10,
-            pady=2,
-            cursor="hand2",
-            command=self.change_remote_url,
-        )
-        self.btn_change_url.pack(side=tk.RIGHT)
-
-        # ==========================================
-        # 2. 変更ファイルステータス
-        # ==========================================
-        status_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
-        status_card.pack(fill=tk.X, pady=(0, 12))
-
-        status_header = ttk.Frame(status_card, style="Card.TFrame")
-        status_header.pack(fill=tk.X, pady=(0, 8))
-
-        ttk.Label(
-            status_header, text="未コミットの変更ファイル", style="Title.TLabel"
-        ).pack(side=tk.LEFT)
-
-        self.btn_refresh = tk.Button(
-            status_header,
-            text="手動更新",
-            bg="#334155",
-            fg="#ffffff",
-            activebackground="#475569",
-            activeforeground="#ffffff",
-            font=self.font_bold,
-            bd=0,
-            padx=12,
-            pady=4,
-            cursor="hand2",
-            command=self.refresh_status,
-        )
-        self.btn_refresh.pack(side=tk.RIGHT)
-
-        self.file_list_text = tk.Text(
-            status_card,
-            height=4,
-            bg="#020617",
-            fg="#38bdf8",
-            font=self.font_mono,
-            bd=1,
-            relief="solid",
-            highlightthickness=1,
-            highlightcolor=self.card_border,
-            padx=10,
-            pady=8,
-        )
-        self.file_list_text.pack(fill=tk.X)
-
-        # ==========================================
-        # 3. 手動コミット操作エリア
-        # ==========================================
-        action_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
-        action_card.pack(fill=tk.X, pady=(0, 12))
-
-        ttk.Label(
-            action_card, text="コミットメッセージ", style="Title.TLabel"
-        ).pack(anchor=tk.W, pady=(0, 6))
-
-        msg_frame = ttk.Frame(action_card, style="Card.TFrame")
-        msg_frame.pack(fill=tk.X, pady=(0, 8))
-
-        self.entry_msg = tk.Entry(
-            msg_frame,
-            bg="#0f172a",
-            fg="#ffffff",
-            insertbackground="#ffffff",
-            font=(self.font_family, 11),
-            bd=1,
-            relief="solid",
-            highlightthickness=1,
-            highlightcolor=self.accent_color,
-        )
-        self.entry_msg.pack(fill=tk.X, ipady=6)
-
-        ttk.Label(
-            action_card,
-            text="※ 空欄のままで実行すると、現在日時（例: Auto commit: YYYY-MM-DD HH:MM:SS）が自動設定されます。",
-            style="Muted.TLabel",
-        ).pack(anchor=tk.W, pady=(0, 12))
-
-        self.btn_push = tk.Button(
-            action_card,
-            text="今すぐコミット & Push 実行",
-            bg=self.accent_color,
-            fg="#ffffff",
-            activebackground=self.accent_hover,
-            activeforeground="#ffffff",
-            font=(self.font_family, 11, "bold"),
-            bd=0,
-            pady=10,
-            cursor="hand2",
-            command=self.on_manual_push_click,
-        )
-        self.btn_push.pack(fill=tk.X)
-
-        # ==========================================
-        # 4. 自動監視設定エリア
-        # ==========================================
-        watch_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
-        watch_card.pack(fill=tk.X, pady=(0, 12))
-
-        watch_header = ttk.Frame(watch_card, style="Card.TFrame")
-        watch_header.pack(fill=tk.X)
-
-        ttk.Label(
-            watch_header, text="自動同期 (定期監視)", style="Title.TLabel"
-        ).pack(side=tk.LEFT)
-
-        ttk.Label(watch_header, text="実行間隔:", style="Card.TLabel").pack(
-            side=tk.LEFT, padx=(20, 6)
-        )
-        self.combo_interval = ttk.Combobox(
-            watch_header,
-            values=["1分", "3分", "5分", "10分", "30分"],
-            width=7,
-            state="readonly",
-        )
-        self.combo_interval.current(2)  # デフォルト5分
-        self.combo_interval.pack(side=tk.LEFT)
-
-        self.btn_watch_toggle = tk.Button(
-            watch_header,
-            text="自動同期を開始",
-            bg=self.success_color,
-            fg="#ffffff",
-            activebackground="#059669",
-            activeforeground="#ffffff",
-            font=self.font_bold,
-            bd=0,
-            padx=14,
-            pady=5,
-            cursor="hand2",
-            command=self.toggle_watch_mode,
-        )
-        self.btn_watch_toggle.pack(side=tk.RIGHT)
-
-        self.watch_status_lbl = ttk.Label(
-            watch_card,
-            text="ステータス: 停止中",
-            style="Muted.TLabel",
-        )
-        self.watch_status_lbl.pack(anchor=tk.W, pady=(8, 0))
-
-        # ==========================================
-        # 5. ログ表示エリア
-        # ==========================================
-        log_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
-        log_card.pack(fill=tk.BOTH, expand=True)
-
-        log_header = ttk.Frame(log_card, style="Card.TFrame")
-        log_header.pack(fill=tk.X, pady=(0, 6))
-
-        ttk.Label(log_header, text="実行ログ", style="Title.TLabel").pack(
-            side=tk.LEFT
-        )
-
-        btn_clear_log = tk.Button(
-            log_header,
-            text="ログ消去",
-            bg="#334155",
-            fg="#cbd5e1",
-            activebackground="#475569",
-            activeforeground="#ffffff",
-            font=self.font_small,
-            bd=0,
-            padx=8,
-            pady=2,
-            command=self.clear_log,
-        )
-        btn_clear_log.pack(side=tk.RIGHT)
-
-        self.log_text = tk.Text(
-            log_card,
-            bg="#020617",
-            fg="#cbd5e1",
-            font=self.font_mono,
-            bd=1,
-            relief="solid",
-            highlightthickness=0,
-            padx=10,
-            pady=8,
-        )
-        self.log_text.pack(fill=tk.BOTH, expand=True)
-
-    def _update_history_combo(self):
-        """履歴ドロップダウンリストの表示更新"""
-        dir_to_url = self.history.get("dir_to_url", {})
-        values = []
-        for d, u in dir_to_url.items():
-            folder_name = os.path.basename(d) or d
-            repo_name = u.split("/")[-1].replace(".git", "") if u else "未設定"
-            values.append(f"{folder_name}  ⇄  {repo_name}  [{d}]")
-
-        self.combo_history["values"] = values
-
-    def _record_pair_history(self, directory, url):
-        """ディレクトリとURLの紐付けペアを履歴へ記録・自動保存"""
+    # -------------------------------------------------------------
+    # 履歴保存＆コンボボックス同期
+    # -------------------------------------------------------------
+    def record_pair_history(directory, url):
         if not directory:
             return
         norm_dir = os.path.abspath(directory)
-        if "dir_to_url" not in self.history:
-            self.history["dir_to_url"] = {}
-        if "url_to_dir" not in self.history:
-            self.history["url_to_dir"] = {}
+        if "dir_to_url" not in history:
+            history["dir_to_url"] = {}
+        if "url_to_dir" not in history:
+            history["url_to_dir"] = {}
 
         if url and url != "未設定":
-            self.history["dir_to_url"][norm_dir] = url
-            self.history["url_to_dir"][url] = norm_dir
+            history["dir_to_url"][norm_dir] = url
+            history["url_to_dir"][url] = norm_dir
 
-        save_history(self.history)
-        self._update_history_combo()
+        save_history(history)
+        update_history_dropdown()
 
-    def on_history_selected(self, event):
-        """履歴ドロップダウンから選択した時の自動適用切り替え"""
-        selected_text = self.combo_history.get()
-        if "[" in selected_text and "]" in selected_text:
-            target_path = selected_text.split("[")[-1].rstrip("]")
-            if os.path.exists(target_path):
-                self.target_dir = os.path.abspath(target_path)
-                self.repo_lbl.config(text=f"対象フォルダ: {self.target_dir}")
-                self.log(f"履歴からリポジトリを選択・移動しました: {self.target_dir}", "INFO")
+    def update_history_dropdown():
+        dir_to_url = history.get("dir_to_url", {})
+        options = []
+        for d, u in dir_to_url.items():
+            folder_name = os.path.basename(d) or d
+            repo_name = u.split("/")[-1].replace(".git", "") if u else "未設定"
+            options.append(ft.dropdown.Option(key=d, text=f"{folder_name}  ➔  {repo_name}  ({d})"))
 
-                # 履歴にあるURLの自動補完・適用
-                saved_url = self.history.get("dir_to_url", {}).get(self.target_dir)
-                if saved_url:
-                    is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
-                    if is_git:
-                        ok_curr, curr_url, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
-                        if not ok_curr or curr_url != saved_url:
-                            run_git_command(["remote", "set-url", "origin", saved_url], cwd=self.target_dir)
-                            self.log(f"保存されたリモートURLを自動適用しました: {saved_url}", "SUCCESS")
+        history_dropdown.options = options
+        page.update()
 
-                self.refresh_status()
-            else:
-                self.log(f"選択されたフォルダが存在しません: {target_path}", "ERROR")
+    # -------------------------------------------------------------
+    # UI要素の参照
+    # -------------------------------------------------------------
+    branch_chip = ft.Container(
+        content=ft.Row(
+            [
+                ft.Icon(ft.Icons.MERGE_TYPE_ROUNDED, size=14, color="indigo100"),
+                ft.Text("branch: main", size=12, weight=ft.FontWeight.BOLD, color="indigo100"),
+            ],
+            spacing=4,
+        ),
+        bgcolor="indigo900",
+        padding=ft.Padding(10, 4, 10, 4),
+        border_radius=12,
+    )
 
-    def ensure_git_repo(self):
-        """Gitリポジトリ未初期化の場合、確認ダイアログを出して git init を実行"""
-        is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
+    repo_path_text = ft.Text(f"対象: {target_dir[0]}", size=13, color="grey300", weight=ft.FontWeight.W_500, overflow=ft.TextOverflow.ELLIPSIS)
+    remote_url_text = ft.Text("コミット先URL (origin): 未設定", size=13, color="grey400", overflow=ft.TextOverflow.ELLIPSIS)
+
+    file_list_column = ft.Column(spacing=4)
+    file_status_card_title = ft.Text("未コミットの変更ファイル", size=14, weight=ft.FontWeight.BOLD)
+
+    commit_msg_input = ft.TextField(
+        hint_text="コミットメッセージを入力（空欄の場合は自動で現在日時が適用されます）",
+        border_color="bluegrey700",
+        focused_border_color="indigo400",
+        text_size=14,
+        content_padding=14,
+        expand=True,
+    )
+
+    push_btn_inner_row = ft.Row(
+        [
+            ft.Icon(ft.Icons.ROCKET_LAUNCH_ROUNDED, size=18),
+            ft.Text("今すぐコミット & Push 実行", size=14, weight=ft.FontWeight.BOLD),
+        ],
+        alignment=ft.MainAxisAlignment.CENTER,
+    )
+
+    btn_push = ft.FilledButton(
+        content=push_btn_inner_row,
+        style=ft.ButtonStyle(
+            color="white",
+            bgcolor="indigo600",
+            shape=ft.RoundedRectangleBorder(radius=8),
+            padding=ft.Padding(16, 16, 16, 16),
+        ),
+        on_click=lambda e: on_manual_push_click(),
+    )
+
+    interval_dropdown = ft.Dropdown(
+        options=[
+            ft.dropdown.Option("1分"),
+            ft.dropdown.Option("3分"),
+            ft.dropdown.Option("5分"),
+            ft.dropdown.Option("10分"),
+            ft.dropdown.Option("30分"),
+        ],
+        value="5分",
+        width=100,
+        text_size=13,
+        content_padding=8,
+    )
+
+    watch_switch = ft.Switch(
+        label="自動同期を開始",
+        value=False,
+        active_color="green400",
+        on_change=lambda e: toggle_watch_mode(),
+    )
+
+    watch_status_text = ft.Text("ステータス: 停止中", size=12, color="grey400")
+
+    # -------------------------------------------------------------
+    # ステータス更新 & Git処理
+    # -------------------------------------------------------------
+    def refresh_status():
+        update_history_dropdown()
+        curr_dir = target_dir[0]
+        repo_path_text.value = f"対象: {curr_dir}"
+
+        is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=curr_dir)
         if not is_git:
-            answer = messagebox.askyesno(
-                "Git初期化の確認",
-                f"選択されたフォルダはまだGitリポジトリではありません。\n\nフォルダ:\n{self.target_dir}\n\nこのフォルダで 'git init'（Gitリポジトリ初期化）を実行しますか？",
-                parent=self.root,
-            )
-            if answer:
-                ok_init, _, err_init = run_git_command(["init"], cwd=self.target_dir)
+            branch_chip.content.controls[1].value = "git未初期化"
+            branch_chip.bgcolor = "red900"
+            remote_url_text.value = "コミット先URL (origin): 未設定"
+            remote_url[0] = "未設定"
+
+            file_list_column.controls = [
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color="amber400", size=18),
+                            ft.Text("選択されたフォルダはGitリポジトリではありません。(URL変更時またはPush時に自動初期化可能)", color="amber200", size=13),
+                        ],
+                        spacing=8,
+                    ),
+                    padding=10,
+                    bgcolor="bluegrey900",
+                    border_radius=6,
+                )
+            ]
+            page.update()
+            return
+
+        # ブランチ名取得
+        _, branch, _ = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], cwd=curr_dir)
+        current_branch[0] = branch or "main"
+        branch_chip.content.controls[1].value = f"branch: {current_branch[0]}"
+        branch_chip.bgcolor = "indigo900"
+
+        # リモートURL取得
+        ok_url, url_out, _ = run_git_command(["remote", "get-url", "origin"], cwd=curr_dir)
+        if ok_url and url_out:
+            remote_url[0] = url_out
+            remote_url_text.value = f"コミット先URL (origin): {remote_url[0]}"
+            record_pair_history(curr_dir, remote_url[0])
+        else:
+            remote_url[0] = "未設定"
+            saved_url = history.get("dir_to_url", {}).get(curr_dir)
+            if saved_url:
+                run_git_command(["remote", "add", "origin", saved_url], cwd=curr_dir)
+                remote_url[0] = saved_url
+                remote_url_text.value = f"コミット先URL (origin): {remote_url[0]} (履歴から自動セット)"
+                log(f"✨ 保存されていたURL ({saved_url}) をリモートoriginに自動適用しました！", "SUCCESS")
+            else:
+                remote_url_text.value = "コミット先URL (origin): 未設定 (右の「URL変更」から設定可能)"
+
+        # 未コミットファイルのチェック
+        _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=curr_dir)
+        file_list_column.controls.clear()
+
+        if status_out.strip():
+            lines = status_out.strip().splitlines()
+            for line in lines:
+                status_code = line[:2].strip()
+                file_name = line[3:].strip()
+                badge_color = "blue400"
+                if "M" in status_code:
+                    badge_color = "amber400"
+                elif "A" in status_code or "?" in status_code:
+                    badge_color = "green400"
+                elif "D" in status_code:
+                    badge_color = "red400"
+
+                file_item = ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Container(
+                                content=ft.Text(status_code if status_code else "M", size=10, weight=ft.FontWeight.BOLD, color="black"),
+                                bgcolor=badge_color,
+                                padding=ft.Padding(6, 2, 6, 2),
+                                border_radius=4,
+                            ),
+                            ft.Text(file_name, size=13, color="grey200", font_family="Consolas"),
+                        ],
+                        spacing=10,
+                    ),
+                    padding=ft.Padding(8, 4, 8, 4),
+                )
+                file_list_column.controls.append(file_item)
+        else:
+            file_list_column.controls = [
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.CHECK_ROUNDED, color="green400", size=18),
+                            ft.Text("変更されたファイルはありません (Working tree clean)", color="green300", size=13),
+                        ],
+                        spacing=8,
+                    ),
+                    padding=10,
+                    bgcolor="bluegrey900",
+                    border_radius=6,
+                )
+            ]
+
+        page.update()
+
+    # -------------------------------------------------------------
+    # 自動 git init ダイアログハンドラ
+    # -------------------------------------------------------------
+    def ensure_git_repo():
+        curr_dir = target_dir[0]
+        is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=curr_dir)
+        if not is_git:
+            def on_confirm(e):
+                page.close(dlg)
+                ok_init, _, err_init = run_git_command(["init"], cwd=curr_dir)
                 if ok_init:
-                    run_git_command(["branch", "-M", "main"], cwd=self.target_dir)
-                    self.log(f"Gitリポジトリを初期化しました (git init): {self.target_dir}", "SUCCESS")
-                    self.refresh_status()
-                    return True
+                    run_git_command(["branch", "-M", "main"], cwd=curr_dir)
+                    log(f"Gitリポジトリを初期化しました (git init): {curr_dir}", "SUCCESS")
+                    refresh_status()
                 else:
-                    self.log(f"Git初期化失敗: {err_init}", "ERROR")
-                    return False
+                    log(f"Git初期化失敗: {err_init}", "ERROR")
+
+            dlg = ft.AlertDialog(
+                title=ft.Text("Git初期化の確認"),
+                content=ft.Text(f"選択されたフォルダはまだGit管理されていません。\n\n対象フォルダ:\n{curr_dir}\n\nこのフォルダで 'git init' を実行しますか？"),
+                actions=[
+                    ft.TextButton("キャンセル", on_click=lambda e: page.close(dlg)),
+                    ft.FilledButton("Git初期化を実行", on_click=on_confirm, style=ft.ButtonStyle(bgcolor="indigo600", color="white")),
+                ],
+            )
+            page.open(dlg)
             return False
         return True
 
-    def select_directory(self):
-        """任意のフォルダを選択。履歴があればURLを自動補完"""
-        chosen = filedialog.askdirectory(
-            title="コミット対象のフォルダを選択",
-            initialdir=self.target_dir,
+    # -------------------------------------------------------------
+    # フォルダ選択 / URL変更 / 履歴選択
+    # -------------------------------------------------------------
+    def on_folder_picked(e):
+        if e and e.path:
+            target_dir[0] = os.path.abspath(e.path)
+            log(f"操作対象フォルダを変更しました: {target_dir[0]}", "INFO")
+            refresh_status()
+
+    file_picker.on_result = on_folder_picked
+
+    def on_history_selected(e):
+        selected_path = history_dropdown.value
+        if selected_path and os.path.exists(selected_path):
+            target_dir[0] = os.path.abspath(selected_path)
+            log(f"過去の履歴からリポジトリを選択しました: {target_dir[0]}", "INFO")
+            refresh_status()
+
+    history_dropdown = ft.Dropdown(
+        hint_text="選択してください...",
+        border_color="bluegrey700",
+        focused_border_color="indigo400",
+        text_size=13,
+        content_padding=10,
+        expand=True,
+    )
+    history_dropdown.on_change = on_history_selected
+
+    def change_remote_url():
+        if not ensure_git_repo():
+            return
+
+        url_input = ft.TextField(
+            label="新しいGitHubリポジトリURL",
+            value=remote_url[0] if remote_url[0] != "未設定" else "https://github.com/",
+            autofocus=True,
         )
-        if chosen:
-            self.target_dir = os.path.abspath(chosen)
-            self.repo_lbl.config(text=f"対象フォルダ: {self.target_dir}")
-            self.log(f"操作対象フォルダを変更しました: {self.target_dir}", "INFO")
 
-            # 履歴に登録済みのURLがあれば自動補完提案/適用
-            saved_url = self.history.get("dir_to_url", {}).get(self.target_dir)
-            if saved_url:
-                is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
-                if is_git:
-                    ok_curr, curr_url, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
-                    if not ok_curr or curr_url != saved_url:
-                        run_git_command(["remote", "set-url", "origin", saved_url], cwd=self.target_dir)
-                        self.log(f"✨ 過去の履歴からリモートURLを自動補完・適用しました: {saved_url}", "SUCCESS")
+        def save_url(e):
+            new_url = url_input.value.strip()
+            page.close(dlg)
+            if new_url:
+                curr_dir = target_dir[0]
+                ok_check, _, _ = run_git_command(["remote", "get-url", "origin"], cwd=curr_dir)
+                if ok_check:
+                    ok, _, err = run_git_command(["remote", "set-url", "origin", new_url], cwd=curr_dir)
+                else:
+                    ok, _, err = run_git_command(["remote", "add", "origin", new_url], cwd=curr_dir)
 
-            self.refresh_status()
+                if ok:
+                    log(f"コミット先URLを変更しました: {new_url}", "SUCCESS")
+                    record_pair_history(curr_dir, new_url)
+                    refresh_status()
+                else:
+                    log(f"URL変更失敗: {err}", "ERROR")
 
-    def change_remote_url(self):
-        """リモートURL (origin) を変更し履歴に記憶"""
-        if not self.ensure_git_repo():
-            return
-
-        new_url = simpledialog.askstring(
-            "コミット先URLの変更",
-            "新しいGitHubリポジトリのURLを入力してください:\n(例: https://github.com/ユーザー名/リポジトリ名.git)",
-            initialvalue=self.remote_url if self.remote_url != "未設定" else "https://github.com/",
-            parent=self.root,
+        dlg = ft.AlertDialog(
+            title=ft.Text("コミット先URLの変更"),
+            content=ft.Container(content=url_input, width=450),
+            actions=[
+                ft.TextButton("キャンセル", on_click=lambda e: page.close(dlg)),
+                ft.FilledButton("保存", on_click=save_url, style=ft.ButtonStyle(bgcolor="indigo600", color="white")),
+            ],
         )
-        if new_url and new_url.strip():
-            new_url = new_url.strip()
-            ok_check, _, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
-            if ok_check:
-                ok, _, err = run_git_command(["remote", "set-url", "origin", new_url], cwd=self.target_dir)
-            else:
-                ok, _, err = run_git_command(["remote", "add", "origin", new_url], cwd=self.target_dir)
+        page.open(dlg)
 
-            if ok:
-                self.log(f"コミット先URLを変更しました: {new_url}", "SUCCESS")
-                self._record_pair_history(self.target_dir, new_url)
-                self.refresh_status()
-            else:
-                self.log(f"URL変更失敗: {err}", "ERROR")
-
-    def log(self, message, level="INFO"):
-        """ログ領域への出力メッセージ追加"""
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-        prefix = f"[{timestamp}] [{level}] "
-        full_msg = f"{prefix}{message}\n"
-
-        self.log_text.insert(tk.END, full_msg)
-        self.log_text.see(tk.END)
-
-    def clear_log(self):
-        self.log_text.delete("1.0", tk.END)
-
-    def refresh_status(self):
-        """選択中ディレクトリのブランチ名・リモートURL・未コミット変更ファイルの取得"""
-        self._update_history_combo()
-
-        is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
-        if not is_git:
-            self.branch_badge.config(text="git未初期化", bg="#991b1b", fg="#fecaca")
-            self.url_lbl.config(text="コミット先URL (origin): 未設定")
-            self.remote_url = "未設定"
-            self.file_list_text.config(state=tk.NORMAL)
-            self.file_list_text.delete("1.0", tk.END)
-            self.file_list_text.insert(tk.END, "⚠️ 選択されたフォルダはGitリポジトリではありません。(URL変更時またはPush時に自動初期化可能)")
-            self.file_list_text.config(state=tk.DISABLED)
+    # -------------------------------------------------------------
+    # コミット & Push スレッド
+    # -------------------------------------------------------------
+    def on_manual_push_click():
+        if not ensure_git_repo():
             return
 
-        _, branch, _ = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], cwd=self.target_dir)
-        self.current_branch = branch or "main"
-        self.branch_badge.config(text=f"branch: {self.current_branch}", bg="#312e81", fg="#e0e7ff")
+        msg = commit_msg_input.value.strip()
+        btn_push.disabled = True
+        push_btn_inner_row.controls[0] = ft.ProgressRing(width=16, height=16, stroke_width=2, color="white")
+        page.update()
 
-        ok_url, url_out, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
-        if ok_url and url_out:
-            self.remote_url = url_out
-            self.url_lbl.config(text=f"コミット先URL (origin): {self.remote_url}")
-            # 履歴に自動記憶
-            self._record_pair_history(self.target_dir, self.remote_url)
-        else:
-            self.remote_url = "未設定"
-            # 保存済み履歴があるか確認し補完
-            saved_url = self.history.get("dir_to_url", {}).get(self.target_dir)
-            if saved_url:
-                run_git_command(["remote", "add", "origin", saved_url], cwd=self.target_dir)
-                self.remote_url = saved_url
-                self.url_lbl.config(text=f"コミット先URL (origin): {self.remote_url} (履歴から自動補完)")
-                self.log(f"✨ 保存されていたURL ({saved_url}) をリモートoriginに自動補完しました！", "SUCCESS")
-            else:
-                self.url_lbl.config(text="コミット先URL (origin): 未設定 (右のURL変更ボタンで登録できます)")
+        threading.Thread(target=run_commit_push_worker, args=(msg,), daemon=True).start()
 
-        _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
-        self.file_list_text.config(state=tk.NORMAL)
-        self.file_list_text.delete("1.0", tk.END)
-
-        if status_out:
-            self.file_list_text.insert(tk.END, status_out)
-        else:
-            self.file_list_text.insert(
-                tk.END, "(変更されたファイルはありません。Working tree clean)"
-            )
-
-        self.file_list_text.config(state=tk.DISABLED)
-
-    def on_manual_push_click(self):
-        """「今すぐコミット & Push 実行」ボタンクリック時の処理"""
-        if not self.ensure_git_repo():
-            return
-
-        msg = self.entry_msg.get().strip()
-
-        self.btn_push.config(state=tk.DISABLED, bg="#475569")
-        threading.Thread(
-            target=self._run_commit_push_thread, args=(msg,), daemon=True
-        ).start()
-
-    def _run_commit_push_thread(self, custom_message):
+    def run_commit_push_worker(custom_message):
+        curr_dir = target_dir[0]
         try:
-            self.log(f"[{self.target_dir}] の変更をチェック中...")
+            log(f"[{curr_dir}] の変更をチェック中...")
 
-            _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
+            _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=curr_dir)
             has_changes = bool(status_out.strip())
 
-            # 1. git add . (変更がある場合のみ)
             if has_changes:
-                self.log("git add . を実行中...", "RUN")
-                ok, _, err = run_git_command(["add", "."], cwd=self.target_dir)
+                log("git add . を実行中...", "RUN")
+                ok, _, err = run_git_command(["add", "."], cwd=curr_dir)
                 if not ok:
-                    self.log(f"git add 失敗: {err}", "ERROR")
-                    self.root.after(0, self._finish_push_thread)
+                    log(f"git add 失敗: {err}", "ERROR")
                     return
             else:
-                self.log("変更ファイルなし。空コミット (--allow-empty) で記録します。", "INFO")
+                log("変更ファイルなし。空コミット (--allow-empty) で記録します。", "INFO")
 
-            # 2. git commit (変更なしでも --allow-empty で記録可能)
-            msg = (
-                custom_message
-                if custom_message
-                else f"Auto commit: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            msg = custom_message if custom_message else f"Auto commit: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             commit_args = ["commit", "-m", msg]
             if not has_changes:
                 commit_args.append("--allow-empty")
 
-            self.log(f"git commit -m '{msg}' を実行中...", "RUN")
-            ok, out, err = run_git_command(commit_args, cwd=self.target_dir)
+            log(f"git commit -m '{msg}' を実行中...", "RUN")
+            ok, out, err = run_git_command(commit_args, cwd=curr_dir)
             if not ok:
-                self.log(f"git commit 失敗: {err}", "ERROR")
-                self.root.after(0, self._finish_push_thread)
+                log(f"git commit 失敗: {err}", "ERROR")
                 return
-            self.log(
-                f"コミット成功: {out.splitlines()[0] if out else ''}", "OK"
-            )
 
-            # 3. git push
-            self.log(
-                f"git push origin {self.current_branch} を実行中...", "RUN"
-            )
-            ok, out, err = run_git_command(
-                ["push", "origin", self.current_branch], cwd=self.target_dir
-            )
+            log(f"コミット成功: {out.splitlines()[0] if out else ''}", "OK")
+
+            log(f"git push origin {current_branch[0]} を実行中...", "RUN")
+            ok, out, err = run_git_command(["push", "origin", current_branch[0]], cwd=curr_dir)
             if not ok:
-                ok, out, err = run_git_command(
-                    ["push", "-u", "origin", self.current_branch], cwd=self.target_dir
-                )
+                ok, out, err = run_git_command(["push", "-u", "origin", current_branch[0]], cwd=curr_dir)
 
-            # Push拒否時: リモートに既存履歴がある場合の自動統合
             if not ok and "fetch first" in err:
-                self.log("リモートに既存の履歴があります。自動統合を試みます (pull --allow-unrelated-histories)...", "RUN")
-                ok_pull, _, err_pull = run_git_command(
-                    ["pull", "origin", self.current_branch, "--allow-unrelated-histories", "--no-edit"], cwd=self.target_dir
-                )
+                log("リモートに既存の履歴があります。自動統合を試みます (pull --allow-unrelated-histories)...", "RUN")
+                ok_pull, _, _ = run_git_command(["pull", "origin", current_branch[0], "--allow-unrelated-histories", "--no-edit"], cwd=curr_dir)
                 if ok_pull:
-                    ok, out, err = run_git_command(
-                        ["push", "origin", self.current_branch], cwd=self.target_dir
-                    )
+                    ok, out, err = run_git_command(["push", "origin", current_branch[0]], cwd=curr_dir)
 
             if ok:
-                self.log("🎉 GitHubへの Push が正常に完了しました！", "SUCCESS")
-                # 成功したディレクトリとURLをペアとして永久記憶
-                self._record_pair_history(self.target_dir, self.remote_url)
-                self.root.after(
-                    0, lambda: self.entry_msg.delete(0, tk.END)
-                )
+                log("🎉 GitHubへの Push が正常に完了しました！", "SUCCESS")
+                record_pair_history(curr_dir, remote_url[0])
+                commit_msg_input.value = ""
             else:
-                self.log(f"Push失敗: {err}", "ERROR")
+                log(f"Push失敗: {err}", "ERROR")
 
         finally:
-            self.root.after(0, self._finish_push_thread)
+            btn_push.disabled = False
+            push_btn_inner_row.controls[0] = ft.Icon(ft.Icons.ROCKET_LAUNCH_ROUNDED, size=18)
+            refresh_status()
 
-    def _finish_push_thread(self):
-        self.btn_push.config(state=tk.NORMAL, bg=self.accent_color)
-        self.refresh_status()
-
-    def toggle_watch_mode(self):
-        """自動同期のON/OFF切り替え"""
-        if not self.ensure_git_repo():
+    # -------------------------------------------------------------
+    # 自動監視スレッド
+    # -------------------------------------------------------------
+    def toggle_watch_mode():
+        if not ensure_git_repo():
+            watch_switch.value = False
+            page.update()
             return
 
-        if self.is_watching:
-            self.is_watching = False
-            self.btn_watch_toggle.config(
-                text="自動同期を開始", bg=self.success_color
-            )
-            self.watch_status_lbl.config(text="ステータス: 停止中")
-            self.log("自動同期（監視モード）を停止しました。", "INFO")
+        if is_watching[0]:
+            is_watching[0] = False
+            watch_switch.label = "自動同期を開始"
+            watch_status_text.value = "ステータス: 停止中"
+            log("自動同期（監視モード）を停止しました。", "INFO")
         else:
-            self.is_watching = True
-            self.btn_watch_toggle.config(
-                text="自動同期を停止", bg=self.error_color
-            )
-
-            interval_str = self.combo_interval.get()
+            is_watching[0] = True
+            watch_switch.label = "自動同期を停止"
+            interval_str = interval_dropdown.value
             minutes = int(interval_str.replace("分", ""))
             interval_sec = minutes * 60
 
-            self.watch_status_lbl.config(
-                text=f"ステータス: 稼働中 ({interval_str}間隔)"
-            )
-            self.log(
-                f"自動同期（監視モード）を開始しました (対象: {self.target_dir}, 間隔: {interval_str})",
-                "INFO",
-            )
+            watch_status_text.value = f"ステータス: 稼働中 ({interval_str}間隔)"
+            log(f"自動同期（監視モード）を開始しました (対象: {target_dir[0]}, ※間隔: {interval_str})", "INFO")
+            threading.Thread(target=watch_loop, args=(interval_sec,), daemon=True).start()
 
-            threading.Thread(
-                target=self._watch_loop, args=(interval_sec,), daemon=True
-            ).start()
+        page.update()
 
-    def _watch_loop(self, interval_sec):
-        while self.is_watching:
-            self._run_commit_push_thread("")
+    def watch_loop(interval_sec):
+        while is_watching[0]:
+            run_commit_push_worker("")
             for _ in range(interval_sec):
-                if not self.is_watching:
+                if not is_watching[0]:
                     break
                 time.sleep(1)
 
+    # -------------------------------------------------------------
+    # レイアウトの組み立て (マテリアルデザイン3 カード)
+    # -------------------------------------------------------------
+    page.add(
+        # 1. ヘッダーカード
+        ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Icon(ft.Icons.AUTO_AWESOME_ROUNDED, color="indigo400", size=24),
+                                        ft.Text("Git Auto Commit & Push", size=18, weight=ft.FontWeight.BOLD),
+                                    ],
+                                    spacing=8,
+                                ),
+                                branch_chip,
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        ft.Divider(height=1, color="bluegrey800"),
+                        ft.Row(
+                            [
+                                ft.Text("過去の履歴から切替:", size=13, weight=ft.FontWeight.W_500, color="grey300"),
+                                history_dropdown,
+                            ],
+                            alignment=ft.MainAxisAlignment.START,
+                        ),
+                        ft.Row(
+                            [
+                                ft.Icon(ft.Icons.FOLDER_ROUNDED, size=16, color="indigo300"),
+                                repo_path_text,
+                                ft.OutlinedButton(
+                                    "フォルダ参照",
+                                    icon=ft.Icons.FOLDER_OPEN_ROUNDED,
+                                    on_click=lambda e: file_picker.get_directory_path(dialog_title="コミット対象フォルダの選択"),
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        ft.Row(
+                            [
+                                ft.Icon(ft.Icons.LINK_ROUNDED, size=16, color="indigo300"),
+                                remote_url_text,
+                                ft.OutlinedButton(
+                                    "URL変更",
+                                    icon=ft.Icons.EDIT_ROUNDED,
+                                    on_click=lambda e: change_remote_url(),
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                    ],
+                    spacing=12,
+                ),
+                padding=16,
+            ),
+            elevation=2,
+        ),
 
-def main():
-    initial_dir = sys.argv[1] if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]) else None
-    root = tk.Tk()
-    app = GitAutoCommitGUI(root, initial_dir=initial_dir)
-    root.mainloop()
+        # 2. 未コミット変更ファイルカード
+        ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Icon(ft.Icons.INSERT_DRIVE_FILE_OUTLINED, size=18, color="indigo300"),
+                                        file_status_card_title,
+                                    ],
+                                    spacing=8,
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.REFRESH_ROUNDED,
+                                    tooltip="ステータス更新",
+                                    on_click=lambda e: refresh_status(),
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        file_list_column,
+                    ],
+                    spacing=10,
+                ),
+                padding=16,
+            ),
+            elevation=2,
+        ),
+
+        # 3. 手動コミット＆Pushカード
+        ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text("コミットメッセージ", size=14, weight=ft.FontWeight.BOLD),
+                        commit_msg_input,
+                        btn_push,
+                    ],
+                    spacing=12,
+                ),
+                padding=16,
+            ),
+            elevation=2,
+        ),
+
+        # 4. 自動監視カード
+        ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Icon(ft.Icons.TIMER_OUTLINED, size=18, color="indigo300"),
+                                        ft.Text("自動同期 (定期監視)", size=14, weight=ft.FontWeight.BOLD),
+                                    ],
+                                    spacing=8,
+                                ),
+                                ft.Row(
+                                    [
+                                        ft.Text("間隔:", size=13),
+                                        interval_dropdown,
+                                        watch_switch,
+                                    ],
+                                    spacing=12,
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        watch_status_text,
+                    ],
+                    spacing=8,
+                ),
+                padding=16,
+            ),
+            elevation=2,
+        ),
+
+        # 5. ログ表示カード
+        ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Icon(ft.Icons.TERMINAL_ROUNDED, size=18, color="indigo300"),
+                                        ft.Text("実行ログ", size=14, weight=ft.FontWeight.BOLD),
+                                    ],
+                                    spacing=8,
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.DELETE_SWEEP_ROUNDED,
+                                    tooltip="ログクリア",
+                                    on_click=clear_log,
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        ft.Container(
+                            content=log_list_view,
+                            bgcolor="black",
+                            border_radius=8,
+                            height=160,
+                            padding=4,
+                        ),
+                    ],
+                    spacing=8,
+                ),
+                padding=16,
+            ),
+            elevation=2,
+        ),
+    )
+
+    # 初期化ステータスロード
+    refresh_status()
 
 
 if __name__ == "__main__":
-    main()
+    ft.app(target=main)
