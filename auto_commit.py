@@ -2,10 +2,11 @@
 """
 Auto Git Commit & Push GUI Tool
 TkinterによるGitコミット・プッシュ自動化デスクトップアプリ
-(高DPI対応 ＆ 任意フォルダ・リポジトリ・リモートURL変更・自動git init対応版)
+(高DPI対応 ＆ 任意フォルダ・リポジトリ・リモートURL変更・履歴自動補完・自動git init対応版)
 """
 
 import datetime
+import json
 import os
 import subprocess
 import sys
@@ -13,6 +14,9 @@ import threading
 import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
+
+# 履歴設定ファイルのパス (ホームディレクトリに保存)
+HISTORY_FILE = os.path.expanduser("~/.git_auto_commit_history.json")
 
 # ==========================================
 # Windows 高DPI (スケーリング・拡大率) 対応
@@ -55,17 +59,40 @@ def run_git_command(args, cwd=None):
         return False, "", str(e)
 
 
+def load_history():
+    """履歴データ (dir -> url, url -> dir) の読み込み"""
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"dir_to_url": {}, "url_to_dir": {}}
+
+
+def save_history(history_data):
+    """履歴データの保存"""
+    try:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(history_data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"履歴保存エラー: {e}")
+
+
 class GitAutoCommitGUI:
     def __init__(self, root, initial_dir=None):
         self.root = root
-        self.root.title("Git 自動コミット & Push ツール")
+        self.root.title("Git 自動コミット & Push ツール (履歴自動補完機能付き)")
+
+        # 履歴データのロード
+        self.history = load_history()
 
         # 対象のGitリポジトリフォルダ
         self.target_dir = os.path.abspath(initial_dir or os.getcwd())
 
         # 視認性向上のための高解像度初期サイズ
-        self.root.geometry("820x820")
-        self.root.minsize(700, 620)
+        self.root.geometry("860x860")
+        self.root.minsize(720, 650)
 
         # カラーテーマ設定 (ハイコントラスト Slate & Indigo)
         self.bg_color = "#0f172a"       # slate-900
@@ -130,7 +157,7 @@ class GitAutoCommitGUI:
         main_container.pack(fill=tk.BOTH, expand=True)
 
         # ==========================================
-        # 1. ヘッダーカード (リポジトリ選択・URL表示・切り替え)
+        # 1. ヘッダーカード (リポジトリ選択・履歴切り替え・URL表示)
         # ==========================================
         header_card = ttk.Frame(main_container, style="Card.TFrame", padding=14)
         header_card.pack(fill=tk.X, pady=(0, 12))
@@ -156,9 +183,25 @@ class GitAutoCommitGUI:
         )
         self.branch_badge.pack(side=tk.RIGHT)
 
+        # 履歴選択ドロップダウン
+        history_frame = ttk.Frame(header_card, style="Card.TFrame")
+        history_frame.pack(fill=tk.X, pady=(10, 4))
+
+        ttk.Label(
+            history_frame, text="過去の履歴から選択:", style="Card.TLabel"
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        self.combo_history = ttk.Combobox(
+            history_frame,
+            state="readonly",
+            font=self.font_small,
+        )
+        self.combo_history.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.combo_history.bind("<<ComboboxSelected>>", self.on_history_selected)
+
         # フォルダ選択エリア
         repo_frame = ttk.Frame(header_card, style="Card.TFrame")
-        repo_frame.pack(fill=tk.X, pady=(8, 4))
+        repo_frame.pack(fill=tk.X, pady=(4, 4))
 
         self.repo_lbl = ttk.Label(
             repo_frame,
@@ -390,6 +433,58 @@ class GitAutoCommitGUI:
         )
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
+    def _update_history_combo(self):
+        """履歴ドロップダウンリストの表示更新"""
+        dir_to_url = self.history.get("dir_to_url", {})
+        values = []
+        for d, u in dir_to_url.items():
+            folder_name = os.path.basename(d) or d
+            repo_name = u.split("/")[-1].replace(".git", "") if u else "未設定"
+            values.append(f"{folder_name}  ⇄  {repo_name}  [{d}]")
+
+        self.combo_history["values"] = values
+
+    def _record_pair_history(self, directory, url):
+        """ディレクトリとURLの紐付けペアを履歴へ記録・自動保存"""
+        if not directory:
+            return
+        norm_dir = os.path.abspath(directory)
+        if "dir_to_url" not in self.history:
+            self.history["dir_to_url"] = {}
+        if "url_to_dir" not in self.history:
+            self.history["url_to_dir"] = {}
+
+        if url and url != "未設定":
+            self.history["dir_to_url"][norm_dir] = url
+            self.history["url_to_dir"][url] = norm_dir
+
+        save_history(self.history)
+        self._update_history_combo()
+
+    def on_history_selected(self, event):
+        """履歴ドロップダウンから選択した時の自動適用切り替え"""
+        selected_text = self.combo_history.get()
+        if "[" in selected_text and "]" in selected_text:
+            target_path = selected_text.split("[")[-1].rstrip("]")
+            if os.path.exists(target_path):
+                self.target_dir = os.path.abspath(target_path)
+                self.repo_lbl.config(text=f"対象フォルダ: {self.target_dir}")
+                self.log(f"履歴からリポジトリを選択・移動しました: {self.target_dir}", "INFO")
+
+                # 履歴にあるURLの自動補完・適用
+                saved_url = self.history.get("dir_to_url", {}).get(self.target_dir)
+                if saved_url:
+                    is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
+                    if is_git:
+                        ok_curr, curr_url, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
+                        if not ok_curr or curr_url != saved_url:
+                            run_git_command(["remote", "set-url", "origin", saved_url], cwd=self.target_dir)
+                            self.log(f"保存されたリモートURLを自動適用しました: {saved_url}", "SUCCESS")
+
+                self.refresh_status()
+            else:
+                self.log(f"選択されたフォルダが存在しません: {target_path}", "ERROR")
+
     def ensure_git_repo(self):
         """Gitリポジトリ未初期化の場合、確認ダイアログを出して git init を実行"""
         is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
@@ -413,7 +508,7 @@ class GitAutoCommitGUI:
         return True
 
     def select_directory(self):
-        """任意のGitリポジトリ/プロジェクトフォルダを選択"""
+        """任意のフォルダを選択。履歴があればURLを自動補完"""
         chosen = filedialog.askdirectory(
             title="コミット対象のフォルダを選択",
             initialdir=self.target_dir,
@@ -422,10 +517,21 @@ class GitAutoCommitGUI:
             self.target_dir = os.path.abspath(chosen)
             self.repo_lbl.config(text=f"対象フォルダ: {self.target_dir}")
             self.log(f"操作対象フォルダを変更しました: {self.target_dir}", "INFO")
+
+            # 履歴に登録済みのURLがあれば自動補完提案/適用
+            saved_url = self.history.get("dir_to_url", {}).get(self.target_dir)
+            if saved_url:
+                is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
+                if is_git:
+                    ok_curr, curr_url, _ = run_git_command(["remote", "get-url", "origin"], cwd=self.target_dir)
+                    if not ok_curr or curr_url != saved_url:
+                        run_git_command(["remote", "set-url", "origin", saved_url], cwd=self.target_dir)
+                        self.log(f"✨ 過去の履歴からリモートURLを自動補完・適用しました: {saved_url}", "SUCCESS")
+
             self.refresh_status()
 
     def change_remote_url(self):
-        """リモートURL (origin) を変更（未初期化の場合は自動初期化）"""
+        """リモートURL (origin) を変更し履歴に記憶"""
         if not self.ensure_git_repo():
             return
 
@@ -445,6 +551,7 @@ class GitAutoCommitGUI:
 
             if ok:
                 self.log(f"コミット先URLを変更しました: {new_url}", "SUCCESS")
+                self._record_pair_history(self.target_dir, new_url)
                 self.refresh_status()
             else:
                 self.log(f"URL変更失敗: {err}", "ERROR")
@@ -463,6 +570,8 @@ class GitAutoCommitGUI:
 
     def refresh_status(self):
         """選択中ディレクトリのブランチ名・リモートURL・未コミット変更ファイルの取得"""
+        self._update_history_combo()
+
         is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=self.target_dir)
         if not is_git:
             self.branch_badge.config(text="git未初期化", bg="#991b1b", fg="#fecaca")
@@ -482,9 +591,19 @@ class GitAutoCommitGUI:
         if ok_url and url_out:
             self.remote_url = url_out
             self.url_lbl.config(text=f"コミット先URL (origin): {self.remote_url}")
+            # 履歴に自動記憶
+            self._record_pair_history(self.target_dir, self.remote_url)
         else:
             self.remote_url = "未設定"
-            self.url_lbl.config(text="コミット先URL (origin): 未設定 (右のURL変更ボタンで登録できます)")
+            # 保存済み履歴があるか確認し補完
+            saved_url = self.history.get("dir_to_url", {}).get(self.target_dir)
+            if saved_url:
+                run_git_command(["remote", "add", "origin", saved_url], cwd=self.target_dir)
+                self.remote_url = saved_url
+                self.url_lbl.config(text=f"コミット先URL (origin): {self.remote_url} (履歴から自動補完)")
+                self.log(f"✨ 保存されていたURL ({saved_url}) をリモートoriginに自動補完しました！", "SUCCESS")
+            else:
+                self.url_lbl.config(text="コミット先URL (origin): 未設定 (右のURL変更ボタンで登録できます)")
 
         _, status_out, _ = run_git_command(["status", "--porcelain"], cwd=self.target_dir)
         self.file_list_text.config(state=tk.NORMAL)
@@ -574,6 +693,8 @@ class GitAutoCommitGUI:
 
             if ok:
                 self.log("🎉 GitHubへの Push が正常に完了しました！", "SUCCESS")
+                # 成功したディレクトリとURLをペアとして永久記憶
+                self._record_pair_history(self.target_dir, self.remote_url)
                 self.root.after(
                     0, lambda: self.entry_msg.delete(0, tk.END)
                 )
