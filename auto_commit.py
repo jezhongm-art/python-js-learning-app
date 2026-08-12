@@ -97,16 +97,12 @@ def main(page: ft.Page):
         visual_density=ft.VisualDensity.COMFORTABLE,
     )
 
-    # Flet ダイアログ表示・開閉ヘルパー関数 (互換性担保)
+    # Flet ダイアログ表示・開閉ヘルパー関数
     def open_dialog(dialog):
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
+        page.open(dialog)
 
     def close_dialog(dialog):
-        if page.dialog:
-            page.dialog.open = False
-            page.update()
+        page.close(dialog)
 
     # アプリの状態データ
     history = load_history()
@@ -284,8 +280,14 @@ def main(page: ft.Page):
         if not is_git:
             branch_chip.content.controls[1].value = "git未初期化"
             branch_chip.bgcolor = "red900"
-            remote_url_text.value = "コミット先URL (origin): 未設定"
-            remote_url[0] = "未設定"
+            
+            saved_url = history.get("dir_to_url", {}).get(curr_dir)
+            if saved_url:
+                remote_url_text.value = f"コミット先URL (origin): {saved_url} (未設定)"
+                remote_url[0] = saved_url
+            else:
+                remote_url_text.value = "コミット先URL (origin): 未設定"
+                remote_url[0] = "未設定"
 
             file_list_column.controls = [
                 ft.Container(
@@ -456,6 +458,8 @@ def main(page: ft.Page):
                     log(f"✨ 履歴からリモートURL ({saved_url}) を自動変更適用しました！", "SUCCESS")
 
             refresh_status()
+        elif selected_path and not os.path.exists(selected_path):
+            log(f"エラー: 選択されたフォルダが存在しません: {selected_path}", "ERROR")
 
     history_dropdown = ft.Dropdown(
         hint_text="選択してください...",
