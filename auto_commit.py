@@ -15,6 +15,29 @@ import tkinter as tk
 from tkinter import filedialog
 import flet as ft
 
+# ==========================================
+# Windows 高DPI (スケーリング・拡大率) 対応 (プロセス全体)
+# ==========================================
+if sys.platform == "win32":
+    try:
+        import ctypes
+        # Process Per Monitor DPI Aware (Windows 8.1 / 10 / 11)
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        try:
+            import ctypes
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+# Windows環境での標準出力文字コード対策
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
+
 # 履歴設定ファイルのパス
 HISTORY_FILE = os.path.expanduser("~/.git_auto_commit_history.json")
 
@@ -74,6 +97,17 @@ def main(page: ft.Page):
         visual_density=ft.VisualDensity.COMFORTABLE,
     )
 
+    # Flet ダイアログ表示・開閉ヘルパー関数 (互換性担保)
+    def open_dialog(dialog):
+        page.dialog = dialog
+        dialog.open = True
+        page.update()
+
+    def close_dialog(dialog):
+        if page.dialog:
+            page.dialog.open = False
+            page.update()
+
     # アプリの状態データ
     history = load_history()
     target_dir = [os.path.abspath(sys.argv[1] if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]) else os.getcwd())]
@@ -122,7 +156,10 @@ def main(page: ft.Page):
             border_radius=4,
         )
         log_list_view.controls.append(log_item)
-        page.update()
+        try:
+            page.update()
+        except Exception:
+            pass
 
     def clear_log(e=None):
         log_list_view.controls.clear()
@@ -156,7 +193,12 @@ def main(page: ft.Page):
             options.append(ft.dropdown.Option(key=d, text=f"{folder_name}  ➔  {repo_name}  ({d})"))
 
         history_dropdown.options = options
-        page.update()
+        if target_dir[0] in dir_to_url:
+            history_dropdown.value = target_dir[0]
+        try:
+            page.update()
+        except Exception:
+            pass
 
     # -------------------------------------------------------------
     # UI要素の参照
@@ -235,7 +277,6 @@ def main(page: ft.Page):
     # ステータス更新 & Git処理
     # -------------------------------------------------------------
     def refresh_status():
-        update_history_dropdown()
         curr_dir = target_dir[0]
         repo_path_text.value = f"対象: {curr_dir}"
 
@@ -260,6 +301,7 @@ def main(page: ft.Page):
                     border_radius=6,
                 )
             ]
+            update_history_dropdown()
             page.update()
             return
 
@@ -335,6 +377,7 @@ def main(page: ft.Page):
                 )
             ]
 
+        update_history_dropdown()
         page.update()
 
     # -------------------------------------------------------------
@@ -345,7 +388,7 @@ def main(page: ft.Page):
         is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=curr_dir)
         if not is_git:
             def on_confirm(e):
-                page.close(dlg)
+                close_dialog(dlg)
                 ok_init, _, err_init = run_git_command(["init"], cwd=curr_dir)
                 if ok_init:
                     run_git_command(["branch", "-M", "main"], cwd=curr_dir)
@@ -358,19 +401,27 @@ def main(page: ft.Page):
                 title=ft.Text("Git初期化の確認"),
                 content=ft.Text(f"選択されたフォルダはまだGit管理されていません。\n\n対象フォルダ:\n{curr_dir}\n\nこのフォルダで 'git init' を実行しますか？"),
                 actions=[
-                    ft.TextButton("キャンセル", on_click=lambda e: page.close(dlg)),
+                    ft.TextButton("キャンセル", on_click=lambda e: close_dialog(dlg)),
                     ft.FilledButton("Git初期化を実行", on_click=on_confirm, style=ft.ButtonStyle(bgcolor="indigo600", color="white")),
                 ],
             )
-            page.open(dlg)
+            open_dialog(dlg)
             return False
         return True
 
     # -------------------------------------------------------------
-    # フォルダ選択 (ネイティブダイアログ) / URL変更 / 履歴選択
+    # フォルダ選択 (高画質ネイティブダイアログ) / URL変更 / 履歴選択
     # -------------------------------------------------------------
     def select_folder_native(e=None):
         def _pick():
+            # スレッド内でも高DPI有効化を確保
+            if sys.platform == "win32":
+                try:
+                    import ctypes
+                    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+                except Exception:
+                    pass
+
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
@@ -387,10 +438,23 @@ def main(page: ft.Page):
         threading.Thread(target=_pick, daemon=True).start()
 
     def on_history_selected(e):
-        selected_path = history_dropdown.value
+        selected_path = e.control.value or history_dropdown.value
         if selected_path and os.path.exists(selected_path):
             target_dir[0] = os.path.abspath(selected_path)
             log(f"過去の履歴からリポジトリを選択しました: {target_dir[0]}", "INFO")
+
+            # 保存されていたURLがあれば取得してリモートに自動適用
+            saved_url = history.get("dir_to_url", {}).get(target_dir[0])
+            is_git, _, _ = run_git_command(["rev-parse", "--is-inside-work-tree"], cwd=target_dir[0])
+            if is_git and saved_url:
+                ok_curr, curr_url, _ = run_git_command(["remote", "get-url", "origin"], cwd=target_dir[0])
+                if not ok_curr:
+                    run_git_command(["remote", "add", "origin", saved_url], cwd=target_dir[0])
+                    log(f"✨ 履歴からリモートURL ({saved_url}) を登録しました！", "SUCCESS")
+                elif curr_url != saved_url:
+                    run_git_command(["remote", "set-url", "origin", saved_url], cwd=target_dir[0])
+                    log(f"✨ 履歴からリモートURL ({saved_url}) を自動変更適用しました！", "SUCCESS")
+
             refresh_status()
 
     history_dropdown = ft.Dropdown(
@@ -415,7 +479,7 @@ def main(page: ft.Page):
 
         def save_url(e):
             new_url = url_input.value.strip()
-            page.close(dlg)
+            close_dialog(dlg)
             if new_url:
                 curr_dir = target_dir[0]
                 ok_check, _, _ = run_git_command(["remote", "get-url", "origin"], cwd=curr_dir)
@@ -435,11 +499,11 @@ def main(page: ft.Page):
             title=ft.Text("コミット先URLの変更"),
             content=ft.Container(content=url_input, width=450),
             actions=[
-                ft.TextButton("キャンセル", on_click=lambda e: page.close(dlg)),
+                ft.TextButton("キャンセル", on_click=lambda e: close_dialog(dlg)),
                 ft.FilledButton("保存", on_click=save_url, style=ft.ButtonStyle(bgcolor="indigo600", color="white")),
             ],
         )
-        page.open(dlg)
+        open_dialog(dlg)
 
     # -------------------------------------------------------------
     # コミット & Push スレッド
