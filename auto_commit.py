@@ -11,6 +11,8 @@ import subprocess
 import sys
 import threading
 import time
+import tkinter as tk
+from tkinter import filedialog
 import flet as ft
 
 # 履歴設定ファイルのパス
@@ -78,10 +80,6 @@ def main(page: ft.Page):
     current_branch = ["main"]
     remote_url = ["未設定"]
     is_watching = [False]
-
-    # FilePicker (フォルダ選択ダイアログ)
-    file_picker = ft.FilePicker()
-    page.overlay.append(file_picker)
 
     # -------------------------------------------------------------
     # ログ出力関数
@@ -369,15 +367,24 @@ def main(page: ft.Page):
         return True
 
     # -------------------------------------------------------------
-    # フォルダ選択 / URL変更 / 履歴選択
+    # フォルダ選択 (ネイティブダイアログ) / URL変更 / 履歴選択
     # -------------------------------------------------------------
-    def on_folder_picked(e):
-        if e and e.path:
-            target_dir[0] = os.path.abspath(e.path)
-            log(f"操作対象フォルダを変更しました: {target_dir[0]}", "INFO")
-            refresh_status()
+    def select_folder_native(e=None):
+        def _pick():
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            chosen = filedialog.askdirectory(
+                title="コミット対象フォルダの選択",
+                initialdir=target_dir[0],
+            )
+            root.destroy()
+            if chosen:
+                target_dir[0] = os.path.abspath(chosen)
+                log(f"操作対象フォルダを変更しました: {target_dir[0]}", "INFO")
+                refresh_status()
 
-    file_picker.on_result = on_folder_picked
+        threading.Thread(target=_pick, daemon=True).start()
 
     def on_history_selected(e):
         selected_path = history_dropdown.value
@@ -523,7 +530,7 @@ def main(page: ft.Page):
             interval_sec = minutes * 60
 
             watch_status_text.value = f"ステータス: 稼働中 ({interval_str}間隔)"
-            log(f"自動同期（監視モード）を開始しました (対象: {target_dir[0]}, ※間隔: {interval_str})", "INFO")
+            log(f"自動同期（監視モード）を開始しました (対象: {target_dir[0]}, 間隔: {interval_str})", "INFO")
             threading.Thread(target=watch_loop, args=(interval_sec,), daemon=True).start()
 
         page.update()
@@ -573,7 +580,7 @@ def main(page: ft.Page):
                                 ft.OutlinedButton(
                                     "フォルダ参照",
                                     icon=ft.Icons.FOLDER_OPEN_ROUNDED,
-                                    on_click=lambda e: file_picker.get_directory_path(dialog_title="コミット対象フォルダの選択"),
+                                    on_click=select_folder_native,
                                 ),
                             ],
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
