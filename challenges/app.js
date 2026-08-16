@@ -357,14 +357,7 @@ const challenges = [
     title: "15. オブジェクトの反転",
     difficulty: "上級",
     difficultyColor: "bg-rose-100 text-rose-800",
-    description: `オブジェクト \`obj\` を受け取り、そのキーと値を反転させた新しいオブジェクトを返す関数 \`invertObject\` を作成してください。
-※値はすべて文字列または数値として一意であると仮定して構いません。
-
-### 引数
-- \`obj\` (Object): 反転対象のオブジェクト
-
-### 戻り値
-- Object: キーと値が反転した新しいオブジェクト`,
+    description: `オブジェクト <code>obj</code> を受け取り、そのキーと値を反転させた新しいオブジェクトを返す関数 <code>invertObject(obj)</code> を作成してください。`,
     template: `function invertObject(obj) {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "invertObject",
     testCases: [
@@ -374,150 +367,171 @@ const challenges = [
     ]
   },
   {
-    id: "create-button",
-    title: "16. DOMの生成 (ボタン作成)",
+    id: "dom-update-text",
+    title: "16. 実戦DOM操作: テキストの書き換え",
     difficulty: "初級",
     difficultyColor: "bg-emerald-100 text-emerald-800",
-    description: `JavaScriptの **DOM API** の練習です。
-ボタンのテキスト \`text\` を受け取り、\`document.createElement\` を使って \`<button>\` 要素を作成してください。
-さらに、そのボタンに \`"primary-btn"\` というクラス名を付与し、最後に作成した要素の **\`outerHTML\`（HTML文字列）** を返す関数 \`createButton\` を作成してください。
-
-### 引数
-- \`text\` (String): ボタンのテキスト内容
-
-### 戻り値
-- String: 生成されたボタン要素のHTML文字列 (\`outerHTML\`)`,
-    template: `function createButton(text) {\n    // ここにコードを記述してください\n    \n}`,
-    functionName: "createButton",
-    testCases: [
-      { input: ["送信"], expected: '<button class="primary-btn">送信</button>', inputLabel: 'createButton("送信")' },
-      { input: ["Click"], expected: '<button class="primary-btn">Click</button>', inputLabel: 'createButton("Click")' }
-    ]
-  },
-  {
-    id: "create-list",
-    title: "17. 動的リストの構築 (DOM操作)",
-    difficulty: "中級",
-    difficultyColor: "bg-amber-100 text-amber-800",
-    description: `文字列の配列 \`items\` を受け取り、\`document.createElement\` を使って \`<ul>\` 要素を作成してください。
-配列の各要素を \`<li>\` 要素として作成し、\`<ul>\` に \`appendChild\` で追加してください。
-最後に作成した \`<ul>\` 要素の **\`outerHTML\`** を返す関数 \`createList\` を作成してください。
-
-### 引数
-- \`items\` (Array of Strings): リストアイテムの配列
-
-### 戻り値
-- String: 生成されたリスト要素のHTML文字列 (\`outerHTML\`)`,
-    template: `function createList(items) {\n    // ここにコードを記述してください\n    \n}`,
-    functionName: "createList",
-    testCases: [
-      { input: [["りんご", "みかん"]], expected: "<ul><li>りんご</li><li>みかん</li></ul>", inputLabel: 'createList(["りんご", "みかん"])' },
-      { input: [[]], expected: "<ul></ul>", inputLabel: "createList([])" },
-      { input: [["A", "B", "C"]], expected: "<ul><li>A</li><li>B</li><li>C</li></ul>", inputLabel: 'createList(["A", "B", "C"])' }
-    ]
-  },
-  {
-    id: "update-element",
-    title: "18. DOM要素の内容更新",
-    difficulty: "中級",
-    difficultyColor: "bg-amber-100 text-amber-800",
-    description: `HTML文字列 \`htmlStr\` と新しいテキスト \`newText\` を受け取る関数 \`updateElement\` を作成してください。
-
-関数内で \`document.createElement("div")\` を使って一時的なラッパー要素を作成し、そこに \`innerHTML\` を使って \`htmlStr\` を流し込みます。
-その後、流し込んだ要素（\`firstChild\` などで取得）の \`textContent\` を \`newText\` に書き換え、更新後の要素の **\`outerHTML\`** を返してください。
-
-### 引数
-- \`htmlStr\` (String): 元となる単一のHTML要素の文字列
-- \`newText\` (String): 書き換える新しいテキスト
-
-### 戻り値
-- String: テキストが書き換えられた要素のHTML文字列 (\`outerHTML\`)`,
-    template: `function updateElement(htmlStr, newText) {\n    // ここにコードを記述してください\n    // ヒント: divなどの一時要素を作って innerHTML を使いましょう。\n}`,
-    functionName: "updateElement",
-    testCases: [
-      { input: ["<span>古いテキスト</span>", "新しいテキスト"], expected: "<span>新しいテキスト</span>", inputLabel: 'updateElement("<span>古いテキスト</span>", "新しいテキスト")' },
-      { input: ["<h1 class='title'>Hello</h1>", "Bye"], expected: '<h1 class="title">Bye</h1>', inputLabel: 'updateElement("<h1 class=\'title\'>Hello</h1>", "Bye")' }
-    ]
-  },
-  {
-    id: "dom-text-change",
-    title: "19. 実戦DOM操作: テキストの書き換え",
-    difficulty: "初級",
-    difficultyColor: "bg-emerald-100 text-emerald-800",
-    description: `画面上にある \`<h1 id="greeting">Hello World</h1>\` 要素のテキスト（\`textContent\`）を \`"こんにちは、JavaScript!"\` に書き換える関数 \`updateGreeting\` を作成してください。
-
-### ヒント
-- \`document.getElementById("greeting")\` や \`document.querySelector("#greeting")\` を使用します。`,
+    description: `IDが <code>"greeting"</code> の要素のテキストを <code>"こんにちは、JavaScript!"</code> に変更する関数 <code>updateGreeting()</code> を作成してください。`,
     template: `function updateGreeting() {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "updateGreeting",
-    htmlFixture: `<h1 id="greeting">Hello World</h1>`,
+    htmlFixture: `<div class="p-4 bg-indigo-50/50 dark:bg-slate-800/80 rounded-xl border border-indigo-100 dark:border-slate-700 flex items-center justify-between"><div class="flex items-center gap-3"><span class="p-2 bg-indigo-600 text-white rounded-lg shadow-sm"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg></span><div><p class="text-xs text-slate-400 font-semibold">ウェルカムメッセージ</p><h3 id="greeting" class="text-lg font-bold text-slate-800 dark:text-slate-100">Hello World</h3></div></div></div>`,
     testCases: [
-      { input: [], domCheck: 'document.querySelector("#greeting").textContent', expected: "こんにちは、JavaScript!", inputLabel: 'updateGreeting() -> #greeting.textContent' }
+      { input: [], domCheck: 'document.querySelector("#greeting").textContent.trim()', expected: "こんにちは、JavaScript!", inputLabel: 'updateGreeting() -> #greeting.textContent' }
     ]
   },
   {
     id: "dom-toggle-class",
-    title: "20. 実戦DOM操作: クラスの追加・判定",
+    title: "17. 実戦DOM操作: クラスの追加・判定",
     difficulty: "初級",
     difficultyColor: "bg-emerald-100 text-emerald-800",
-    description: `IDが \`"submit-btn"\` のボタン要素にクラス名 \`"active"\` を追加する関数 \`activateButton\` を作成してください。
-
-### ヒント
-- \`element.classList.add("active")\` を使用します。`,
+    description: `IDが <code>"submit-btn"</code> のボタン要素にクラス名 <code>"active"</code> を追加する関数 <code>activateButton()</code> を作成してください。`,
     template: `function activateButton() {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "activateButton",
-    htmlFixture: `<button id="submit-btn" class="btn">送信する</button>`,
+    htmlFixture: `<div class="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between"><span class="text-xs text-slate-500 font-medium">ボタン状態の切り替え</span><button id="submit-btn" class="px-4 py-2 bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition-all [&.active]:bg-indigo-600 [&.active]:text-white [&.active]:shadow-md">送信する</button></div>`,
     testCases: [
       { input: [], domCheck: 'document.querySelector("#submit-btn").classList.contains("active")', expected: true, inputLabel: 'activateButton() -> #submit-btn has class "active"' }
     ]
   },
   {
     id: "dom-append-list",
-    title: "21. 実戦DOM操作: 動的リスト(ul/li)の生成",
+    title: "18. 実戦DOM操作: 動的リスト(ul/li)の生成",
     difficulty: "中級",
     difficultyColor: "bg-amber-100 text-amber-800",
-    description: `文字列の配列 \`items\` を受け取り、IDが \`"item-list"\` の \`<ul>\` 要素の中に、各要素を \`<li>\` タグとして追加する関数 \`renderList(items)\` を作成してください。
-
-### 引数
-- \`items\` (Array of Strings): リストに追加する文字列の配列`,
+    description: `文字列の配列 <code>items</code> を受け取り、IDが <code>"item-list"</code> の <code>&lt;ul&gt;</code> 要素の中に、各要素を <code>&lt;li&gt;</code> タグとして追加する関数 <code>renderList(items)</code> を作成してください。`,
     template: `function renderList(items) {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "renderList",
-    htmlFixture: `<ul id="item-list"></ul>`,
+    htmlFixture: `<div class="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2"><p class="text-xs font-bold text-slate-500">動的生成アイテム一覧</p><ul id="item-list" class="space-y-1.5 min-h-[40px]"></ul></div>`,
     testCases: [
-      { input: [["りんご", "みかん", "バナナ"]], domCheck: 'Array.from(document.querySelectorAll("#item-list li")).map(li => li.textContent)', expected: ["りんご", "みかん", "バナナ"], inputLabel: 'renderList(["りんご", "みかん", "バナナ"])' },
-      { input: [["A", "B"]], domCheck: 'Array.from(document.querySelectorAll("#item-list li")).map(li => li.textContent)', expected: ["A", "B"], inputLabel: 'renderList(["A", "B"])' }
+      { input: [["りんご", "みかん", "バナナ"]], domCheck: 'Array.from(document.querySelectorAll("#item-list li")).map(li => li.textContent.trim())', expected: ["りんご", "みかん", "バナナ"], inputLabel: 'renderList(["りんご", "みかん", "バナナ"])' },
+      { input: [["A", "B"]], domCheck: 'Array.from(document.querySelectorAll("#item-list li")).map(li => li.textContent.trim())', expected: ["A", "B"], inputLabel: 'renderList(["A", "B"])' }
     ]
   },
   {
     id: "dom-calc-form",
-    title: "22. 実戦DOM操作: フォーム計算結果の表示",
+    title: "19. 実戦DOM操作: フォーム計算結果の表示",
     difficulty: "中級",
     difficultyColor: "bg-amber-100 text-amber-800",
-    description: `ID \`"num1"\` と \`"num2"\` の \`<input>\` 要素に入力された数値を取得・加算し、ID \`"result"\` の要素にその合計値をセットする関数 \`calculateTotal()\` を作成してください。
-
-### ヒント
-- \`input\` の値は文字列（\`value\`）で取得されるため、\`Number(val)\` で数値に変換してください。`,
+    description: `ID <code>"num1"</code> と <code>"num2"</code> の <code>&lt;input&gt;</code> 要素に入力された数値を取得・加算し、ID <code>"result"</code> の要素にその合計値をセットする関数 <code>calculateTotal()</code> を作成してください。`,
     template: `function calculateTotal() {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "calculateTotal",
-    htmlFixture: `<div class="flex gap-2 items-center"><input id="num1" value="100" class="border p-1 rounded w-20"> + <input id="num2" value="200" class="border p-1 rounded w-20"> = <span id="result" class="font-bold"></span></div>`,
+    htmlFixture: `<div class="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-3"><input id="num1" type="number" value="100" class="w-20 px-2.5 py-1.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-mono text-center"><span class="font-bold text-slate-500">+</span><input id="num2" type="number" value="200" class="w-20 px-2.5 py-1.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-mono text-center"><span class="font-bold text-slate-500">=</span><span id="result" class="px-3 py-1.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold rounded-lg text-sm font-mono min-w-[50px] text-center">?</span></div>`,
     testCases: [
-      { input: [], domCheck: 'document.querySelector("#result").textContent', expected: "300", inputLabel: 'calculateTotal() -> #result.textContent' }
+      { input: [], domCheck: 'document.querySelector("#result").textContent.trim()', expected: "300", inputLabel: 'calculateTotal() -> #result.textContent' }
     ]
   },
   {
     id: "dom-remove-ad",
-    title: "23. 実戦DOM操作: 特定要素の削除",
+    title: "20. 実戦DOM操作: 特定要素の削除",
     difficulty: "上級",
     difficultyColor: "bg-rose-100 text-rose-800",
-    description: `クラス名 \`"ad-banner"\` を持つ要素を画面（DOM）から削除する関数 \`removeAds()\` を作成してください。
-
-### ヒント
-- \`element.remove()\` を使用します。`,
+    description: `クラス名 <code>"ad-banner"</code> を持つ要素を画面（DOM）から削除する関数 <code>removeAds()</code> を作成してください。`,
     template: `function removeAds() {\n    // ここにコードを記述してください\n    \n}`,
     functionName: "removeAds",
-    htmlFixture: `<div id="content"><div class="ad-banner bg-amber-100 p-2 rounded mb-2 text-xs">広告: 限定セール中！</div><p>大切な本文です。</p></div>`,
+    htmlFixture: `<div id="content" class="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2"><div class="ad-banner p-3 bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-300 rounded-lg text-xs font-semibold flex items-center justify-between"><span>📢 広告: 限定セール開催中！</span><span class="text-[10px] uppercase bg-amber-200 dark:bg-amber-900 px-1.5 py-0.5 rounded">Ad</span></div><p class="text-sm text-slate-700 dark:text-slate-300 font-medium">これは大切なWebサイトのメイン本文です。</p></div>`,
     testCases: [
       { input: [], domCheck: 'document.querySelector(".ad-banner")', expected: null, inputLabel: 'removeAds() -> .ad-banner element removed' }
+    ]
+  },
+  {
+    id: "dom-interactive-counter",
+    title: "21. 実戦DOM操作: インタラクティブ・カウンター",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `<code>setupCounter()</code> 関数を実装し、ID <code>"increment-btn"</code> をクリックすると ID <code>"count-display"</code> の数値が <code>+1</code> され、ID <code>"decrement-btn"</code> をクリックすると <code>-1</code> されるようにイベントリスナーを登録してください。`,
+    template: `function setupCounter() {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "setupCounter",
+    htmlFixture: `<div class="p-4 bg-indigo-50/40 dark:bg-slate-800/80 rounded-xl border border-indigo-100 dark:border-slate-700 flex items-center justify-between"><span class="text-xs font-semibold text-slate-500">カウンターコンポーネント</span><div class="flex items-center gap-3"><button id="decrement-btn" class="w-8 h-8 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center transition-colors">-</button><span id="count-display" class="w-12 text-center text-xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400">0</span><button id="increment-btn" class="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center justify-center transition-colors shadow-sm">+</button></div></div>`,
+    testCases: [
+      {
+        input: [],
+        domCheck: `(() => {
+          document.getElementById("increment-btn").click();
+          document.getElementById("increment-btn").click();
+          return Number(document.getElementById("count-display").textContent);
+        })()`,
+        expected: 2,
+        inputLabel: "setupCounter() -> +ボタンを2回押下してカウントが2になる"
+      },
+      {
+        input: [],
+        domCheck: `(() => {
+          document.getElementById("decrement-btn").click();
+          return Number(document.getElementById("count-display").textContent);
+        })()`,
+        expected: 1,
+        inputLabel: "setupCounter() -> -ボタンを押下してカウントが1になる"
+      }
+    ]
+  },
+  {
+    id: "dom-todo-add",
+    title: "22. 実戦DOM操作: ToDoタスクの動的追加",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `タスク名文字列 <code>taskText</code> を受け取り、ID <code>"todo-list"</code> の <code>&lt;ul&gt;</code> 要素の中に、クラス名 <code>"todo-item"</code> を持つ新しい <code>&lt;li&gt;</code> 要素を追加する関数 <code>addTodoItem(taskText)</code> を作成してください。`,
+    template: `function addTodoItem(taskText) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "addTodoItem",
+    htmlFixture: `<div class="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3"><div class="flex justify-between items-center"><span class="text-xs font-bold text-slate-700 dark:text-slate-300">ToDo タスクマネージャー</span><span class="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded font-semibold">Live Preview</span></div><ul id="todo-list" class="space-y-1.5 min-h-[50px]"></ul></div>`,
+    testCases: [
+      {
+        input: ["JavaScriptのDOM操作をマスターする"],
+        domCheck: 'Array.from(document.querySelectorAll("#todo-list .todo-item")).map(el => el.textContent.trim())',
+        expected: ["JavaScriptのDOM操作をマスターする"],
+        inputLabel: 'addTodoItem("JavaScriptのDOM操作をマスターする") -> リストに追加される'
+      },
+      {
+        input: ["ポートフォリオを作成する"],
+        domCheck: 'Array.from(document.querySelectorAll("#todo-list .todo-item")).map(el => el.textContent.trim())',
+        expected: ["JavaScriptのDOM操作をマスターする", "ポートフォリオを作成する"],
+        inputLabel: 'addTodoItem("ポートフォリオを作成する") -> 2つ目のタスクが追加される'
+      }
+    ]
+  },
+  {
+    id: "dom-search-filter",
+    title: "23. 実戦DOM操作: リアルタイム商品検索フィルター",
+    difficulty: "中級",
+    difficultyColor: "bg-amber-100 text-amber-800",
+    description: `検索文字列 <code>keyword</code> を受け取り、クラス名 <code>"product-card"</code> を持つ各要素のテキストを検査して、<code>keyword</code> が含まれる要素は <code>style.display = "block"</code>（表示）、含まれない要素は <code>style.display = "none"</code>（非表示）にする関数 <code>filterProducts(keyword)</code> を作成してください。`,
+    template: `function filterProducts(keyword) {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "filterProducts",
+    htmlFixture: `<div class="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2"><div class="flex items-center gap-2 mb-2"><span class="text-xs font-bold text-slate-500">商品カタログ一覧</span></div><div id="product-grid" class="grid grid-cols-2 gap-2"><div class="product-card p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200">MacBook Pro</div><div class="product-card p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200">iPad Air</div><div class="product-card p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200">iPhone 16</div><div class="product-card p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200">AirPods Pro</div></div></div>`,
+    testCases: [
+      {
+        input: ["Pro"],
+        domCheck: 'Array.from(document.querySelectorAll(".product-card")).map(el => ({ name: el.textContent.trim(), visible: el.style.display !== "none" }))',
+        expected: [
+          { name: "MacBook Pro", visible: true },
+          { name: "iPad Air", visible: false },
+          { name: "iPhone 16", visible: false },
+          { name: "AirPods Pro", visible: true }
+        ],
+        inputLabel: 'filterProducts("Pro") -> "Pro"を含む商品のみ表示'
+      }
+    ]
+  },
+  {
+    id: "dom-faq-accordion",
+    title: "24. 実戦DOM操作: FAQアコーディオン開閉UI",
+    difficulty: "初級",
+    difficultyColor: "bg-emerald-100 text-emerald-800",
+    description: `<code>toggleFaq()</code> 関数を実装し、ID <code>"faq-body"</code> の要素にクラス <code>"hidden"</code> が付いていれば削除して表示し、付いていなければ追加して非表示にする（トグル切り替え）処理を作成してください。`,
+    template: `function toggleFaq() {\n    // ここにコードを記述してください\n    \n}`,
+    functionName: "toggleFaq",
+    htmlFixture: `<div class="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700"><div id="faq-header" class="flex justify-between items-center cursor-pointer font-bold text-sm text-slate-800 dark:text-slate-100"><span class="flex items-center gap-2"><span class="text-indigo-600 font-extrabold">Q.</span> 質問: サービスの利用料金はいくらですか？</span><span class="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">開閉</span></div><div id="faq-body" class="hidden mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-white dark:bg-slate-900 p-3 rounded-lg"><span class="text-emerald-600 font-bold">A.</span> 完全無料でご利用いただけます！登録も不要です。</div></div>`,
+    testCases: [
+      {
+        input: [],
+        domCheck: '(() => { toggleFaq(); return !document.getElementById("faq-body").classList.contains("hidden"); })()',
+        expected: true,
+        inputLabel: "toggleFaq() 1回目 -> hiddenが外れて表示される"
+      },
+      {
+        input: [],
+        domCheck: '(() => { toggleFaq(); return document.getElementById("faq-body").classList.contains("hidden"); })()',
+        expected: true,
+        inputLabel: "toggleFaq() 2回目 -> hiddenが付いて非表示になる"
+      }
     ]
   }
 ];

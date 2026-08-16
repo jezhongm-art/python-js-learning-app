@@ -67,6 +67,8 @@
     ></script>
     <!-- Canvas Confetti CDN -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <!-- Chart.js CDN for Python Matplotlib Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
     <link rel="stylesheet" href="css/style.css" />
     <link
@@ -81,6 +83,7 @@
       import ast
       import sys
       import io
+      import builtins
 
       def clean_quote_str(obj):
           """再帰的に文字列の最外殻にある二重/一重引用符を取り除く"""
@@ -137,13 +140,121 @@
               return True
           return False
 
-      # [MODIFIED_START] 4. Brython実行エンジンのフリーズ・無限ループ対策＆判定強化
+      # -------------------------------------------------------------
+      # Matplotlib.pyplot 互換ミニライブラリ
+      # -------------------------------------------------------------
+      class MockPyplot:
+          def __init__(self):
+              self.reset()
+
+          def reset(self):
+              self.chart_type = "line"
+              self.title_text = ""
+              self.xlabel_text = ""
+              self.ylabel_text = ""
+              self.grid_enabled = False
+              self.datasets = []
+              self.labels = []
+              self.last_chart_data = None
+
+          def title(self, label, **kwargs):
+              self.title_text = str(label)
+
+          def xlabel(self, label, **kwargs):
+              self.xlabel_text = str(label)
+
+          def ylabel(self, label, **kwargs):
+              self.ylabel_text = str(label)
+
+          def grid(self, b=True, **kwargs):
+              self.grid_enabled = bool(b)
+
+          def plot(self, *args, **kwargs):
+              self.chart_type = "line"
+              label = kwargs.get("label", f"データ {len(self.datasets)+1}")
+              color = kwargs.get("color", None)
+              if len(args) == 1:
+                  y = list(args[0])
+                  x = list(range(len(y)))
+              elif len(args) >= 2:
+                  x = list(args[0])
+                  y = list(args[1])
+              else:
+                  x, y = [], []
+              self.labels = [str(item) for item in x]
+              self.datasets.append({
+                  "label": label,
+                  "data": y,
+                  "type": "line",
+                  "borderColor": color,
+                  "tension": 0.3
+              })
+
+          def bar(self, x, height, **kwargs):
+              self.chart_type = "bar"
+              label = kwargs.get("label", f"データ {len(self.datasets)+1}")
+              color = kwargs.get("color", None)
+              self.labels = [str(item) for item in x]
+              self.datasets.append({
+                  "label": label,
+                  "data": list(height),
+                  "type": "bar",
+                  "backgroundColor": color
+              })
+
+          def scatter(self, x, y, **kwargs):
+              self.chart_type = "scatter"
+              label = kwargs.get("label", "散布図データ")
+              color = kwargs.get("color", None)
+              data = [{"x": float(xi), "y": float(yi)} for xi, yi in zip(x, y)]
+              self.datasets.append({
+                  "label": label,
+                  "data": data,
+                  "type": "scatter",
+                  "backgroundColor": color
+              })
+
+          def pie(self, x, **kwargs):
+              self.chart_type = "pie"
+              labels = kwargs.get("labels", [f"項目 {i+1}" for i in range(len(x))])
+              self.labels = [str(l) for l in labels]
+              self.datasets.append({
+                  "data": [float(v) for v in x],
+                  "type": "pie"
+              })
+
+          def show(self):
+              self.last_chart_data = {
+                  "type": self.chart_type,
+                  "title": self.title_text,
+                  "xlabel": self.xlabel_text,
+                  "ylabel": self.ylabel_text,
+                  "grid": self.grid_enabled,
+                  "labels": self.labels,
+                  "datasets": self.datasets
+              }
+              if hasattr(window, "render_python_chart"):
+                  window.render_python_chart(json.dumps(self.last_chart_data))
+              return self.last_chart_data
+
+          def clf(self):
+              self.reset()
+
+      mock_plt = MockPyplot()
+      sys.modules['matplotlib'] = type('matplotlib', (), {})()
+      sys.modules['matplotlib.pyplot'] = mock_plt
+      builtins.plt = mock_plt
+
+      # -------------------------------------------------------------
+      # 統合テスト実行エンジン (関数型, 対話型CLI, Matplotlibグラフ型)
+      # -------------------------------------------------------------
       def run_tests(user_code, test_payload_json):
           stdout_backup = sys.stdout
+          stdin_input_backup = builtins.input
           captured_output = io.StringIO()
           sys.stdout = captured_output
+          mock_plt.reset()
 
-          # 実行ステップを制限するトレーサー (10万ステップを超えると強制停止)
           MAX_STEPS = 100000
           step_count = [0]
 
@@ -155,78 +266,215 @@
 
           try:
               payload = json.loads(test_payload_json)
+              problem_type = payload.get('type', 'function') # 'function' | 'cli' | 'plot'
               setup_code = payload.get('setup_code', '')
               test_cases = payload.get('test_cases', [])
-              _local_namespace = {}
-
-              if setup_code:
-                  exec(setup_code, _local_namespace, _local_namespace)
-
-              sys.settrace(tracer) # 監視開始
-
-              exec(user_code, _local_namespace, _local_namespace)
 
               results = []
-              for idx, case_ in enumerate(test_cases):
-                  expr = case_['input']
-                  raw_expected = case_['expected']
 
-                  # 1. まず ast.literal_eval で評価を試みる
-                  expected = raw_expected
-                  if isinstance(raw_expected, str):
+              if problem_type == 'cli':
+                  # 対話型CLI問題 (input() と print() の入出力検証)
+                  for idx, case_ in enumerate(test_cases):
+                      inputs_queue = list(case_.get('inputs', []))
+                      captured_case_output = io.StringIO()
+                      sys.stdout = captured_case_output
+
+                      def mock_input(prompt=""):
+                          if prompt:
+                              captured_case_output.write(str(prompt))
+                          if inputs_queue:
+                              val = str(inputs_queue.pop(0))
+                              captured_case_output.write(val + "\n")
+                              return val
+                          return ""
+
+                      builtins.input = mock_input
+                      case_env = {"plt": mock_plt, "input": mock_input}
+                      if setup_code:
+                          exec(setup_code, case_env, case_env)
+
+                      sys.settrace(tracer)
+                      step_count[0] = 0
+                      case_pass = False
+                      case_error = None
+                      actual_output = ""
+
                       try:
-                          parsed_exp = ast.literal_eval(raw_expected)
-                          expected = parsed_exp
-                      except Exception:
-                          expected = raw_expected
+                          exec(user_code, case_env, case_env)
+                          actual_output = captured_case_output.getvalue().strip()
+                          expected_out = str(case_.get('expected', '')).strip()
 
-                  # 2. 引用符の二重ラップや余分なクォートを除去
-                  expected = clean_quote_str(expected)
+                          # 期待される出力との比較 (完全一致または部分一致)
+                          if case_.get('match') == 'contains':
+                              case_pass = expected_out in actual_output
+                          else:
+                              case_pass = (actual_output == expected_out) or (clean_quote_str(actual_output) == clean_quote_str(expected_out))
 
-                  try:
-                      actual = eval(expr, _local_namespace, _local_namespace)
-                      is_pass = deep_equal(actual, expected)
-                      
-                      results.append({
-                          'index': idx,
-                          'input': expr,
-                          'expected': repr(expected),
-                          'actual': repr(actual),
-                          'pass': is_pass,
-                          'error': None
-                      })
-                  except Exception as e:
-                      exc_type_name = e.__class__.__name__
-                      raw_exp_str = str(raw_expected)
-                      if is_exception_name(raw_exp_str) and (raw_exp_str == exc_type_name or raw_exp_str.startswith(exc_type_name)):
                           results.append({
                               'index': idx,
-                              'input': expr,
-                              'expected': raw_exp_str,
-                              'actual': f"{exc_type_name}: {str(e)}",
-                              'pass': True,
+                              'input': f"入力: {json.dumps(case_.get('inputs', []))}",
+                              'expected': expected_out,
+                              'actual': actual_output,
+                              'pass': case_pass,
                               'error': None
                           })
-                      else:
+                      except Exception as e:
+                          exc_type_name = e.__class__.__name__
                           results.append({
                               'index': idx,
-                              'input': expr,
-                              'expected': repr(expected),
-                              'actual': None,
+                              'input': f"入力: {json.dumps(case_.get('inputs', []))}",
+                              'expected': str(case_.get('expected', '')),
+                              'actual': captured_case_output.getvalue(),
                               'pass': False,
                               'error': f"{exc_type_name}: {str(e)}"
                           })
 
-              sys.settrace(None) # 監視終了
-              sys.stdout = stdout_backup
-              printed_log = captured_output.getvalue()
-              return json.dumps({'tests': results, 'stdout': printed_log, 'error': None})
+                  sys.settrace(None)
+                  sys.stdout = stdout_backup
+                  builtins.input = stdin_input_backup
+                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': None, 'error': None})
+
+              elif problem_type == 'plot':
+                  # グラフ描画問題 (matplotlib.pyplot)
+                  case_env = {"plt": mock_plt, "input": builtins.input}
+                  if setup_code:
+                      exec(setup_code, case_env, case_env)
+
+                  sys.settrace(tracer)
+                  exec(user_code, case_env, case_env)
+                  sys.settrace(None)
+
+                  chart_data = mock_plt.last_chart_data or mock_plt.show()
+
+                  for idx, case_ in enumerate(test_cases):
+                      check_field = case_.get('check', 'type')
+                      expected_val = case_.get('expected')
+                      actual_val = None
+
+                      if check_field == 'type':
+                          actual_val = chart_data.get('type')
+                      elif check_field == 'title':
+                          actual_val = chart_data.get('title')
+                      elif check_field == 'labels':
+                          actual_val = chart_data.get('labels')
+                      elif check_field == 'datasets_count':
+                          actual_val = len(chart_data.get('datasets', []))
+                      elif check_field == 'first_dataset_data':
+                          dsets = chart_data.get('datasets', [])
+                          actual_val = dsets[0].get('data') if dsets else []
+
+                      is_pass = deep_equal(actual_val, expected_val)
+                      results.append({
+                          'index': idx,
+                          'input': case_.get('input_label', f"グラフ検証: {check_field}"),
+                          'expected': repr(expected_val),
+                          'actual': repr(actual_val),
+                          'pass': is_pass,
+                          'error': None
+                      })
+
+                  sys.stdout = stdout_backup
+                  builtins.input = stdin_input_backup
+                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': chart_data, 'error': None})
+
+              else:
+                  # 通常の関数評価型問題
+                  _local_namespace = {"plt": mock_plt, "input": builtins.input}
+                  if setup_code:
+                      exec(setup_code, _local_namespace, _local_namespace)
+
+                  sys.settrace(tracer)
+                  exec(user_code, _local_namespace, _local_namespace)
+
+                  for idx, case_ in enumerate(test_cases):
+                      expr = case_['input']
+                      raw_expected = case_['expected']
+
+                      expected = raw_expected
+                      if isinstance(raw_expected, str):
+                          try:
+                              parsed_exp = ast.literal_eval(raw_expected)
+                              expected = parsed_exp
+                          except Exception:
+                              expected = raw_expected
+
+                      expected = clean_quote_str(expected)
+
+                      try:
+                          actual = eval(expr, _local_namespace, _local_namespace)
+                          is_pass = deep_equal(actual, expected)
+                          
+                          results.append({
+                              'index': idx,
+                              'input': expr,
+                              'expected': repr(expected),
+                              'actual': repr(actual),
+                              'pass': is_pass,
+                              'error': None
+                          })
+                      except Exception as e:
+                          exc_type_name = e.__class__.__name__
+                          raw_exp_str = str(raw_expected)
+                          if is_exception_name(raw_exp_str) and (raw_exp_str == exc_type_name or raw_exp_str.startswith(exc_type_name)):
+                              results.append({
+                                  'index': idx,
+                                  'input': expr,
+                                  'expected': raw_exp_str,
+                                  'actual': f"{exc_type_name}: {str(e)}",
+                                  'pass': True,
+                                  'error': None
+                              })
+                          else:
+                              results.append({
+                                  'index': idx,
+                                  'input': expr,
+                                  'expected': repr(expected),
+                                  'actual': None,
+                                  'pass': False,
+                                  'error': f"{exc_type_name}: {str(e)}"
+                              })
+
+                  sys.settrace(None)
+                  sys.stdout = stdout_backup
+                  builtins.input = stdin_input_backup
+                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': None, 'error': None})
+
           except Exception as global_err:
               sys.settrace(None)
               sys.stdout = stdout_backup
-              return json.dumps({'tests': None, 'stdout': captured_output.getvalue(), 'error': str(global_err)})
+              builtins.input = stdin_input_backup
+              return json.dumps({'tests': None, 'stdout': captured_output.getvalue(), 'chart': None, 'error': str(global_err)})
+
+      def run_interactive(user_code):
+          captured = io.StringIO()
+          stdout_bak = sys.stdout
+          input_bak = builtins.input
+          sys.stdout = captured
+
+          def interactive_input(prompt=""):
+              prompt_str = str(prompt) if prompt else "値を入力してください:"
+              captured.write(str(prompt))
+              user_val = window.prompt(prompt_str)
+              if user_val is None:
+                  user_val = ""
+              captured.write(str(user_val) + "\n")
+              return str(user_val)
+
+          builtins.input = interactive_input
+          env = {"plt": mock_plt, "input": interactive_input}
+
+          try:
+              exec(user_code, env, env)
+              sys.stdout = stdout_bak
+              builtins.input = input_bak
+              return json.dumps({'stdout': captured.getvalue(), 'error': None})
+          except Exception as e:
+              sys.stdout = stdout_bak
+              builtins.input = input_bak
+              return json.dumps({'stdout': captured.getvalue(), 'error': f"{e.__class__.__name__}: {str(e)}"})
 
       window.run_python_tests = run_tests
+      window.run_python_interactive = run_interactive
     </script>
   </head>
   <body
@@ -494,46 +742,49 @@
       <div id="quiz-mode" class="space-y-6">
         <!-- AI問題生成コントロール -->
         <div
-          class="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-900 dark:to-slate-850 p-5 rounded-xl border border-indigo-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between transition-colors duration-200"
+          class="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-900 dark:to-slate-850 p-5 rounded-xl border border-indigo-100 dark:border-slate-800 shadow-sm space-y-3 transition-colors duration-200"
         >
-          <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <h3
-                class="text-sm font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider"
-              >
-                AI クイズジェネレーター
-              </h3>
-            </div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <h3
+              class="text-sm font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              AI クイズジェネレーター
+            </h3>
             <p class="text-xs text-indigo-600 dark:text-indigo-400">
-              学びたいテーマと難易度を指定して、Gemini 3.7
-              Flashにオリジナル問題を作ってもましょう！(空欄でおまかせ生成可能)
+              テーマと難易度を指定して、Gemini 3.7 Flashによるオリジナル4択クイズを自動生成
             </p>
           </div>
-          <div class="flex flex-col sm:flex-row w-full md:w-auto gap-2">
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
             <!-- 難易度セレクター -->
             <select
               id="ai-quiz-difficulty"
-              class="px-3 py-2 text-sm rounded-lg border border-indigo-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
+              class="w-full px-3 py-2 text-sm rounded-lg border border-indigo-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
             >
               <option value="random">難易度: おまかせ</option>
               <option value="beginner">初級 (基礎概念)</option>
               <option value="intermediate">中級 (応用・例外処理等)</option>
               <option value="advanced">上級 (高度・内部構造等)</option>
             </select>
-            <div class="flex gap-2 flex-grow sm:flex-grow-0">
-              <input
-                id="ai-quiz-topic"
-                type="text"
-                placeholder="例: デコレータ、型ヒント"
-                class="w-full sm:w-48 md:w-56 px-3.5 py-2 text-sm rounded-lg border border-indigo-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-              />
-              <button
-                id="ai-quiz-generate-btn"
-                class="flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-1.5"
-              >
-                生成
-              </button>
-            </div>
+
+            <!-- テーマ入力 -->
+            <input
+              id="ai-quiz-topic"
+              type="text"
+              placeholder="例: デコレータ、型ヒント"
+              class="w-full px-3.5 py-2 text-sm rounded-lg border border-indigo-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+            />
+
+            <!-- 生成ボタン -->
+            <button
+              id="ai-quiz-generate-btn"
+              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+            >
+              問題作成
+            </button>
           </div>
         </div>
 
@@ -592,51 +843,60 @@
       <div id="coding-mode" class="hidden space-y-6">
         <!-- AIコーディング問題生成コントロール -->
         <div
-          class="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/20 p-5 rounded-xl border border-emerald-100 dark:border-emerald-900/40 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between transition-colors duration-200"
+          class="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/20 p-5 rounded-xl border border-emerald-100 dark:border-emerald-900/40 shadow-sm space-y-3 transition-colors duration-200"
         >
-          <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <h3
-                class="text-sm font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider"
-              >
-                AI 課題ジェネレーター
-              </h3>
-            </div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <h3
+              class="text-sm font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              AI 課題ジェネレーター
+            </h3>
             <p class="text-xs text-emerald-600 dark:text-emerald-400">
-              学びたいテーマとレベルを設定して、高品質な採点テスト付き課題をオート生成！(空欄でおまかせ生成可能)
+              関数・Matplotlib可視化・input対話CLI・標準ライブラリ（math, datetime等）対応
             </p>
           </div>
-          <div class="flex flex-col sm:flex-row w-full md:w-auto gap-2">
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
+            <!-- タイプセレクター -->
+            <select
+              id="ai-coding-type"
+              class="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
+            >
+              <option value="auto">ジャンル: おまかせ / 自動判別</option>
+              <option value="function">関数・アルゴリズム・標準ライブラリ</option>
+              <option value="cli">対話型CLI (input/print)</option>
+              <option value="plot">データ可視化 (Matplotlibグラフ)</option>
+            </select>
+
             <!-- 難易度セレクター -->
             <select
               id="ai-coding-difficulty"
-              class="px-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
+              class="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
             >
               <option value="random">難易度: おまかせ</option>
-              <option value="beginner">
-                初級 (アルゴリズム基本・基礎文法)
-              </option>
-              <option value="intermediate">
-                中級 (データ構造応用・文字列操作等)
-              </option>
-              <option value="advanced">
-                上級 (高度設計・クラス・数学ロジック等)
-              </option>
+              <option value="beginner">初級 (基礎文法・基本計算)</option>
+              <option value="intermediate">中級 (データ構造・ライブラリ活用)</option>
+              <option value="advanced">上級 (高度ロジック・クラス設計)</option>
             </select>
-            <div class="flex gap-2 flex-grow sm:flex-grow-0">
-              <input
-                id="ai-coding-topic"
-                type="text"
-                placeholder="例: クラス設計、再帰処理"
-                class="w-full sm:w-48 md:w-56 px-3.5 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-              />
-              <button
-                id="ai-coding-generate-btn"
-                class="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-1.5"
-              >
-                生成
-              </button>
-            </div>
+
+            <!-- テーマ入力 -->
+            <input
+              id="ai-coding-topic"
+              type="text"
+              placeholder="例: 売上グラフ, 日時計算, 年齢判定CLI"
+              class="w-full px-3.5 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+            />
+
+            <!-- 生成ボタン -->
+            <button
+              id="ai-coding-generate-btn"
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+            >
+              問題作成
+            </button>
           </div>
         </div>
 
@@ -816,6 +1076,18 @@
                   実行して採点
                 </button>
 
+                <!-- 対話型入力(input)手動テストボタン -->
+                <button
+                  id="cli-interactive-btn"
+                  class="hidden bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-semibold transition-all shadow-sm hover:shadow flex items-center gap-2 text-sm"
+                  title="入力ボックスを開き、好きな値を入力してコードの動作をリアルタイムに確認します"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  対話入力で試す
+                </button>
+
                 <!-- コードを整えるフォーマットボタン -->
                 <button
                   id="format-btn"
@@ -894,6 +1166,16 @@
                     <span>標準出力 (print)</span>
                     <span id="stdout-count-badge" class="hidden ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">0</span>
                   </button>
+                  <button
+                    id="tab-btn-plot"
+                    class="px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1.5 transition-all"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                    </svg>
+                    <span>グラフ出力 (plt)</span>
+                    <span id="plot-badge" class="hidden ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold">描画済</span>
+                  </button>
                 </div>
               </div>
 
@@ -912,6 +1194,30 @@
                   id="stdout-terminal"
                   class="w-full min-h-[120px] max-h-60 overflow-y-auto p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs whitespace-pre-wrap leading-relaxed shadow-inner"
                 >標準出力ログはありません。</div>
+              </div>
+
+              <!-- タブパネル3: グラフ描画キャンバス -->
+              <div id="tab-panel-plot" class="hidden p-4 space-y-4">
+                <div class="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      Matplotlib (pyplot) リアルタイムレンダリング
+                    </span>
+                    <span id="chart-type-tag" class="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">グラフ未生成</span>
+                  </div>
+                  <div class="relative w-full h-72 sm:h-80 bg-white dark:bg-slate-900 rounded-lg p-3 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                    <canvas id="python-chart-canvas" class="w-full h-full"></canvas>
+                    <div id="chart-placeholder" class="absolute text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center gap-2 pointer-events-none">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                      </svg>
+                      <span>コードを実行して <code>plt.show()</code> するとここにグラフが描画されます</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -974,7 +1280,7 @@
           <div class="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div>
               <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <span>📚 コーディング問題一覧</span>
+                <span>コーディング問題一覧</span>
               </h3>
               <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">解きたい問題を選択して直接ジャンプできます</p>
             </div>
@@ -1111,7 +1417,7 @@
       </div>
     </div>
 
-    <!-- 確認用ダイアログ (無限ループ警告用モーダル) -->
+    <!-- 汎用確認用ダイアログ (リセット確認・ループ警告等) -->
     <div
       id="confirm-modal"
       class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -1124,9 +1430,11 @@
       >
         <div class="flex items-start gap-3">
           <div
-            class="p-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg"
+            id="confirm-modal-icon-box"
+            class="p-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0"
           >
             <svg
+              id="confirm-modal-icon"
               xmlns="http://www.w3.org/2000/svg"
               class="h-6 w-6"
               fill="none"
@@ -1146,18 +1454,14 @@
               id="confirm-modal-title"
               class="text-base font-bold text-slate-900 dark:text-slate-100"
             >
-              無限ループ発生の警告
+              確認
             </h4>
-            <p
+            <div
+              id="confirm-modal-message"
               class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed"
             >
-              解答コード内に
-              <code>while</code>
-              ループ、または終了条件が不確定な繰り返し構文が検出されました。<br /><br />
-              ループ終了条件（変数の更新や
-              <code>break</code
-              >）が抜けている場合、<strong>ブラウザタブが完全にフリーズ（ハングアップ）</strong>する危険性があります。コードは本当に安全ですか？
-            </p>
+              操作を続行しますか？
+            </div>
           </div>
         </div>
         <div class="flex justify-end gap-2.5 pt-2">
@@ -1165,13 +1469,13 @@
             id="confirm-modal-cancel"
             class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
           >
-            コードを修正する (中止)
+            キャンセル
           </button>
           <button
             id="confirm-modal-ok"
-            class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors shadow-sm"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors shadow-sm"
           >
-            リスクを理解して実行
+            実行する
           </button>
         </div>
       </div>
