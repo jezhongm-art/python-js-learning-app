@@ -65,6 +65,8 @@
       integrity="sha384-o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K"
       crossorigin="anonymous"
     ></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 
     <link rel="stylesheet" href="css/style.css" />
     <link
@@ -164,9 +166,6 @@
 
               exec(user_code, _local_namespace, _local_namespace)
 
-              sys.stdout = stdout_backup
-              printed_log = captured_output.getvalue()
-
               results = []
               for idx, case_ in enumerate(test_cases):
                   expr = case_['input']
@@ -219,6 +218,8 @@
                           })
 
               sys.settrace(None) # 監視終了
+              sys.stdout = stdout_backup
+              printed_log = captured_output.getvalue()
               return json.dumps({'tests': results, 'stdout': printed_log, 'error': None})
           except Exception as global_err:
               sys.settrace(None)
@@ -341,7 +342,7 @@
         >
           <div class="space-y-0.5">
             <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200">
-              Gemini 3.6 Flash APIキーの設定
+              Gemini 3.7 Flash APIキーの設定
             </h4>
             <p class="text-xs text-slate-500 dark:text-slate-400">
               お持ちのGemini
@@ -504,7 +505,7 @@
               </h3>
             </div>
             <p class="text-xs text-indigo-600 dark:text-indigo-400">
-              学びたいテーマと難易度を指定して、Gemini 3.6
+              学びたいテーマと難易度を指定して、Gemini 3.7
               Flashにオリジナル問題を作ってもましょう！(空欄でおまかせ生成可能)
             </p>
           </div>
@@ -643,11 +644,26 @@
           class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors duration-200"
         >
           <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              Python 基礎コーディング問題
-              <span id="coding-type-badge" class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400">AI生成問題</span>
-            </h2>
-            <select id="coding-select" class="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:max-w-[250px] truncate cursor-pointer"></select>
+            <div class="flex items-center gap-2">
+              <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                Python 基礎コーディング問題
+                <span id="coding-type-badge" class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400">AI生成問題</span>
+              </h2>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+              <!-- 問題一覧ドロワーを開くボタン -->
+              <button
+                id="open-problem-drawer-btn"
+                class="flex-shrink-0 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700"
+                title="問題一覧・検索"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                <span>問題一覧</span>
+              </button>
+              <select id="coding-select" class="flex-grow sm:flex-grow-0 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[220px] truncate cursor-pointer"></select>
+            </div>
           </div>
 
           <div id="coding-quiz-container" class="space-y-6">
@@ -661,16 +677,77 @@
               </div>
             </div>
 
-            <div class="space-y-2">
-              <label
-                for="code-editor"
-                class="block text-sm font-medium text-slate-600 dark:text-slate-400"
-                >解答コードエディタ (Tabキーでインデント可,
-                Enterで自動インデント)</label
-              >
+            <!-- コードエディタエリア -->
+            <div class="space-y-1.5">
+              <!-- エディタツールバー -->
+              <div class="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+                <label
+                  for="code-editor"
+                  class="font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  解答コードエディタ
+                </label>
+
+                <!-- ツールバーボタン群 -->
+                <div class="flex items-center gap-1">
+                  <!-- フォントサイズ変更 -->
+                  <button
+                    id="font-size-dec-btn"
+                    class="p-1 px-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono text-xs"
+                    title="文字を小さく (A-)"
+                  >
+                    A-
+                  </button>
+                  <button
+                    id="font-size-inc-btn"
+                    class="p-1 px-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono text-xs font-bold"
+                    title="文字を大きく (A+)"
+                  >
+                    A+
+                  </button>
+                  <span class="text-slate-300 dark:text-slate-700">|</span>
+                  <!-- テンプレートに戻す -->
+                  <button
+                    id="reset-code-btn"
+                    class="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-1"
+                    title="コードを初期テンプレートに戻す"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    リセット
+                  </button>
+                  <!-- コードコピー -->
+                  <button
+                    id="copy-code-btn"
+                    class="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-1"
+                    title="コードをクリップボードにコピー"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    コピー
+                  </button>
+                  <!-- ショートカットヘルプ -->
+                  <button
+                    id="keyboard-shortcuts-btn"
+                    class="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-1"
+                    title="キーボードショートカット"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                    キー操作
+                  </button>
+                </div>
+              </div>
+
               <!-- Custom Editor Wrapper with resizing support -->
               <div
-                class="editor-wrapper h-64 min-h-[150px] max-h-[800px] resize-y"
+                class="editor-wrapper h-64 min-h-[160px] max-h-[800px] resize-y rounded-lg overflow-hidden shadow-inner border border-slate-700 focus-within:ring-2 focus-within:ring-indigo-500 transition-all"
               >
                 <!-- Line Numbers -->
                 <div id="line-numbers-container" class="line-numbers-container">
@@ -692,16 +769,37 @@
                     class="code-editor-textarea"
                     placeholder="# ここにコードを書いてください"
                     spellcheck="false"
+                    autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="off"
                   ></textarea>
+                </div>
+              </div>
+
+              <!-- エディタステータスバー -->
+              <div class="flex items-center justify-between px-2 py-1 bg-slate-100 dark:bg-slate-800/80 rounded border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                <div class="flex items-center gap-3">
+                  <span id="editor-cursor-pos">Ln 1, Col 1</span>
+                  <span id="editor-char-count">0 文字</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span id="editor-autosave-status" class="text-emerald-600 dark:text-emerald-400 font-sans font-medium flex items-center gap-1">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    自動保存済み
+                  </span>
+                  <span class="hidden sm:inline text-slate-400 dark:text-slate-500 font-sans">
+                    <kbd class="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-[10px]">Ctrl</kbd> + <kbd class="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-[10px]">Enter</kbd> で実行
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div class="flex flex-wrap gap-3 justify-between items-center">
+            <!-- アクションボタン群 -->
+            <div class="flex flex-wrap gap-3 justify-between items-center pt-1">
               <div class="flex flex-wrap gap-2">
                 <button
                   id="run-btn"
-                  class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm flex items-center gap-2"
+                  class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-semibold transition-all shadow-sm hover:shadow flex items-center gap-2"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -743,7 +841,7 @@
                 <!-- AIヒントボタン -->
                 <button
                   id="ai-hint-btn"
-                  class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-900/50 px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                  class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-900/50 px-4 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 text-sm"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -754,7 +852,7 @@
                 <!-- AIコードレビュー＆模範解答ボタン -->
                 <button
                   id="ai-review-btn"
-                  class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:hover:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900/50 px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                  class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:hover:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900/50 px-4 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 text-sm"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -771,59 +869,72 @@
               </button>
             </div>
 
-            <!-- 標準出力デバッグログ表示エリア -->
-            <div id="stdout-container" class="hidden space-y-2 mt-4">
-              <label
-                class="block text-sm font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4 text-slate-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-                標準出力ログ (print出力デバッグ)
-              </label>
-              <div
-                id="stdout-terminal"
-                class="w-full max-h-40 overflow-y-auto p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs whitespace-pre-wrap leading-relaxed shadow-inner"
-              ></div>
+            <!-- タブ切り替え式出力コンテナ（テスト結果 vs ターミナルログ） -->
+            <div id="output-tabs-container" class="mt-6 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+              <!-- タブヘッダー -->
+              <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 px-2 pt-1.5">
+                <div class="flex gap-1">
+                  <button
+                    id="tab-btn-results"
+                    class="px-4 py-2 text-xs font-bold rounded-t-lg border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 flex items-center gap-1.5 transition-all"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <span>テスト結果</span>
+                    <span id="test-summary-badge" class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">未実行</span>
+                  </button>
+                  <button
+                    id="tab-btn-stdout"
+                    class="px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1.5 transition-all"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>標準出力 (print)</span>
+                    <span id="stdout-count-badge" class="hidden ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">0</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- タブパネル1: テスト結果 -->
+              <div id="tab-panel-results" class="p-4 space-y-3">
+                <div id="test-results" class="space-y-3">
+                  <div class="text-center py-8 text-slate-400 dark:text-slate-500 text-xs">
+                    「実行して採点」ボタンを押すと、自動評価テストが開始されます。
+                  </div>
+                </div>
+              </div>
+
+              <!-- タブパネル2: 標準出力ターミナル -->
+              <div id="tab-panel-stdout" class="hidden p-4">
+                <div
+                  id="stdout-terminal"
+                  class="w-full min-h-[120px] max-h-60 overflow-y-auto p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs whitespace-pre-wrap leading-relaxed shadow-inner"
+                >標準出力ログはありません。</div>
+              </div>
             </div>
 
-            <!-- テスト結果表示エリア (ヒントよりも上に配置) -->
-            <div id="test-results" class="space-y-3 mt-4">
-              <!-- テスト結果の個別カードがここに動的に挿入されます -->
-            </div>
-
-            <!-- AIヒントアドバイス表示パネル (Markdown対応のproseクラスを付与し見やすく美化) -->
+            <!-- AIヒントアドバイス表示パネル -->
             <div
               id="ai-hint-panel"
-              class="hidden bg-indigo-50/50 border border-indigo-100 p-6 rounded-lg space-y-3"
+              class="hidden bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 p-6 rounded-xl space-y-3"
             >
               <h4
                 class="text-sm font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5 border-b border-indigo-100 dark:border-indigo-900/40 pb-2"
               >
                 <span>AI先生のアドバイス</span>
               </h4>
-              <!-- proseクラスによってMarkdownの中の見出しや箇条書き、プログラムブロックが完璧に美化されます -->
               <div
                 id="ai-hint-content"
-                class="prose prose-indigo max-w-none text-slate-700 leading-relaxed text-sm"
+                class="prose prose-indigo dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed text-sm"
               ></div>
             </div>
 
             <!-- AIコードレビュー＆模範解答パネル -->
             <div
               id="ai-review-panel"
-              class="hidden bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 p-6 rounded-lg space-y-3"
+              class="hidden bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 p-6 rounded-xl space-y-3"
             >
               <h4
                 class="text-sm font-bold text-purple-800 dark:text-purple-300 flex items-center gap-1.5 border-b border-purple-100 dark:border-purple-900/30 pb-2"
@@ -832,7 +943,7 @@
               </h4>
               <div
                 id="ai-review-content"
-                class="prose prose-purple dark:prose-invert max-w-none text-slate-700 dark:text-slate-350 leading-relaxed text-sm"
+                class="prose prose-purple dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed text-sm"
               ></div>
             </div>
           </div>
@@ -847,6 +958,121 @@
         </div>
       </div>
     </main>
+
+    <!-- 問題一覧ドロワー (Problem Drawer) -->
+    <div
+      id="problem-drawer"
+      class="hidden fixed inset-0 z-50 overflow-hidden"
+      role="dialog"
+      aria-modal="true"
+    >
+      <!-- 背景オーバーレイ -->
+      <div id="problem-drawer-backdrop" class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+      <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+        <div class="w-screen max-w-md bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col">
+          <!-- ドロワーヘッダー -->
+          <div class="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <span>📚 コーディング問題一覧</span>
+              </h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">解きたい問題を選択して直接ジャンプできます</p>
+            </div>
+            <button
+              id="problem-drawer-close"
+              class="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- 検索＆難易度フィルター -->
+          <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 space-y-2.5">
+            <div class="relative">
+              <input
+                id="drawer-search-input"
+                type="text"
+                placeholder="問題名やキーワードで検索..."
+                class="w-full pl-9 pr-3.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-2.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+              <button data-filter="all" class="drawer-filter-btn px-2.5 py-1 rounded-md font-semibold bg-indigo-600 text-white">すべて</button>
+              <button data-filter="beginner" class="drawer-filter-btn px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800">初級</button>
+              <button data-filter="intermediate" class="drawer-filter-btn px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800">中級</button>
+              <button data-filter="advanced" class="drawer-filter-btn px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800">上級</button>
+              <button data-filter="completed" class="drawer-filter-btn px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800">クリア済</button>
+            </div>
+          </div>
+
+          <!-- 問題リスト本体 -->
+          <div id="drawer-problem-list" class="flex-1 overflow-y-auto p-4 space-y-2 divide-y divide-slate-100 dark:divide-slate-800/50">
+            <!-- リストアイテムが動的に入ります -->
+          </div>
+
+          <!-- ドロワーフッター進捗サマリー -->
+          <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-xs flex justify-between items-center text-slate-500 dark:text-slate-400">
+            <span id="drawer-progress-text">進捗: 0 / 0 問完了</span>
+            <span class="text-indigo-600 dark:text-indigo-400 font-semibold">Python Challenge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- キーボードショートカット一覧モーダル -->
+    <div
+      id="shortcuts-modal"
+      class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <h4 class="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            エディタのキーボードショートカット
+          </h4>
+          <button id="shortcuts-modal-close" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+          <div class="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800">
+            <span>コードを実行して採点</span>
+            <span class="font-mono font-semibold bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-800 dark:text-slate-200">Ctrl + Enter / ⌘ + Enter</span>
+          </div>
+          <div class="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800">
+            <span>インデント追加 (4スペース)</span>
+            <span class="font-mono font-semibold bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-800 dark:text-slate-200">Tab</span>
+          </div>
+          <div class="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800">
+            <span>インデント解除 (逆インデント)</span>
+            <span class="font-mono font-semibold bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-800 dark:text-slate-200">Shift + Tab</span>
+          </div>
+          <div class="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800">
+            <span>スマート自動インデント</span>
+            <span class="font-mono font-semibold bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-800 dark:text-slate-200">Enter (コロン後等)</span>
+          </div>
+          <div class="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800">
+            <span>括弧・引用符の自動補完</span>
+            <span class="font-mono font-semibold bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-800 dark:text-slate-200">( [ { " ' 入力時</span>
+          </div>
+          <div class="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800">
+            <span>下書きを手動保存</span>
+            <span class="font-mono font-semibold bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-800 dark:text-slate-200">Ctrl + S / ⌘ + S</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 全画面ロード画面 (最高水準の躍動的なCSSスピナー演出) -->
     <div
@@ -878,7 +1104,7 @@
             id="ai-loading-desc"
             class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed"
           >
-            Gemini 3.6
+            Gemini 3.7
             Flashが最適なプログラミング課題を生成しています。数秒お待ちください。
           </p>
         </div>

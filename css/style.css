@@ -142,6 +142,17 @@ body {
   line-height: 1.625rem;
 }
 
+/* Selection Styling for Code Editor */
+.code-editor-textarea::selection {
+  background-color: #3730a3 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.code-editor-textarea::-moz-selection {
+  background-color: #3730a3 !important;
+  color: #ffffff !important;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -149,3 +160,49 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 .dark ::-webkit-scrollbar-thumb { background: #475569; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* Test Result Diff & Cards Styling */
+.test-card {
+  transition: all 0.2s ease;
+}
+.test-card:hover {
+  transform: translateY(-1px);
+}
+.diff-block {
+  font-family: "Fira Code", monospace;
+  font-size: 0.8125rem;
+}
+.diff-expected {
+  background-color: rgba(16, 185, 129, 0.1);
+  border-left: 3px solid #10b981;
+  color: #065f46;
+}
+.dark .diff-expected {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+}
+.diff-actual {
+  background-color: rgba(244, 63, 94, 0.1);
+  border-left: 3px solid #f43f5e;
+  color: #9f1239;
+}
+.dark .diff-actual {
+  background-color: rgba(244, 63, 94, 0.15);
+  color: #fda4af;
+}
+
+/* Problem Drawer Animations */
+#problem-drawer.hidden {
+  display: none;
+}
+#problem-drawer:not(.hidden) > div:last-child {
+  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

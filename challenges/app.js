@@ -634,7 +634,7 @@ function setupApiKeyPanel() {
 function getGeminiConfig() {
   const key = (localStorage.getItem("gemini_api_key") || "").trim();
   return {
-    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${key}`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${key}`,
     hasKey: !!key,
   };
 }
@@ -1601,20 +1601,24 @@ function renderTestResults(results, allPass) {
   resultBadge.textContent = allPass ? "合格" : "不合格";
   resultBadge.className   = `text-xs font-bold px-3 py-1 rounded-full ${allPass ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`;
 
+  if (allPass && typeof window.confetti === "function") {
+    window.confetti({ particleCount: 75, spread: 65, origin: { y: 0.65 } });
+  }
+
   testCasesResults.innerHTML = results.map(res => `
-    <div class="border rounded-lg p-3 text-sm ${res.pass ? "bg-emerald-50/40 border-emerald-100" : "bg-rose-50/40 border-rose-100"}">
+    <div class="border rounded-lg p-3 text-sm ${res.pass ? "bg-emerald-50/40 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900/40" : "bg-rose-50/40 border-rose-100 dark:bg-rose-950/20 dark:border-rose-900/40"}">
       <div class="flex justify-between items-center mb-2">
-        <span class="font-mono font-bold text-slate-700 truncate">${escapeHtml(res.inputLabel)}</span>
-        <span class="text-xs font-bold px-2 py-0.5 rounded shrink-0 ${res.pass ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}">${res.pass ? "PASS" : "FAIL"}</span>
+        <span class="font-mono font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtml(res.inputLabel)}</span>
+        <span class="text-xs font-bold px-2 py-0.5 rounded shrink-0 ${res.pass ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300"}">${res.pass ? "PASS" : "FAIL"}</span>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono bg-white p-2.5 rounded border border-slate-100 shadow-inner">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono bg-white dark:bg-slate-800 p-2.5 rounded border border-slate-100 dark:border-slate-700 shadow-inner">
         <div>
-          <span class="text-slate-400 block mb-0.5">期待値 (Expected):</span>
-          <span class="text-slate-800 font-medium">${escapeHtml(formatValue(res.expected))}</span>
+          <span class="text-slate-400 dark:text-slate-500 block mb-0.5">期待値 (Expected):</span>
+          <span class="text-slate-800 dark:text-slate-200 font-medium">${escapeHtml(formatValue(res.expected))}</span>
         </div>
         <div>
-          <span class="text-slate-400 block mb-0.5">実際の戻り値 (Actual):</span>
-          <span class="${res.pass ? "text-slate-800" : "text-rose-600"} font-medium">${escapeHtml(formatValue(res.actual))}</span>
+          <span class="text-slate-400 dark:text-slate-500 block mb-0.5">実際の戻り値 (Actual):</span>
+          <span class="${res.pass ? "text-slate-800 dark:text-slate-200" : "text-rose-600 dark:text-rose-400"} font-medium">${escapeHtml(formatValue(res.actual))}</span>
         </div>
       </div>
     </div>

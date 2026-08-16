@@ -146,7 +146,7 @@ function updateKeyStatus() {
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          APIキーが保存されています (Gemini 3.6 Flash で稼働中)
+          APIキーが保存されています (Gemini 3.7 Flash で稼働中)
         `;
     apiKeyStatus.classList.remove("hidden");
   } else {
@@ -1305,37 +1305,41 @@ function showQuizResult() {
   }
   saveProgress();
 
+  if (quizScore >= Math.ceil(quizQuestions.length * 0.8) && typeof window.confetti === "function") {
+    window.confetti({ particleCount: 90, spread: 70, origin: { y: 0.5 } });
+  }
+
   quizResultContainer.innerHTML = `
-        <div class="text-center space-y-3 pb-6 border-b border-slate-200">
-          <h3 class="text-2xl font-bold text-slate-900">4択クイズ 結果発表</h3>
-          <p class="text-sm text-slate-500 font-medium">お疲れ様でした！全問解答が完了しました。</p>
+        <div class="text-center space-y-3 pb-6 border-b border-slate-200 dark:border-slate-800">
+          <h3 class="text-2xl font-bold text-slate-900 dark:text-slate-100">4択クイズ 結果発表</h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 font-medium">お疲れ様でした！全問解答が完了しました。</p>
           <div class="flex justify-center gap-8 mt-4">
             <div class="text-center">
-              <span class="block text-3xl font-extrabold text-indigo-600">${quizScore} / ${quizQuestions.length}</span>
+              <span class="block text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">${quizScore} / ${quizQuestions.length}</span>
               <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">正解数</span>
             </div>
             <div class="text-center">
-              <span class="block text-3xl font-extrabold text-indigo-600">${rate}%</span>
+              <span class="block text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">${rate}%</span>
               <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">正答率</span>
             </div>
           </div>
         </div>
         <div class="space-y-4">
-          <h4 class="text-lg font-semibold text-slate-900">回答詳細履歴</h4>
-          <div class="space-y-3 divide-y divide-slate-100 max-h-96 overflow-y-auto pr-2">
+          <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100">回答詳細履歴</h4>
+          <div class="space-y-3 divide-y divide-slate-100 dark:divide-slate-800 max-h-96 overflow-y-auto pr-2">
             ${quizUserAnswers
               .map(
                 (ans, idx) => `
               <div class="pt-4 first:pt-0">
                 <div class="flex items-start justify-between gap-4">
-                  <span class="font-semibold text-slate-700 text-sm sm:text-base whitespace-pre-wrap">${idx + 1}. ${ans.question}</span>
-                  <span class="flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${ans.isCorrect ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}">
+                  <span class="font-semibold text-slate-700 dark:text-slate-200 text-sm sm:text-base whitespace-pre-wrap">${idx + 1}. ${ans.question}</span>
+                  <span class="flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${ans.isCorrect ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"}">
                     ${ans.isCorrect ? "正解" : "不正解"}
                   </span>
                 </div>
-                <div class="mt-2 text-sm text-slate-600 space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <p>選択した答え: <span class="font-medium text-slate-800">${escapeHtml(quizQuestions[idx].options[ans.selectedIndex])}</span></p>
-                  <p>正しい答え: <span class="font-medium text-slate-800">${escapeHtml(quizQuestions[idx].options[ans.correctIndex])}</span></p>
+                <div class="mt-2 text-sm text-slate-600 dark:text-slate-400 space-y-1 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700">
+                  <p>選択した答え: <span class="font-medium text-slate-800 dark:text-slate-200">${escapeHtml(quizQuestions[idx].options[ans.selectedIndex])}</span></p>
+                  <p>正しい答え: <span class="font-medium text-slate-800 dark:text-slate-200">${escapeHtml(quizQuestions[idx].options[ans.correctIndex])}</span></p>
                 </div>
               </div>
             `,
@@ -1763,15 +1767,173 @@ const aiHintBtn = document.getElementById("ai-hint-btn");
 const aiHintPanel = document.getElementById("ai-hint-panel");
 const aiHintContent = document.getElementById("ai-hint-content");
 
+// ツールバー＆ステータスバー関連
+const fontSizeDecBtn = document.getElementById("font-size-dec-btn");
+const fontSizeIncBtn = document.getElementById("font-size-inc-btn");
+const resetCodeBtn = document.getElementById("reset-code-btn");
+const copyCodeBtn = document.getElementById("copy-code-btn");
+const keyboardShortcutsBtn = document.getElementById("keyboard-shortcuts-btn");
+const shortcutsModal = document.getElementById("shortcuts-modal");
+const shortcutsModalClose = document.getElementById("shortcuts-modal-close");
+const editorCursorPos = document.getElementById("editor-cursor-pos");
+const editorCharCount = document.getElementById("editor-char-count");
+const editorAutosaveStatus = document.getElementById("editor-autosave-status");
+
+// 出力タブ関連
+const tabBtnResults = document.getElementById("tab-btn-results");
+const tabBtnStdout = document.getElementById("tab-btn-stdout");
+const tabPanelResults = document.getElementById("tab-panel-results");
+const tabPanelStdout = document.getElementById("tab-panel-stdout");
+const testSummaryBadge = document.getElementById("test-summary-badge");
+const stdoutCountBadge = document.getElementById("stdout-count-badge");
+const stdoutTerminal = document.getElementById("stdout-terminal");
+
+function setActiveOutputTab(tab) {
+  const activeBtnClass = ["border-indigo-600", "text-indigo-600", "dark:text-indigo-400", "bg-white", "dark:bg-slate-900", "font-bold"];
+  const inactiveBtnClass = ["border-transparent", "text-slate-500", "hover:text-slate-800", "dark:text-slate-400", "dark:hover:text-slate-200", "font-semibold"];
+
+  if (tab === "results") {
+    if (tabBtnResults) {
+      tabBtnResults.classList.add(...activeBtnClass);
+      tabBtnResults.classList.remove(...inactiveBtnClass);
+    }
+    if (tabBtnStdout) {
+      tabBtnStdout.classList.remove(...activeBtnClass);
+      tabBtnStdout.classList.add(...inactiveBtnClass);
+    }
+    if (tabPanelResults) tabPanelResults.classList.remove("hidden");
+    if (tabPanelStdout) tabPanelStdout.classList.add("hidden");
+  } else {
+    if (tabBtnStdout) {
+      tabBtnStdout.classList.add(...activeBtnClass);
+      tabBtnStdout.classList.remove(...inactiveBtnClass);
+    }
+    if (tabBtnResults) {
+      tabBtnResults.classList.remove(...activeBtnClass);
+      tabBtnResults.classList.add(...inactiveBtnClass);
+    }
+    if (tabPanelStdout) tabPanelStdout.classList.remove("hidden");
+    if (tabPanelResults) tabPanelResults.classList.add("hidden");
+  }
+}
+
+window.setActiveOutputTab = setActiveOutputTab;
+
+if (tabBtnResults) {
+  tabBtnResults.onclick = () => setActiveOutputTab("results");
+}
+if (tabBtnStdout) {
+  tabBtnStdout.onclick = () => setActiveOutputTab("stdout");
+}
+
+// 問題一覧ドロワー関連
+const openProblemDrawerBtn = document.getElementById("open-problem-drawer-btn");
+const problemDrawer = document.getElementById("problem-drawer");
+const problemDrawerClose = document.getElementById("problem-drawer-close");
+const problemDrawerBackdrop = document.getElementById("problem-drawer-backdrop");
+const drawerSearchInput = document.getElementById("drawer-search-input");
+const drawerProblemList = document.getElementById("drawer-problem-list");
+const drawerProgressText = document.getElementById("drawer-progress-text");
+
 // 新規追加ボタン＆パネル
 const aiReviewBtn = document.getElementById("ai-review-btn");
 const aiReviewPanel = document.getElementById("ai-review-panel");
 const aiReviewContent = document.getElementById("ai-review-content");
-const stdoutContainer = document.getElementById("stdout-container");
-const stdoutTerminal = document.getElementById("stdout-terminal");
 
-// [MODIFIED_START] 1. Prism.js を用いたシンタックスハイライト描画の強化
-// [MODIFIED_START] 1. Prism.jsによる色分け ＆ インデント縦線の自動生成
+// ==========================================
+// エディタフォントサイズ管理
+// ==========================================
+let currentEditorFontSize = parseInt(localStorage.getItem("py_editor_font_size") || "14", 10);
+
+function applyEditorFontSize(size) {
+  currentEditorFontSize = Math.min(24, Math.max(11, size));
+  localStorage.setItem("py_editor_font_size", currentEditorFontSize);
+  const lh = (currentEditorFontSize * 1.625) / 14 * 1.625;
+  const remSize = (currentEditorFontSize / 16).toFixed(4) + "rem";
+  const remLineHeight = (currentEditorFontSize * 1.85 / 16).toFixed(4) + "rem";
+
+  [codeEditor, editorBackdrop, lineNumbersContainer].forEach((el) => {
+    if (el) {
+      el.style.fontSize = remSize;
+      el.style.lineHeight = remLineHeight;
+    }
+  });
+
+  const lines = lineNumbersContainer.querySelectorAll(".editor-line");
+  lines.forEach((l) => (l.style.lineHeight = remLineHeight));
+  updateEditorDecorations();
+}
+
+if (fontSizeDecBtn && fontSizeIncBtn) {
+  fontSizeDecBtn.onclick = () => applyEditorFontSize(currentEditorFontSize - 1);
+  fontSizeIncBtn.onclick = () => applyEditorFontSize(currentEditorFontSize + 1);
+  applyEditorFontSize(currentEditorFontSize);
+}
+
+// ==========================================
+// 下書き自動保存 (Draft Storage)
+// ==========================================
+const PYTHON_DRAFTS_KEY = "python_code_drafts_v2";
+let autoSaveTimer = null;
+
+function getDraftsMap() {
+  try {
+    const raw = localStorage.getItem(PYTHON_DRAFTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveCurrentDraft() {
+  if (!codingProblems[currentCodingIndex]) return;
+  const problem = codingProblems[currentCodingIndex];
+  const drafts = getDraftsMap();
+  drafts[problem.title] = codeEditor.value;
+  try {
+    localStorage.setItem(PYTHON_DRAFTS_KEY, JSON.stringify(drafts));
+    if (editorAutosaveStatus) {
+      editorAutosaveStatus.innerHTML = `
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        自動保存済み
+      `;
+      editorAutosaveStatus.className = "text-emerald-600 dark:text-emerald-400 font-sans font-medium flex items-center gap-1";
+    }
+  } catch (e) {
+    console.warn("下書き保存エラー:", e);
+  }
+}
+
+function triggerAutoSave() {
+  if (editorAutosaveStatus) {
+    editorAutosaveStatus.innerHTML = `
+      <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+      保存中...
+    `;
+    editorAutosaveStatus.className = "text-amber-600 dark:text-amber-400 font-sans font-medium flex items-center gap-1";
+  }
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(saveCurrentDraft, 400);
+}
+
+// ==========================================
+// カーソル位置＆文字数ステータス更新
+// ==========================================
+function updateCursorStatus() {
+  if (!codeEditor || !editorCursorPos || !editorCharCount) return;
+  const val = codeEditor.value;
+  const selStart = codeEditor.selectionStart;
+  const linesBefore = val.substring(0, selStart).split("\n");
+  const lineNum = linesBefore.length;
+  const colNum = linesBefore[linesBefore.length - 1].length + 1;
+
+  editorCursorPos.textContent = `Ln ${lineNum}, Col ${colNum}`;
+  editorCharCount.textContent = `${val.length} 文字`;
+}
+
+// ==========================================
+// Prism.js によるシンタックスハイライト描画
+// ==========================================
 function updateEditorDecorations() {
   if (!codeEditor || !lineNumbersContainer || !editorBackdrop) return;
 
@@ -1799,10 +1961,6 @@ function updateEditorDecorations() {
         window.Prism.languages.python,
         "python",
       );
-    } else {
-      console.warn(
-        "Prism.js が読み込まれていないか、Pythonの構文定義がありません。",
-      );
     }
   } catch (err) {
     console.error("ハイライト処理中にエラーが発生しました:", err);
@@ -1827,57 +1985,108 @@ function updateEditorDecorations() {
   });
   highlighted = processedLines.join("\n");
 
-  // 末尾が改行の場合、表示がズレないようにダミーの改行を付与
   if (text.endsWith("\n")) highlighted += "<br/>";
 
-  // 生成したHTMLをバックドロップに流し込む
   editorBackdrop.innerHTML = `<code class="language-python" style="display: block; padding: 0; text-shadow: none;">${highlighted}</code>`;
 
-  // スクロール同期
   editorBackdrop.scrollTop = codeEditor.scrollTop;
   editorBackdrop.scrollLeft = codeEditor.scrollLeft;
   lineNumbersContainer.scrollTop = codeEditor.scrollTop;
-}
-// [MODIFIED_END]
 
-// Synchronize scroll on scroll event
+  updateCursorStatus();
+}
+
+// スクロール同期
 codeEditor.addEventListener("scroll", () => {
   editorBackdrop.scrollTop = codeEditor.scrollTop;
   editorBackdrop.scrollLeft = codeEditor.scrollLeft;
   lineNumbersContainer.scrollTop = codeEditor.scrollTop;
 });
 
-// Synchronize update on input event
-codeEditor.addEventListener("input", updateEditorDecorations);
+// 入力イベント
+codeEditor.addEventListener("input", () => {
+  updateEditorDecorations();
+  triggerAutoSave();
+});
+
+codeEditor.addEventListener("click", updateCursorStatus);
+codeEditor.addEventListener("keyup", updateCursorStatus);
 
 // ==========================================
-// エディタキーイベント＆オートインデント
+// スマートキーボード制御 (Tab, Shift+Tab, Enter, 括弧, ショートカット)
 // ==========================================
 codeEditor.addEventListener("keydown", function (e) {
   const start = this.selectionStart;
   const end = this.selectionEnd;
   const value = this.value;
 
-  if (e.key === "Tab") {
+  // 1. Ctrl + Enter / Cmd + Enter で実行
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
     e.preventDefault();
-    if (e.shiftKey) {
-      const before = value.substring(0, start);
-      const after = value.substring(end);
-      const lineStart = before.lastIndexOf("\n") + 1;
-      const line = value.substring(lineStart, start);
-
-      if (line.startsWith("    ")) {
-        this.value = before.substring(0, lineStart) + line.substring(4) + after;
-        this.selectionStart = this.selectionEnd = start - 4;
-      }
-    } else {
-      this.value = value.substring(0, start) + "    " + value.substring(end);
-      this.selectionStart = this.selectionEnd = start + 4;
-    }
-    updateEditorDecorations();
+    runCodingTests();
     return;
   }
 
+  // 2. Ctrl + S / Cmd + S で手動保存＆フォーマット
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+    e.preventDefault();
+    formatCode();
+    saveCurrentDraft();
+    notify("コードをフォーマットし、下書きを保存しました！", "保存完了", "info");
+    return;
+  }
+
+  // 3. Tab & Shift+Tab (複数行インデント/逆インデント対応)
+  if (e.key === "Tab") {
+    e.preventDefault();
+    if (start !== end) {
+      // 選択範囲がある場合：選択行全体を一括インデント/アンインデント
+      const startPos = value.lastIndexOf("\n", start - 1) + 1;
+      let endPos = value.indexOf("\n", end);
+      if (endPos === -1) endPos = value.length;
+
+      const selectedBlock = value.substring(startPos, endPos);
+      const lines = selectedBlock.split("\n");
+
+      if (e.shiftKey) {
+        // 逆インデント
+        const newLines = lines.map((l) => {
+          if (l.startsWith("    ")) return l.substring(4);
+          if (l.startsWith("\t")) return l.substring(1);
+          return l.replace(/^ {1,3}/, "");
+        });
+        const replaced = newLines.join("\n");
+        this.value = value.substring(0, startPos) + replaced + value.substring(endPos);
+        this.selectionStart = startPos;
+        this.selectionEnd = startPos + replaced.length;
+      } else {
+        // インデント追加
+        const newLines = lines.map((l) => "    " + l);
+        const replaced = newLines.join("\n");
+        this.value = value.substring(0, startPos) + replaced + value.substring(endPos);
+        this.selectionStart = startPos;
+        this.selectionEnd = startPos + replaced.length;
+      }
+    } else {
+      // 単一カーソル
+      if (e.shiftKey) {
+        const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+        const line = value.substring(lineStart, start);
+        if (line.startsWith("    ")) {
+          this.value = value.substring(0, lineStart) + line.substring(4) + value.substring(start);
+          this.selectionStart = this.selectionEnd = Math.max(lineStart, start - 4);
+        }
+      } else {
+        this.value = value.substring(0, start) + "    " + value.substring(end);
+        this.selectionStart = this.selectionEnd = start + 4;
+      }
+    }
+    updateEditorDecorations();
+    triggerAutoSave();
+    return;
+  }
+
+  // 4. Enter によるスマートインデント（コロン後の自動字下げ）
   if (e.key === "Enter") {
     e.preventDefault();
     const beforeCursor = value.substring(0, start);
@@ -1891,19 +2100,14 @@ codeEditor.addEventListener("keydown", function (e) {
       indent += "    ";
     }
 
-    this.value =
-      value.substring(0, start) + "\n" + indent + value.substring(end);
+    this.value = value.substring(0, start) + "\n" + indent + value.substring(end);
     this.selectionStart = this.selectionEnd = start + 1 + indent.length;
     updateEditorDecorations();
+    triggerAutoSave();
     return;
   }
 
-  if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-    e.preventDefault();
-    formatCode();
-    return;
-  }
-
+  // 5. 括弧・引用符のオートクローズ
   const pairs = {
     "(": ")",
     "{": "}",
@@ -1913,11 +2117,12 @@ codeEditor.addEventListener("keydown", function (e) {
   };
 
   if (pairs[e.key] !== undefined) {
-    e.preventDefault();
     const openChar = e.key;
     const closeChar = pairs[openChar];
 
+    // クォートの場合、直前がエスケープでなければスキップ等の考慮
     if (start !== end) {
+      e.preventDefault();
       const selectedText = value.substring(start, end);
       this.value =
         value.substring(0, start) +
@@ -1927,15 +2132,27 @@ codeEditor.addEventListener("keydown", function (e) {
         value.substring(end);
       this.selectionStart = start + 1;
       this.selectionEnd = end + 1;
+      updateEditorDecorations();
+      triggerAutoSave();
+      return;
     } else {
-      this.value =
-        value.substring(0, start) + openChar + closeChar + value.substring(end);
+      // 閉じ記号のオーバータイプスキップ
+      if (['"', "'", ")", "]", "}"].includes(openChar) && value.charAt(start) === openChar) {
+        e.preventDefault();
+        this.selectionStart = this.selectionEnd = start + 1;
+        updateEditorDecorations();
+        return;
+      }
+      e.preventDefault();
+      this.value = value.substring(0, start) + openChar + closeChar + value.substring(end);
       this.selectionStart = this.selectionEnd = start + 1;
+      updateEditorDecorations();
+      triggerAutoSave();
+      return;
     }
-    updateEditorDecorations();
-    return;
   }
 
+  // 閉じ括弧単体入力のスキップ
   const closeChars = [")", "}", "]", '"', "'"];
   if (closeChars.includes(e.key)) {
     if (start === end && value.charAt(start) === e.key) {
@@ -1946,6 +2163,7 @@ codeEditor.addEventListener("keydown", function (e) {
     }
   }
 
+  // Backspace でのペア括弧削除
   if (e.key === "Backspace") {
     if (start === end && start > 0) {
       const charBefore = value.charAt(start - 1);
@@ -1955,10 +2173,45 @@ codeEditor.addEventListener("keydown", function (e) {
         this.value = value.substring(0, start - 1) + value.substring(start + 1);
         this.selectionStart = this.selectionEnd = start - 1;
         updateEditorDecorations();
+        triggerAutoSave();
       }
     }
   }
 });
+
+// ==========================================
+// ツールバーボタンのアクション
+// ==========================================
+if (resetCodeBtn) {
+  resetCodeBtn.onclick = () => {
+    const problem = codingProblems[currentCodingIndex];
+    if (!problem) return;
+    askConfirm(() => {
+      codeEditor.value = problem.template;
+      saveCurrentDraft();
+      updateEditorDecorations();
+      notify("初期コードテンプレートにリセットしました。", "リセット完了", "info");
+    });
+  };
+}
+
+if (copyCodeBtn) {
+  copyCodeBtn.onclick = () => {
+    navigator.clipboard.writeText(codeEditor.value).then(() => {
+      notify("コードをクリップボードにコピーしました！", "コピー成功", "info");
+    }).catch(() => {
+      notify("クリップボードへのコピーに失敗しました。", "エラー", "error");
+    });
+  };
+}
+
+if (keyboardShortcutsBtn && shortcutsModal && shortcutsModalClose) {
+  keyboardShortcutsBtn.onclick = () => shortcutsModal.classList.remove("hidden");
+  shortcutsModalClose.onclick = () => shortcutsModal.classList.add("hidden");
+  shortcutsModal.onclick = (e) => {
+    if (e.target === shortcutsModal) shortcutsModal.classList.add("hidden");
+  };
+}
 
 function formatCode() {
   const lines = codeEditor.value.split("\n");
@@ -1993,15 +2246,18 @@ function formatCode() {
 
 formatBtn.onclick = () => {
   formatCode();
+  triggerAutoSave();
 };
 
 function renderCodingSelect() {
   if (!codingSelect) return;
   codingSelect.innerHTML = codingProblems
     .map((ch, idx) => {
+      const isCompleted = learningProgress.completedProblems.includes(ch.title);
+      const checkMark = isCompleted ? "✓ " : "";
       const prefix = ch.isAiGenerated ? "[AI] " : "";
       const title = ch.title.replace(/^\[AI\]\s*/, "").replace(/^\d+\.\s*/, "");
-      return `<option value="${idx}">${prefix}${title}</option>`;
+      return `<option value="${idx}">${checkMark}${prefix}${title}</option>`;
     })
     .join("");
 
@@ -2013,6 +2269,133 @@ function renderCodingSelect() {
   codingSelect.value = currentCodingIndex;
 }
 
+// ==========================================
+// 問題一覧ドロワー (Problem Drawer)
+// ==========================================
+let currentDrawerFilter = "all";
+
+function getDifficultyForProblem(problem) {
+  const t = problem.title.toLowerCase();
+  if (t.includes("初級") || t.includes("beginner")) return "beginner";
+  if (t.includes("中級") || t.includes("intermediate")) return "intermediate";
+  if (t.includes("上級") || t.includes("advanced")) return "advanced";
+  return "intermediate"; // デフォルト
+}
+
+function renderProblemDrawer() {
+  if (!drawerProblemList) return;
+  const searchQuery = (drawerSearchInput ? drawerSearchInput.value.trim().toLowerCase() : "");
+  
+  const completedCount = codingProblems.filter((p) =>
+    learningProgress.completedProblems.includes(p.title)
+  ).length;
+
+  if (drawerProgressText) {
+    drawerProgressText.textContent = `進捗: ${completedCount} / ${codingProblems.length} 問完了`;
+  }
+
+  const filtered = codingProblems.map((p, idx) => ({ ...p, originalIndex: idx })).filter((p) => {
+    const isCompleted = learningProgress.completedProblems.includes(p.title);
+    const diff = getDifficultyForProblem(p);
+
+    if (currentDrawerFilter === "completed" && !isCompleted) return false;
+    if (["beginner", "intermediate", "advanced"].includes(currentDrawerFilter) && diff !== currentDrawerFilter) return false;
+
+    if (searchQuery) {
+      const matchTitle = p.title.toLowerCase().includes(searchQuery);
+      const matchDesc = p.description.toLowerCase().includes(searchQuery);
+      if (!matchTitle && !matchDesc) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    drawerProblemList.innerHTML = `
+      <div class="text-center py-10 text-slate-400 dark:text-slate-500 text-xs">
+        一致する問題が見つかりませんでした。
+      </div>
+    `;
+    return;
+  }
+
+  drawerProblemList.innerHTML = filtered
+    .map((p) => {
+      const isCompleted = learningProgress.completedProblems.includes(p.title);
+      const isCurrent = p.originalIndex === currentCodingIndex;
+      const cleanTitle = p.title.replace(/^\[AI\]\s*/, "").replace(/^\d+\.\s*/, "");
+      const diff = getDifficultyForProblem(p);
+      const diffLabel = diff === "beginner" ? "初級" : diff === "advanced" ? "上級" : "中級";
+      const diffColor =
+        diff === "beginner"
+          ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300"
+          : diff === "advanced"
+            ? "bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300"
+            : "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300";
+
+      return `
+        <div
+          onclick="selectProblemFromDrawer(${p.originalIndex})"
+          class="p-3 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-3 ${
+            isCurrent
+              ? "bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800"
+              : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+          }"
+        >
+          <div class="space-y-1 min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                ${p.originalIndex + 1}. ${escapeHtml(cleanTitle)}
+              </span>
+              ${p.isAiGenerated ? '<span class="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.2 rounded font-bold">AI</span>' : ""}
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${diffColor}">${diffLabel}</span>
+              ${isCompleted ? '<span class="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">✓ クリア済</span>' : '<span class="text-[10px] text-slate-400">未クリア</span>'}
+            </div>
+          </div>
+          <div class="flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+window.selectProblemFromDrawer = function (index) {
+  currentCodingIndex = index;
+  showCodingProblem();
+  if (problemDrawer) problemDrawer.classList.add("hidden");
+};
+
+if (openProblemDrawerBtn && problemDrawer && problemDrawerClose && problemDrawerBackdrop) {
+  openProblemDrawerBtn.onclick = () => {
+    renderProblemDrawer();
+    problemDrawer.classList.remove("hidden");
+  };
+  problemDrawerClose.onclick = () => problemDrawer.classList.add("hidden");
+  problemDrawerBackdrop.onclick = () => problemDrawer.classList.add("hidden");
+
+  if (drawerSearchInput) {
+    drawerSearchInput.oninput = renderProblemDrawer;
+  }
+
+  const filterBtns = document.querySelectorAll(".drawer-filter-btn");
+  filterBtns.forEach((btn) => {
+    btn.onclick = () => {
+      filterBtns.forEach((b) => {
+        b.className =
+          "drawer-filter-btn px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800";
+      });
+      btn.className = "drawer-filter-btn px-2.5 py-1 rounded-md font-semibold bg-indigo-600 text-white";
+      currentDrawerFilter = btn.getAttribute("data-filter");
+      renderProblemDrawer();
+    };
+  });
+}
+
 function showCodingProblem() {
   const problem = codingProblems[currentCodingIndex];
   
@@ -2020,7 +2403,17 @@ function showCodingProblem() {
 
   const displayTitle = problem.title.replace(/^\d+\.\s*/, "").replace(/^\[AI\]\s*/, "");
   codingChallengeTitle.textContent = displayTitle;
-  codingChallengeDifficulty.innerHTML = ""; 
+  
+  const diff = getDifficultyForProblem(problem);
+  const diffLabel = diff === "beginner" ? "初級" : diff === "advanced" ? "上級" : "中級";
+  const diffColor =
+    diff === "beginner"
+      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+      : diff === "advanced"
+        ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+        : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300";
+
+  codingChallengeDifficulty.innerHTML = `<span class="text-xs font-bold px-2.5 py-1 rounded-full ${diffColor}">${diffLabel}</span>`;
   codingChallengeDescription.innerHTML = DOMPurify.sanitize(marked.parse(problem.description));
 
   if (problem.isAiGenerated) {
@@ -2029,15 +2422,29 @@ function showCodingProblem() {
     codingTypeBadge.classList.add("hidden");
   }
 
-  codeEditor.value = problem.template;
+  // 下書きがあれば復元、なければ初期テンプレート
+  const drafts = getDraftsMap();
+  const savedCode = drafts[problem.title];
+  codeEditor.value = savedCode !== undefined ? savedCode : problem.template;
+
   updateEditorDecorations();
-  testResults.innerHTML = "";
+  testResults.innerHTML = `
+    <div class="text-center py-8 text-slate-400 dark:text-slate-500 text-xs">
+      「実行して採点」ボタンを押すと、自動評価テストが開始されます。
+    </div>
+  `;
+  if (testSummaryBadge) {
+    testSummaryBadge.textContent = "未実行";
+    testSummaryBadge.className = "ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
+  }
+  if (stdoutCountBadge) stdoutCountBadge.classList.add("hidden");
+  if (stdoutTerminal) stdoutTerminal.textContent = "標準出力ログはありません。";
+
+  setActiveOutputTab("results");
+
   codingNextBtn.classList.add("hidden");
   aiHintPanel.classList.add("hidden");
   aiReviewPanel.classList.add("hidden");
-  stdoutContainer.classList.add("hidden");
-  stdoutTerminal.textContent = "";
-  // 問題切り替え時にヒント会話履歴（JSONログ）をリセット
   pyHintHistoryLogs = [];
 }
 
@@ -2093,6 +2500,7 @@ function runCodingTests() {
 
   for (const pattern of forbiddenPatterns) {
     if (userCode.includes(pattern)) {
+      setActiveOutputTab("results");
       testResults.innerHTML = `
             <div class="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-sm font-medium">
               セキュリティ制限：安全性に関わる可能性のある表現が検出されたため、検証を中止しました。コードを修正してください。
@@ -2105,6 +2513,7 @@ function runCodingTests() {
 }
 
 function executePythonTests(userCode, problem) {
+  setActiveOutputTab("results");
   runBtn.disabled = true;
   runBtn.innerHTML = `
         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -2114,7 +2523,7 @@ function executePythonTests(userCode, problem) {
         検証中...
       `;
   testResults.innerHTML = `
-        <div class="p-4 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-sm flex items-center gap-2 font-medium">
+        <div class="p-4 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm flex items-center gap-2 font-medium">
           コードの安全性を検証しています...
         </div>`;
 
@@ -2125,6 +2534,7 @@ function executePythonTests(userCode, problem) {
       expected: tc.expected,
     })),
   });
+
   try {
     let res = null;
     if (typeof window.run_python_tests !== "function") {
@@ -2144,24 +2554,26 @@ function executePythonTests(userCode, problem) {
           実行して採点
         `;
 
-    // 標準出力があれば表示
+    // 標準出力の処理
     if (res && res.stdout && res.stdout.trim().length > 0) {
       stdoutTerminal.textContent = res.stdout;
-      stdoutContainer.classList.remove("hidden");
+      const stdoutLines = res.stdout.trim().split("\n").length;
+      stdoutCountBadge.textContent = `${stdoutLines} 行`;
+      stdoutCountBadge.classList.remove("hidden");
     } else {
-      stdoutContainer.classList.add("hidden");
+      stdoutTerminal.textContent = "標準出力ログはありません。";
+      stdoutCountBadge.classList.add("hidden");
     }
 
     if (res && res.error) {
+      testSummaryBadge.textContent = "エラー";
+      testSummaryBadge.className = "ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300";
       testResults.innerHTML = `
-            <div class="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-sm">
+            <div class="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 rounded-lg text-sm">
               <strong class="block font-semibold mb-1">構文エラー / 実行時エラーが発生しました:</strong>
-              <code class="block whitespace-pre-wrap bg-rose-100 p-3 rounded text-xs mt-1 font-mono">${escapeHtml(res.error)}</code>
+              <code class="block whitespace-pre-wrap bg-rose-100 dark:bg-rose-900/40 p-3 rounded text-xs mt-1 font-mono">${escapeHtml(res.error)}</code>
             </div>`;
-      testResults.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-      });
+      testResults.scrollIntoView({ behavior: "smooth", block: "nearest" });
       return;
     }
 
@@ -2170,10 +2582,26 @@ function executePythonTests(userCode, problem) {
       const passed = res.tests.filter((r) => r.pass).length;
       const score = passed / total;
 
+      testSummaryBadge.textContent = `${passed}/${total} 合格`;
+      testSummaryBadge.className = `ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+        passed === total
+          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+          : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+      }`;
+
+      const hasStdout = res && res.stdout && res.stdout.trim().length > 0;
+      const stdoutLines = hasStdout ? res.stdout.trim().split("\n").length : 0;
+
       testResults.innerHTML = `
-            <div class="p-4 bg-slate-100 border border-slate-200 rounded-lg flex justify-between items-center mb-4">
-              <span class="font-bold text-slate-800 text-sm sm:text-base">テスト通過結果: ${passed} / ${total} 通過</span>
-              <span class="text-xs font-bold px-3 py-1.5 rounded-full ${passed === total ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"}">
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+              <div class="space-y-0.5">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-slate-800 dark:text-slate-100 text-sm sm:text-base">テスト通過結果: ${passed} / ${total} 通過</span>
+                  ${hasStdout ? `<button onclick="setActiveOutputTab('stdout')" class="px-2 py-0.5 rounded text-[11px] bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors flex items-center gap-1">📝 print出力 (${stdoutLines}行)</button>` : ""}
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">全テストケースに合格するとクリアとなります</p>
+              </div>
+              <span class="text-xs font-bold px-3 py-1.5 rounded-full ${passed === total ? "bg-emerald-500 text-white shadow-sm" : "bg-rose-500 text-white"}">
                 スコア: ${(score * 100).toFixed(0)}%
               </span>
             </div>
@@ -2181,32 +2609,65 @@ function executePythonTests(userCode, problem) {
 
       res.tests.forEach((r) => {
         const passStyle = r.pass
-          ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-          : "bg-rose-50 border-rose-200 text-rose-800";
+          ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40"
+          : "bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40";
         const passTag = r.pass
-          ? '<span class="text-xs font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md">PASS</span>'
-          : '<span class="text-xs font-bold px-2 py-0.5 bg-rose-100 text-rose-800 rounded-md">FAIL</span>';
+          ? '<span class="text-[11px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 rounded-md">PASS</span>'
+          : '<span class="text-[11px] font-bold px-2 py-0.5 bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300 rounded-md">FAIL</span>';
+
+        // 失敗時のDiff比較ビュー
+        let diffHtml = "";
+        if (!r.pass) {
+          diffHtml = `
+            <div class="mt-2.5 pt-2.5 border-t border-rose-200/60 dark:border-rose-900/40 space-y-1.5 text-xs font-mono">
+              <div class="diff-block diff-expected p-2 rounded">
+                <span class="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">期待される戻り値 (Expected):</span>
+                <span class="font-bold">${escapeHtml(r.expected)}</span>
+              </div>
+              <div class="diff-block diff-actual p-2 rounded">
+                <span class="text-[10px] uppercase font-bold text-rose-700 dark:text-rose-400 block">実際の戻り値 (Actual):</span>
+                <span class="font-bold">${r.error ? escapeHtml(r.error) : escapeHtml(r.actual ?? "(None / 未定義)")}</span>
+              </div>
+              <div class="pt-1 flex justify-end">
+                <button
+                  onclick="askAiAboutTestFailure(${r.index})"
+                  class="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 border border-indigo-200 dark:border-indigo-800 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  なぜ間違えたかAIに聞く
+                </button>
+              </div>
+            </div>
+          `;
+        }
 
         testResults.innerHTML += `
-              <div class="p-4 border rounded-lg ${passStyle} space-y-1.5 transition-all duration-150">
+              <div class="test-card p-4 border rounded-xl ${passStyle} space-y-1.5 shadow-sm">
                 <div class="flex justify-between items-center">
-                  <span class="font-bold text-xs uppercase tracking-wider text-slate-500">テストケース ${r.index + 1}</span>
+                  <span class="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">テストケース ${r.index + 1}</span>
                   ${passTag}
                 </div>
-                <div class="text-sm font-mono space-y-1">
-                  <p><span class="opacity-75">入力式:</span> <code class="bg-black/5 px-1.5 py-0.5 rounded">${escapeHtml(r.input)}</code></p>
-                  <p><span class="opacity-75">期待値 (Expected):</span> <code class="bg-black/5 px-1.5 py-0.5 rounded">${escapeHtml(r.expected)}</code></p>
-                  <p><span class="opacity-75">実際の戻り値 (Actual):</span> <code class="bg-black/5 px-1.5 py-0.5 rounded">${r.error ? "エラー終了" : escapeHtml(r.actual ?? "(null)")}</code></p>
-                  ${r.error ? `<p class="text-xs text-rose-600 font-semibold bg-rose-100/50 p-2 rounded mt-1">エラー内容: ${escapeHtml(r.error)}</p>` : ""}
+                <div class="text-xs font-mono">
+                  <span class="opacity-75 text-slate-600 dark:text-slate-400">入力式:</span> <code class="bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-slate-800 dark:text-slate-200">${escapeHtml(r.input)}</code>
                 </div>
+                ${r.pass ? `<div class="text-xs font-mono"><span class="opacity-75 text-slate-600 dark:text-slate-400">戻り値:</span> <code class="bg-emerald-100/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">${escapeHtml(r.actual)}</code></div>` : diffHtml}
               </div>
             `;
       });
 
       codingScores[currentCodingIndex] = score;
 
-      // クリア状況をlocalStorage進捗に記録
+      // 全テスト合格時の祝賀
       if (score === 1) {
+        if (typeof window.confetti === "function") {
+          window.confetti({
+            particleCount: 70,
+            spread: 60,
+            origin: { y: 0.65 },
+          });
+        }
         const pTitle = problem.title;
         if (!learningProgress.completedProblems.includes(pTitle)) {
           learningProgress.completedProblems.push(pTitle);
@@ -2214,23 +2675,12 @@ function executePythonTests(userCode, problem) {
             learningProgress.aiChallengesCleared += 1;
           }
           saveProgress();
+          if (codingSelect) renderCodingSelect();
         }
       }
 
       codingNextBtn.classList.remove("hidden");
-      testResults.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-      });
-    } else {
-      testResults.innerHTML = `
-            <div class="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm">
-              テスト結果の抽出ができませんでした。記述内容を今一度見直してください。
-            </div>`;
-      testResults.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-      });
+      testResults.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   } catch (err) {
     runBtn.disabled = false;
@@ -2249,6 +2699,46 @@ function executePythonTests(userCode, problem) {
   }
 }
 
+// 失敗テストケースに対するピンポイントAI相談
+window.askAiAboutTestFailure = async function (testIndex) {
+  const problem = codingProblems[currentCodingIndex];
+  const testCase = problem.test_cases[testIndex];
+  const userCode = codeEditor.value;
+
+  aiHintContent.innerHTML =
+    '<span class="animate-pulse text-indigo-500 font-bold">AIがこのテストケースの失敗原因を分析しています...</span>';
+  aiHintPanel.classList.remove("hidden");
+  aiReviewPanel.classList.add("hidden");
+  aiHintPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  const systemPrompt = `あなたはPython初学者に優しく教える家庭教師AIです。
+生徒のコードが特定のテストケースで不合格になりました。
+なぜこのテストケース（入力: ${testCase.input}、期待値: ${testCase.expected}）で失敗したのか、コードのどこに着目して直せばよいかを優しく段階的に日本語で解説してください。
+直接の答えコードを丸写しさせるのではなく、考え方のヒントを教えてください。`;
+
+  const userPrompt = `【問題】: ${problem.title}
+【失敗したテストケース】:
+- 呼び出し: ${testCase.input}
+- 期待された値: ${testCase.expected}
+
+【生徒の現在のコード】:
+\`\`\`python
+${userCode}
+\`\`\`
+
+失敗した理由と修正の考え方を初心者向けにわかりやすく解説してください。`;
+
+  try {
+    let aiResponseText = "";
+    await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
+      aiResponseText = fullText;
+      aiHintContent.innerHTML = sanitizeHtml(marked.parse(fullText));
+    });
+  } catch (err) {
+    notify(`${err.message}`, "AIエラー分析失敗", "error");
+  }
+};
+
 function nextCodingProblem() {
   currentCodingIndex++;
   if (currentCodingIndex < codingProblems.length) {
@@ -2266,30 +2756,34 @@ function showCodingResult() {
   const maxScore = codingProblems.length;
   const avgScore = (totalScore / maxScore) * 100;
 
+  if (avgScore >= 80 && typeof window.confetti === "function") {
+    window.confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
+  }
+
   codingResultContainer.innerHTML = `
-        <div class="text-center space-y-3 pb-6 border-b border-slate-200">
-          <h3 class="text-2xl font-bold text-slate-900">コーディングテスト 総合結果</h3>
-          <p class="text-sm text-slate-500 font-medium">お疲れ様でした！全プログラミングミッションが終了しました。</p>
+        <div class="text-center space-y-3 pb-6 border-b border-slate-200 dark:border-slate-800">
+          <h3 class="text-2xl font-bold text-slate-900 dark:text-slate-100">コーディングテスト 総合結果</h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 font-medium">お疲れ様でした！全プログラミングミッションが終了しました。</p>
           <div class="flex justify-center gap-8 mt-4">
             <div class="text-center">
-              <span class="block text-3xl font-extrabold text-indigo-600">${totalScore.toFixed(1)} / ${maxScore}</span>
+              <span class="block text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">${totalScore.toFixed(1)} / ${maxScore}</span>
               <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">合計スコア</span>
             </div>
             <div class="text-center">
-              <span class="block text-3xl font-extrabold text-indigo-600">${avgScore.toFixed(0)}%</span>
+              <span class="block text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">${avgScore.toFixed(0)}%</span>
               <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">総合達成率</span>
             </div>
           </div>
         </div>
         <div class="space-y-4">
-          <h4 class="text-lg font-semibold text-slate-900">各設問の個別達成状況</h4>
+          <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100">各設問の個別達成状況</h4>
           <ul class="space-y-2 max-h-96 overflow-y-auto pr-2">
             ${codingScores
               .map(
                 (score, i) => `
-              <li class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-lg">
-                <span class="font-medium text-slate-700 text-sm sm:text-base">${escapeHtml(codingProblems[i].title)}</span>
-                <span class="text-sm font-bold px-3 py-1 rounded-full ${score === 1 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}">
+              <li class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
+                <span class="font-medium text-slate-700 dark:text-slate-200 text-sm sm:text-base">${escapeHtml(codingProblems[i].title)}</span>
+                <span class="text-sm font-bold px-3 py-1 rounded-full ${score === 1 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"}">
                   達成率: ${(score * 100).toFixed(0)}%
                 </span>
               </li>
@@ -2310,7 +2804,7 @@ runBtn.onclick = runCodingTests;
 codingNextBtn.onclick = nextCodingProblem;
 
 // ==========================================
-// Gemini 3.5 Flash API 連携ロジック
+// Gemini 3.7 Flash API 連携ロジック
 // ==========================================
 const defaultDefaultKey = "";
 
@@ -2318,7 +2812,7 @@ function getGeminiUrl() {
   const savedKey = localStorage.getItem("gemini_api_key");
   const activeKey = savedKey ? savedKey.trim() : defaultDefaultKey;
   return {
-    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${activeKey}`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${activeKey}`,
     hasKey: !!activeKey,
   };
 }
@@ -2425,7 +2919,7 @@ async function callGemini(
         }
         if (response.status === 404) {
           throw new Error(
-            "指定されたGemini 3.6 Flashモデルが見つかりません。APIアクセス権が有効かご確認ください。",
+            "指定されたGemini 3.7 Flashモデルが見つかりません。APIアクセス権が有効かご確認ください。",
           );
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -2554,7 +3048,7 @@ const difficultyLabels = {
 };
 
 // ==========================================
-// AI問題生成処理 (Gemini 3.5 Flash)
+// AI問題生成処理 (Gemini 3.7 Flash)
 // ==========================================
 const aiQuizTopicInput = document.getElementById("ai-quiz-topic");
 const aiQuizDifficultySelect = document.getElementById("ai-quiz-difficulty");
@@ -2579,7 +3073,7 @@ aiQuizGenerateBtn.onclick = async () => {
   const label = difficultyLabels[difficulty];
   showAiLoader(
     "AIクイズを作成中...",
-    `Gemini 3.6 Flashが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
+    `Gemini 3.7 Flashが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
   );
 
   let difficultyPromptConstraint = "";
@@ -2671,7 +3165,7 @@ aiQuizGenerateBtn.onclick = async () => {
 };
 
 // ==========================================
-// AIコーディング問題生成処理 (Gemini 3.5 Flash)
+// AIコーディング問題生成処理 (Gemini 3.7 Flash)
 // ==========================================
 const aiCodingTopicInput = document.getElementById("ai-coding-topic");
 const aiCodingDifficultySelect = document.getElementById(
@@ -2698,7 +3192,7 @@ aiCodingGenerateBtn.onclick = async () => {
   const label = difficultyLabels[difficulty];
   showAiLoader(
     "AI課題をビルド中...",
-    `Gemini 3.6 Flashが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
+    `Gemini 3.7 Flashが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
   );
 
   let difficultyPromptConstraint = "";
