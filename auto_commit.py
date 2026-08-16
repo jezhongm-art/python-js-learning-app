@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Git Auto Commit & Push Pro (PySide6 Modern Desktop Edition)
-洗練されたモダンUIと直感的な操作性を備えたGit自動化ツール
+洗練されたモダンUI・ライト/ダークテーマ・ファイル除外設定を備えたGit自動化ツール
 """
 
 import datetime
@@ -104,10 +104,12 @@ def load_history():
                     data["dir_to_url"] = {}
                 if "url_to_dir" not in data:
                     data["url_to_dir"] = {}
+                if "theme" not in data:
+                    data["theme"] = "dark"
                 return data
         except Exception:
             pass
-    return {"dir_to_url": {}, "url_to_dir": {}}
+    return {"dir_to_url": {}, "url_to_dir": {}, "theme": "dark"}
 
 
 def save_history(history_data):
@@ -184,6 +186,7 @@ class GitWorker(QThread):
         custom_message = self.kwargs.get("message", "")
         allow_empty = self.kwargs.get("allow_empty", True)
         branch = self.kwargs.get("branch", "main")
+        selected_files = self.kwargs.get("selected_files", None)
 
         try:
             self.log_signal.emit(f"[{os.path.basename(curr_dir)}] の変更ステータスを確認中...", "INFO")
@@ -192,8 +195,14 @@ class GitWorker(QThread):
             has_changes = bool(status_out.strip())
 
             if has_changes:
-                self.log_signal.emit("git add . を実行中...", "RUN")
-                ok, _, err = run_git_command(["add", "."], cwd=curr_dir)
+                # 選択されたファイルのみステージングするか全ステージングか判定
+                if selected_files is not None and len(selected_files) > 0:
+                    self.log_signal.emit(f"選択された {len(selected_files)} 件のファイルをステージング中...", "RUN")
+                    ok, _, err = run_git_command(["add", "--"] + selected_files, cwd=curr_dir)
+                else:
+                    self.log_signal.emit("git add . を実行中...", "RUN")
+                    ok, _, err = run_git_command(["add", "."], cwd=curr_dir)
+
                 if not ok:
                     self.log_signal.emit(f"git add 失敗: {err}", "ERROR")
                     self.finished_signal.emit(False, f"git add 失敗: {err}")
@@ -253,14 +262,12 @@ class GitWorker(QThread):
 
 
 # =====================================================================
-# プロフェッショナル・モダン QSS スタイルシート (絵文字排除・洗練されたデザイン)
+# QSS スタイルシート (ダーク & ライトテーマ定義)
 # =====================================================================
-MODERN_STYLE = """
-/* 基本ウィンドウ設定 */
+DARK_STYLE = """
 QWidget {
     background-color: #0f172a;
     color: #f8fafc;
-    font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", -apple-system, sans-serif;
     font-size: 12px;
     selection-background-color: #4f46e5;
     selection-color: #ffffff;
@@ -270,19 +277,16 @@ QMainWindow {
     background-color: #0f172a;
 }
 
-/* カードコンテナ */
 QFrame.CardFrame {
     background-color: #1e293b;
     border: 1px solid #334155;
     border-radius: 8px;
 }
 
-/* ラベル類 */
 QLabel.HeaderTitle {
     font-size: 15px;
     font-weight: 700;
     color: #ffffff;
-    letter-spacing: 0.3px;
 }
 
 QLabel.CardTitle {
@@ -304,7 +308,6 @@ QLabel.Badge {
     border-radius: 4px;
 }
 
-/* 入力ボックス */
 QLineEdit {
     background-color: #0f172a;
     border: 1px solid #334155;
@@ -324,7 +327,6 @@ QLineEdit:disabled {
     color: #64748b;
 }
 
-/* ドロップダウン (QComboBox) */
 QComboBox {
     background-color: #0f172a;
     border: 1px solid #334155;
@@ -369,7 +371,6 @@ QComboBox QAbstractItemView {
     outline: none;
 }
 
-/* ボタンスタイル */
 QPushButton {
     background-color: #334155;
     color: #f8fafc;
@@ -395,7 +396,6 @@ QPushButton:disabled {
     border-color: #1e293b;
 }
 
-/* アクションボタン (Primary) */
 QPushButton.PrimaryButton {
     background-color: #4f46e5;
     color: #ffffff;
@@ -419,7 +419,6 @@ QPushButton.PrimaryButton:disabled {
     color: #64748b;
 }
 
-/* サブアクション / クイックタグ */
 QPushButton.TagButton {
     background-color: #0f172a;
     color: #94a3b8;
@@ -452,7 +451,6 @@ QPushButton.IconButton:hover {
     color: #ffffff;
 }
 
-/* テーブル */
 QTableWidget {
     background-color: #0f172a;
     border: 1px solid #334155;
@@ -477,7 +475,6 @@ QHeaderView::section {
     font-size: 11px;
 }
 
-/* ログコンソール */
 QTextEdit.ConsoleEdit {
     background-color: #020617;
     border: 1px solid #334155;
@@ -489,7 +486,6 @@ QTextEdit.ConsoleEdit {
     padding: 6px;
 }
 
-/* チェックボックス */
 QCheckBox {
     color: #cbd5e1;
     font-size: 12px;
@@ -509,7 +505,6 @@ QCheckBox::indicator:checked {
     border-color: #6366f1;
 }
 
-/* プログレスバー */
 QProgressBar {
     border: 1px solid #334155;
     border-radius: 3px;
@@ -524,7 +519,6 @@ QProgressBar::chunk {
     border-radius: 2px;
 }
 
-/* スクロールバー */
 QScrollBar:vertical {
     background: transparent;
     width: 8px;
@@ -546,6 +540,371 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 }
 """
 
+LIGHT_STYLE = """
+QWidget {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-size: 12px;
+    selection-background-color: #4f46e5;
+    selection-color: #ffffff;
+}
+
+QMainWindow {
+    background-color: #f1f5f9;
+}
+
+QFrame.CardFrame {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+}
+
+QLabel.HeaderTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+QLabel.CardTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+}
+
+QLabel.MutedLabel {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+QLabel.Badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+QLineEdit {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #0f172a;
+    font-size: 12px;
+}
+
+QLineEdit:focus {
+    border: 1px solid #4f46e5;
+    background-color: #ffffff;
+}
+
+QLineEdit:disabled {
+    background-color: #e2e8f0;
+    color: #94a3b8;
+}
+
+QComboBox {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: #0f172a;
+    font-size: 12px;
+    min-height: 18px;
+}
+
+QComboBox:hover {
+    border: 1px solid #94a3b8;
+}
+
+QComboBox:focus {
+    border: 1px solid #4f46e5;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 24px;
+    border-left: none;
+}
+
+QComboBox::down-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #64748b;
+    margin-right: 6px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    color: #0f172a;
+    selection-background-color: #4f46e5;
+    selection-color: #ffffff;
+    padding: 4px;
+    outline: none;
+}
+
+QPushButton {
+    background-color: #e2e8f0;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+QPushButton:hover {
+    background-color: #cbd5e1;
+    border-color: #94a3b8;
+}
+
+QPushButton:pressed {
+    background-color: #cbd5e1;
+}
+
+QPushButton:disabled {
+    background-color: #f1f5f9;
+    color: #94a3b8;
+    border-color: #e2e8f0;
+}
+
+QPushButton.PrimaryButton {
+    background-color: #4f46e5;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton.PrimaryButton:hover {
+    background-color: #4338ca;
+}
+
+QPushButton.PrimaryButton:pressed {
+    background-color: #3730a3;
+}
+
+QPushButton.PrimaryButton:disabled {
+    background-color: #cbd5e1;
+    color: #64748b;
+}
+
+QPushButton.TagButton {
+    background-color: #f8fafc;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+QPushButton.TagButton:hover {
+    background-color: #e2e8f0;
+    color: #0f172a;
+    border-color: #4f46e5;
+}
+
+QPushButton.IconButton {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #334155;
+}
+
+QPushButton.IconButton:hover {
+    background-color: #e2e8f0;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+QTableWidget {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    gridline-color: #e2e8f0;
+    color: #0f172a;
+    font-size: 12px;
+}
+
+QTableWidget::item {
+    padding: 4px 6px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+QHeaderView::section {
+    background-color: #f1f5f9;
+    color: #475569;
+    padding: 4px 6px;
+    border: none;
+    border-bottom: 1px solid #cbd5e1;
+    font-weight: 600;
+    font-size: 11px;
+}
+
+QTextEdit.ConsoleEdit {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    color: #0f172a;
+    font-family: "Consolas", "Cascadia Code", monospace;
+    font-size: 11px;
+    line-height: 1.35;
+    padding: 6px;
+}
+
+QCheckBox {
+    color: #334155;
+    font-size: 12px;
+    spacing: 6px;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid #94a3b8;
+    background-color: #ffffff;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #4f46e5;
+    border-color: #4338ca;
+}
+
+QProgressBar {
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+    background-color: #f1f5f9;
+    text-align: center;
+    color: transparent;
+    height: 4px;
+}
+
+QProgressBar::chunk {
+    background-color: #10b981;
+    border-radius: 2px;
+}
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+"""
+
+
+# =====================================================================
+# .gitignore 除外設定ダイアログ
+# =====================================================================
+class GitIgnoreDialog(QDialog):
+    def __init__(self, target_dir, parent=None):
+        super().__init__(parent)
+        self.target_dir = target_dir
+        self.setWindowTitle("除外ファイル設定 (.gitignore)")
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(420)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        desc = QLabel(
+            "コミット対象外にするファイルやフォルダのパターンを1行ずつ入力してください。\n"
+            "(プロジェクトルートの .gitignore に保存されます)"
+        )
+        desc.setProperty("class", "MutedLabel")
+        layout.addWidget(desc)
+
+        # プリセット提案
+        preset_row = QHBoxLayout()
+        preset_row.setSpacing(6)
+        preset_lbl = QLabel("クイック追加:")
+        preset_lbl.setProperty("class", "MutedLabel")
+        preset_row.addWidget(preset_lbl)
+
+        presets = [
+            (".env", ".env"),
+            ("*.log", "*.log"),
+            ("__pycache__/", "__pycache__/"),
+            ("node_modules/", "node_modules/"),
+            (".DS_Store", ".DS_Store"),
+            ("*.tmp", "*.tmp"),
+        ]
+        for name, pattern in presets:
+            btn = QPushButton(f"+ {name}")
+            btn.setProperty("class", "TagButton")
+            btn.clicked.connect(lambda _, p=pattern: self._add_pattern(p))
+            preset_row.addWidget(btn)
+
+        preset_row.addStretch()
+        layout.addLayout(preset_row)
+
+        self.text_edit = QTextEdit()
+        self.text_edit.setPlaceholderText(
+            "# 除外パターンの例:\n.env\n*.log\nnode_modules/\n__pycache__/\n*.tmp\n"
+        )
+        self.text_edit.setFont(QFont("Consolas", 10))
+        layout.addWidget(self.text_edit)
+
+        # 既存 .gitignore の読み込み
+        gitignore_path = os.path.join(self.target_dir, ".gitignore")
+        if os.path.exists(gitignore_path):
+            try:
+                with open(gitignore_path, "r", encoding="utf-8") as f:
+                    self.text_edit.setPlainText(f.read())
+            except Exception as e:
+                print(f"Error reading .gitignore: {e}")
+
+        bbox = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        bbox.button(QDialogButtonBox.Save).setText("保存して適用")
+        bbox.button(QDialogButtonBox.Cancel).setText("キャンセル")
+        bbox.accepted.connect(self._save_and_close)
+        bbox.rejected.connect(self.reject)
+        layout.addWidget(bbox)
+
+    def _add_pattern(self, pattern):
+        curr = self.text_edit.toPlainText()
+        lines = [line.strip() for line in curr.splitlines()]
+        if pattern not in lines:
+            if curr and not curr.endswith("\n"):
+                self.text_edit.append(pattern)
+            else:
+                self.text_edit.insertPlainText(pattern + "\n")
+
+    def _save_and_close(self):
+        content = self.text_edit.toPlainText()
+        gitignore_path = os.path.join(self.target_dir, ".gitignore")
+        try:
+            with open(gitignore_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "エラー", f".gitignore の保存に失敗しました:\n{e}")
+
 
 # =====================================================================
 # メインウィンドウ
@@ -555,12 +914,12 @@ class GitAutoCommitWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Git Auto Commit & Push")
         
-        # コンパクトかつ扱いやすいサイズ
         self.setMinimumSize(640, 580)
         self.resize(700, 680)
 
         # 履歴ロード
         self.history = load_history()
+        self.current_theme = self.history.get("theme", "dark")
 
         # 状態
         self.target_dir = os.path.abspath(initial_dir or os.getcwd())
@@ -569,6 +928,7 @@ class GitAutoCommitWindow(QMainWindow):
         self.is_git_repo = False
         self.is_committing = False
         self.is_auto_sync_active = False
+        self.current_files = []
 
         # 自動同期タイマー
         self.sync_interval_sec = 300
@@ -578,13 +938,13 @@ class GitAutoCommitWindow(QMainWindow):
 
         self._init_ui()
         self._setup_tray_icon()
+        self._apply_theme(self.current_theme)
         self.refresh_status()
 
     def _init_ui(self):
         main_scroll = QScrollArea()
         main_scroll.setWidgetResizable(True)
         main_scroll.setFrameShape(QFrame.NoFrame)
-        main_scroll.setStyleSheet("background-color: #0f172a;")
 
         container = QWidget()
         main_layout = QVBoxLayout(container)
@@ -592,7 +952,7 @@ class GitAutoCommitWindow(QMainWindow):
         main_layout.setSpacing(10)
 
         # =========================================================
-        # 1. ヘッダー (タイトル・状態・履歴・対象・URL)
+        # 1. ヘッダー (タイトル・状態・テーマ切替・履歴・対象・URL)
         # =========================================================
         header_card = QFrame()
         header_card.setProperty("class", "CardFrame")
@@ -610,18 +970,18 @@ class GitAutoCommitWindow(QMainWindow):
 
         top_row.addStretch()
 
+        # テーマ切替ボタン
+        self.btn_theme = QPushButton("テーマ: Dark")
+        self.btn_theme.setProperty("class", "IconButton")
+        self.btn_theme.clicked.connect(self.toggle_theme)
+        top_row.addWidget(self.btn_theme)
+
         self.status_pill = QLabel("● 準備完了")
         self.status_pill.setProperty("class", "Badge")
-        self.status_pill.setStyleSheet(
-            "background-color: #064e3b; color: #34d399; border: 1px solid #059669;"
-        )
         top_row.addWidget(self.status_pill)
 
         self.branch_badge = QLabel("branch: main")
         self.branch_badge.setProperty("class", "Badge")
-        self.branch_badge.setStyleSheet(
-            "background-color: #1e1b4b; color: #a5b4fc; border: 1px solid #4338ca;"
-        )
         top_row.addWidget(self.branch_badge)
 
         header_layout.addLayout(top_row)
@@ -688,7 +1048,7 @@ class GitAutoCommitWindow(QMainWindow):
         main_layout.addWidget(header_card)
 
         # =========================================================
-        # 2. 変更ファイル一覧
+        # 2. 変更ファイル一覧 (個別コミット選択 & 除外設定)
         # =========================================================
         changes_card = QFrame()
         changes_card.setProperty("class", "CardFrame")
@@ -703,20 +1063,32 @@ class GitAutoCommitWindow(QMainWindow):
 
         changes_top.addStretch()
 
+        self.btn_select_all = QPushButton("全選択 / 解除")
+        self.btn_select_all.setProperty("class", "TagButton")
+        self.btn_select_all.clicked.connect(self.toggle_select_all_files)
+        changes_top.addWidget(self.btn_select_all)
+
+        btn_gitignore = QPushButton("除外設定 (.gitignore)...")
+        btn_gitignore.setProperty("class", "IconButton")
+        btn_gitignore.clicked.connect(self.open_gitignore_dialog)
+        changes_top.addWidget(btn_gitignore)
+
         btn_refresh = QPushButton("更新")
         btn_refresh.setProperty("class", "IconButton")
         btn_refresh.clicked.connect(self.refresh_status)
         changes_top.addWidget(btn_refresh)
         changes_layout.addLayout(changes_top)
 
-        self.files_table = QTableWidget(0, 2)
-        self.files_table.setHorizontalHeaderLabels(["状態", "ファイルパス"])
+        # チェックボックス付きテーブル (3列: 対象, 状態, ファイルパス)
+        self.files_table = QTableWidget(0, 3)
+        self.files_table.setHorizontalHeaderLabels(["選択", "状態", "ファイルパス"])
         self.files_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.files_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.files_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.files_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.files_table.verticalHeader().setVisible(False)
         self.files_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.files_table.setMinimumHeight(75)
-        self.files_table.setMaximumHeight(110)
+        self.files_table.setMaximumHeight(120)
         changes_layout.addWidget(self.files_table)
 
         main_layout.addWidget(changes_card)
@@ -876,6 +1248,53 @@ class GitAutoCommitWindow(QMainWindow):
 
         self.update_history_dropdown()
 
+    # =========================================================
+    # テーマ管理 (Dark / Light)
+    # =========================================================
+    def toggle_theme(self):
+        new_theme = "light" if self.current_theme == "dark" else "dark"
+        self._apply_theme(new_theme)
+
+    def _apply_theme(self, theme_name):
+        self.current_theme = theme_name
+        self.history["theme"] = theme_name
+        save_history(self.history)
+
+        if theme_name == "light":
+            QApplication.instance().setStyleSheet(LIGHT_STYLE)
+            self.btn_theme.setText("テーマ: Light")
+        else:
+            QApplication.instance().setStyleSheet(DARK_STYLE)
+            self.btn_theme.setText("テーマ: Dark")
+
+        # ステータス・ブランチの色を再適用
+        self._update_badges_color()
+
+    def _update_badges_color(self):
+        if not self.is_git_repo:
+            self.status_pill.setText("● 未初期化")
+            self.status_pill.setStyleSheet("background-color: #7f1d1d; color: #fca5a5; border: 1px solid #dc2626;")
+            self.branch_badge.setText("branch: -")
+            self.branch_badge.setStyleSheet("background-color: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d;")
+        else:
+            self.branch_badge.setText(f"branch: {self.current_branch}")
+            if self.current_theme == "light":
+                self.branch_badge.setStyleSheet("background-color: #e0e7ff; color: #3730a3; border: 1px solid #a5b4fc;")
+                if self.is_auto_sync_active:
+                    self.status_pill.setText("● 自動同期中")
+                    self.status_pill.setStyleSheet("background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7;")
+                else:
+                    self.status_pill.setText("● 準備完了")
+                    self.status_pill.setStyleSheet("background-color: #e2e8f0; color: #334155; border: 1px solid #cbd5e1;")
+            else:
+                self.branch_badge.setStyleSheet("background-color: #1e1b4b; color: #a5b4fc; border: 1px solid #4338ca;")
+                if self.is_auto_sync_active:
+                    self.status_pill.setText("● 自動同期中")
+                    self.status_pill.setStyleSheet("background-color: #064e3b; color: #34d399; border: 1px solid #059669;")
+                else:
+                    self.status_pill.setText("● 準備完了")
+                    self.status_pill.setStyleSheet("background-color: #1e293b; color: #94a3b8; border: 1px solid #334155;")
+
     def _setup_tray_icon(self):
         """タスクトレイ設定"""
         self.tray_icon = QSystemTrayIcon(self)
@@ -922,27 +1341,47 @@ class GitAutoCommitWindow(QMainWindow):
     def log(self, message: str, level: str = "INFO"):
         now_str = datetime.datetime.now().strftime("%H:%M:%S")
 
-        color_map = {
-            "INFO": "#94a3b8",
-            "RUN": "#818cf8",
-            "SUCCESS": "#34d399",
-            "OK": "#34d399",
-            "WARNING": "#fbbf24",
-            "ERROR": "#f87171",
-        }
-        color = color_map.get(level.upper(), "#e2e8f0")
-        tag_bg = {
-            "INFO": "#1e293b",
-            "RUN": "#1e1b4b",
-            "SUCCESS": "#064e3b",
-            "OK": "#064e3b",
-            "WARNING": "#451a03",
-            "ERROR": "#4c0519",
-        }.get(level.upper(), "#1e293b")
+        is_light = (self.current_theme == "light")
+        if is_light:
+            color_map = {
+                "INFO": "#475569",
+                "RUN": "#4338ca",
+                "SUCCESS": "#047857",
+                "OK": "#047857",
+                "WARNING": "#b45309",
+                "ERROR": "#b91c1c",
+            }
+            tag_bg = {
+                "INFO": "#e2e8f0",
+                "RUN": "#e0e7ff",
+                "SUCCESS": "#d1fae5",
+                "OK": "#d1fae5",
+                "WARNING": "#fef3c7",
+                "ERROR": "#fee2e2",
+            }.get(level.upper(), "#e2e8f0")
+        else:
+            color_map = {
+                "INFO": "#94a3b8",
+                "RUN": "#818cf8",
+                "SUCCESS": "#34d399",
+                "OK": "#34d399",
+                "WARNING": "#fbbf24",
+                "ERROR": "#f87171",
+            }
+            tag_bg = {
+                "INFO": "#1e293b",
+                "RUN": "#1e1b4b",
+                "SUCCESS": "#064e3b",
+                "OK": "#064e3b",
+                "WARNING": "#451a03",
+                "ERROR": "#4c0519",
+            }.get(level.upper(), "#1e293b")
+
+        color = color_map.get(level.upper(), "#0f172a" if is_light else "#e2e8f0")
 
         html = f"""
         <div style="margin: 2px 0;">
-            <span style="color: #64748b; font-size: 10px;">[{now_str}]</span>
+            <span style="color: {'#94a3b8' if is_light else '#64748b'}; font-size: 10px;">[{now_str}]</span>
             <span style="background-color: {tag_bg}; color: {color}; font-weight: 600; padding: 1px 4px; border-radius: 3px; font-size: 10px;">{level.upper()}</span>
             <span style="color: {color}; margin-left: 4px;">{message}</span>
         </div>
@@ -1028,7 +1467,7 @@ class GitAutoCommitWindow(QMainWindow):
         self.refresh_status()
 
     # =========================================================
-    # フォルダ & URL 操作
+    # フォルダ & URL & 除外設定操作
     # =========================================================
     def select_folder(self):
         chosen = QFileDialog.getExistingDirectory(
@@ -1061,6 +1500,14 @@ class GitAutoCommitWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl(https_url))
         else:
             QMessageBox.information(self, "案内", "有効なGitHub URLが設定されていません。")
+
+    def open_gitignore_dialog(self):
+        if not self.ensure_git_repo():
+            return
+        dlg = GitIgnoreDialog(self.target_dir, self)
+        if dlg.exec() == QDialog.Accepted:
+            self.log(".gitignore を更新しました。", "SUCCESS")
+            self.refresh_status()
 
     def change_remote_url(self):
         curr_dir = self.target_dir
@@ -1139,7 +1586,7 @@ class GitAutoCommitWindow(QMainWindow):
         return True
 
     # =========================================================
-    # ステータス更新
+    # ステータス更新 & ファイル一覧
     # =========================================================
     def refresh_status(self):
         self.folder_path_edit.setText(self.target_dir)
@@ -1154,18 +1601,11 @@ class GitAutoCommitWindow(QMainWindow):
         self.is_git_repo = data.get("is_git", False)
         self.current_branch = data.get("branch", "main")
         self.remote_url = data.get("remote_url", "未設定")
-        files = data.get("files", [])
+        self.current_files = data.get("files", [])
+
+        self._update_badges_color()
 
         if not self.is_git_repo:
-            self.status_pill.setText("● 未初期化")
-            self.status_pill.setStyleSheet(
-                "background-color: #7f1d1d; color: #fca5a5; border: 1px solid #dc2626;"
-            )
-            self.branch_badge.setText("branch: -")
-            self.branch_badge.setStyleSheet(
-                "background-color: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d;"
-            )
-
             saved_url = self.history.get("dir_to_url", {}).get(self.target_dir)
             if saved_url:
                 self.remote_url_edit.setText(f"{saved_url} (保存済み・Git未初期化)")
@@ -1175,30 +1615,15 @@ class GitAutoCommitWindow(QMainWindow):
 
             self.changes_title.setText("変更ファイル一覧 (Git未初期化)")
             self.files_table.setRowCount(1)
+            item_check = QTableWidgetItem("")
             item_status = QTableWidgetItem("-")
             item_status.setTextAlignment(Qt.AlignCenter)
             item_path = QTableWidgetItem("Gitリポジトリではありません。[Push実行] 時に自動初期化できます。")
             item_path.setForeground(QColor("#fca5a5"))
-            self.files_table.setItem(0, 0, item_status)
-            self.files_table.setItem(0, 1, item_path)
+            self.files_table.setItem(0, 0, item_check)
+            self.files_table.setItem(0, 1, item_status)
+            self.files_table.setItem(0, 2, item_path)
             return
-
-        # Gitリポジトリ時
-        self.branch_badge.setText(f"branch: {self.current_branch}")
-        self.branch_badge.setStyleSheet(
-            "background-color: #1e1b4b; color: #a5b4fc; border: 1px solid #4338ca;"
-        )
-
-        if self.is_auto_sync_active:
-            self.status_pill.setText("● 自動同期中")
-            self.status_pill.setStyleSheet(
-                "background-color: #064e3b; color: #34d399; border: 1px solid #059669;"
-            )
-        else:
-            self.status_pill.setText("● 準備完了")
-            self.status_pill.setStyleSheet(
-                "background-color: #1e293b; color: #94a3b8; border: 1px solid #334155;"
-            )
 
         if self.remote_url != "未設定":
             self.remote_url_edit.setText(self.remote_url)
@@ -1213,26 +1638,40 @@ class GitAutoCommitWindow(QMainWindow):
             else:
                 self.remote_url_edit.setText("未設定 (「URL変更」から設定可能)")
 
-        num_changes = len(files)
+        num_changes = len(self.current_files)
         if num_changes > 0:
             self.changes_title.setText(f"変更ファイル一覧 ({num_changes}件)")
             self.files_table.setRowCount(num_changes)
 
-            for row, f in enumerate(files):
+            for row, f in enumerate(self.current_files):
                 code = f["code"]
                 path = f["path"]
 
-                badge_bg = "#334155"
-                badge_fg = "#ffffff"
-                if "M" in code:
-                    badge_bg = "#78350f"
-                    badge_fg = "#fcd34d"
-                elif "A" in code or "?" in code:
-                    badge_bg = "#064e3b"
-                    badge_fg = "#6ee7b7"
-                elif "D" in code:
-                    badge_bg = "#7f1d1d"
-                    badge_fg = "#fca5a5"
+                # チェックボックス
+                chk_item = QTableWidgetItem()
+                chk_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+                chk_item.setCheckState(Qt.Checked)
+
+                # バッジ色設定
+                is_light = (self.current_theme == "light")
+                if is_light:
+                    if "M" in code:
+                        badge_bg, badge_fg = "#fef3c7", "#b45309"
+                    elif "A" in code or "?" in code:
+                        badge_bg, badge_fg = "#d1fae5", "#047857"
+                    elif "D" in code:
+                        badge_bg, badge_fg = "#fee2e2", "#b91c1c"
+                    else:
+                        badge_bg, badge_fg = "#e2e8f0", "#475569"
+                else:
+                    if "M" in code:
+                        badge_bg, badge_fg = "#78350f", "#fcd34d"
+                    elif "A" in code or "?" in code:
+                        badge_bg, badge_fg = "#064e3b", "#6ee7b7"
+                    elif "D" in code:
+                        badge_bg, badge_fg = "#7f1d1d", "#fca5a5"
+                    else:
+                        badge_bg, badge_fg = "#334155", "#ffffff"
 
                 item_code = QTableWidgetItem(code)
                 item_code.setTextAlignment(Qt.AlignCenter)
@@ -1242,20 +1681,50 @@ class GitAutoCommitWindow(QMainWindow):
                 item_path = QTableWidgetItem(path)
                 item_path.setFont(QFont("Consolas", 10))
 
-                self.files_table.setItem(row, 0, item_code)
-                self.files_table.setItem(row, 1, item_path)
+                self.files_table.setItem(row, 0, chk_item)
+                self.files_table.setItem(row, 1, item_code)
+                self.files_table.setItem(row, 2, item_path)
         else:
             self.changes_title.setText("変更ファイル一覧 (0件 - クリーン)")
             self.files_table.setRowCount(1)
+            item_check = QTableWidgetItem("")
             item_status = QTableWidgetItem("OK")
             item_status.setTextAlignment(Qt.AlignCenter)
-            item_status.setForeground(QColor("#34d399"))
+            item_status.setForeground(QColor("#10b981"))
             item_path = QTableWidgetItem("変更されたファイルはありません (Working tree clean)")
-            item_path.setForeground(QColor("#6ee7b7"))
-            self.files_table.setItem(0, 0, item_status)
-            self.files_table.setItem(0, 1, item_path)
+            item_path.setForeground(QColor("#10b981"))
+            self.files_table.setItem(0, 0, item_check)
+            self.files_table.setItem(0, 1, item_status)
+            self.files_table.setItem(0, 2, item_path)
 
         self.update_history_dropdown()
+
+    def toggle_select_all_files(self):
+        """ファイル一覧の全選択 / 全解除"""
+        row_count = self.files_table.rowCount()
+        if row_count == 0:
+            return
+
+        # 1行目がチェックされているか確認
+        first_item = self.files_table.item(0, 0)
+        if not first_item or first_item.flags() & Qt.ItemIsUserCheckable == 0:
+            return
+
+        target_state = Qt.Unchecked if first_item.checkState() == Qt.Checked else Qt.Checked
+        for row in range(row_count):
+            item = self.files_table.item(row, 0)
+            if item and item.flags() & Qt.ItemIsUserCheckable:
+                item.setCheckState(target_state)
+
+    def _get_selected_files_list(self):
+        """チェックされたファイルのパスリストを取得"""
+        selected = []
+        for row in range(self.files_table.rowCount()):
+            chk_item = self.files_table.item(row, 0)
+            path_item = self.files_table.item(row, 2)
+            if chk_item and chk_item.checkState() == Qt.Checked and path_item:
+                selected.append(path_item.text())
+        return selected
 
     # =========================================================
     # コミット & Push
@@ -1280,6 +1749,12 @@ class GitAutoCommitWindow(QMainWindow):
         msg = self.commit_msg_edit.text().strip()
         allow_empty = self.allow_empty_check.isChecked()
 
+        # チェックされたファイル一覧
+        selected_files = self._get_selected_files_list()
+        if len(self.current_files) > 0 and len(selected_files) == 0 and not allow_empty:
+            QMessageBox.information(self, "案内", "コミット対象のファイルが選択されていません。\nファイルにチェックを入れるか、「変更なしでもコミット履歴を残す」にチェックを入れてください。")
+            return
+
         self.is_committing = True
         self.btn_commit_push.setEnabled(False)
         self.btn_commit_push.setText("処理中...")
@@ -1288,12 +1763,16 @@ class GitAutoCommitWindow(QMainWindow):
             "background-color: #1e1b4b; color: #818cf8; border: 1px solid #4338ca;"
         )
 
+        # 全選択時は None を渡して git add . を実行
+        pass_files = selected_files if len(selected_files) < len(self.current_files) else None
+
         self.commit_worker = GitWorker(
             "commit_push",
             self.target_dir,
             message=msg,
             allow_empty=allow_empty,
             branch=self.current_branch,
+            selected_files=pass_files,
         )
         self.commit_worker.log_signal.connect(self.log)
         self.commit_worker.finished_signal.connect(self._on_commit_push_finished)
@@ -1347,10 +1826,7 @@ class GitAutoCommitWindow(QMainWindow):
             )
             self.countdown_label.setText("状態: 停止中 (手動モード)")
             self.sync_progress_bar.setValue(0)
-            self.status_pill.setText("● 準備完了")
-            self.status_pill.setStyleSheet(
-                "background-color: #1e293b; color: #94a3b8; border: 1px solid #334155;"
-            )
+            self._update_badges_color()
             self.log("自動同期を停止しました。", "INFO")
         else:
             self.is_auto_sync_active = True
@@ -1364,10 +1840,7 @@ class GitAutoCommitWindow(QMainWindow):
             self.btn_toggle_sync.setStyleSheet(
                 "background-color: #991b1b; color: #fecaca; font-weight: 600;"
             )
-            self.status_pill.setText("● 自動同期中")
-            self.status_pill.setStyleSheet(
-                "background-color: #064e3b; color: #34d399; border: 1px solid #059669;"
-            )
+            self._update_badges_color()
             self.log(
                 f"自動同期を開始しました (間隔: {interval_str})",
                 "INFO",
@@ -1405,7 +1878,12 @@ def main():
         )
 
     app = QApplication(sys.argv)
-    app.setStyleSheet(MODERN_STYLE)
+    
+    # フォント設定 (PointSizeの初期値を明示して警告を防止)
+    base_font = QFont("Segoe UI", 9)
+    if not base_font.exactMatch() and sys.platform == "win32":
+        base_font = QFont("Yu Gothic UI", 9)
+    app.setFont(base_font)
 
     initial_dir = sys.argv[1] if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]) else os.getcwd()
     window = GitAutoCommitWindow(initial_dir)
