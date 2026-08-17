@@ -1957,6 +1957,217 @@ labels = ["満足", "普通", "不満"]
       { check: "first_dataset_data", expected: [50, 30, 20], input_label: "データ配列が [50, 30, 20]" }
     ],
   },
+  {
+    title: "34. 【datetime】2つの日付の日数差分計算",
+    difficulty: "初級",
+    description:
+      "<code>datetime</code> モジュールを用いて、2つの日付文字列 <code>date_str1</code> と <code>date_str2</code> (形式: 'YYYY-MM-DD') を受け取り、その日数の差（絶対値の整数）を返す関数 <code>get_days_diff(date_str1, date_str2)</code> を実装してください。",
+    template: `import datetime
+
+def get_days_diff(date_str1, date_str2):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: 'get_days_diff("2026-08-01", "2026-08-15")', expected: 14 },
+      { input: 'get_days_diff("2026-01-01", "2026-01-01")', expected: 0 },
+      { input: 'get_days_diff("2026-12-31", "2026-01-01")', expected: 364 },
+    ],
+  },
+  {
+    title: "35. 【datetime】指定日数後の日付フォーマット",
+    difficulty: "中級",
+    description:
+      "基準日 <code>base_date_str</code> ('YYYY-MM-DD') と加算日数 <code>days</code> を受け取り、その日数後の日付を <code>'YYYY年MM月DD日'</code> の形式で返す関数 <code>add_days_and_format(base_date_str, days)</code> を実装してください。",
+    template: `from datetime import datetime, timedelta
+
+def add_days_and_format(base_date_str, days):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: 'add_days_and_format("2026-04-01", 10)', expected: "2026年04月11日" },
+      { input: 'add_days_and_format("2026-12-25", 7)', expected: "2027年01月01日" },
+      { input: 'add_days_and_format("2026-02-20", 10)', expected: "2026年03月02日" },
+    ],
+  },
+  {
+    title: "36. 【math】2点間のユークリッド距離",
+    difficulty: "初級",
+    description:
+      "<code>math</code> モジュールを用いて、2次元平面上の2点 <code>p1 = (x1, y1)</code> と <code>p2 = (x2, y2)</code> を受け取り、2点間のユークリッド距離（√((x2-x1)² + (y2-y1)²))を計算して小数点第2位まで四捨五入した数値（<code>round(dist, 2)</code>）を返す関数 <code>calc_distance(p1, p2)</code> を実装してください。",
+    template: `import math
+
+def calc_distance(p1, p2):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: 'calc_distance((0, 0), (3, 4))', expected: 5.0 },
+      { input: 'calc_distance((1, 2), (4, 6))', expected: 5.0 },
+      { input: 'calc_distance((0, 0), (1, 1))', expected: 1.41 },
+    ],
+  },
+  {
+    title: "37. 【re】メールアドレスのバリデーション",
+    difficulty: "中級",
+    description:
+      "<code>re</code> モジュールを用いて、文字列 <code>email</code> が一般的なメールアドレス形式（半角英数字やドット・ハイフンを含むユーザー名 <code>@</code> ドメイン名 <code>.</code> トップレベルドメイン）と完全に一致していれば <code>True</code>、そうでなければ <code>False</code> を返す関数 <code>is_valid_email(email)</code> を実装してください。",
+    template: `import re
+
+def is_valid_email(email):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: 'is_valid_email("user@example.com")', expected: true },
+      { input: 'is_valid_email("alice.test@sub.domain.jp")', expected: true },
+      { input: 'is_valid_email("invalid-email.com")', expected: false },
+      { input: 'is_valid_email("user@domain")', expected: false },
+    ],
+  },
+  {
+    title: "38. 【re】テキスト内の電話番号抽出",
+    difficulty: "中級",
+    description:
+      "<code>re</code> モジュールを用いて、文章 <code>text</code> の中に含まれる <code>XXX-XXXX-XXXX</code> または <code>XX-XXXX-XXXX</code> 形式の日本の電話番号をすべて抽出したリストを返す関数 <code>extract_phone_numbers(text)</code> を実装してください。",
+    template: `import re
+
+def extract_phone_numbers(text):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: 'extract_phone_numbers("連絡先は 090-1234-5678 または 03-1234-5678 です")', expected: ["090-1234-5678", "03-1234-5678"] },
+      { input: 'extract_phone_numbers("番号はありません")', expected: [] },
+      { input: 'extract_phone_numbers("代表: 080-9999-8888")', expected: ["080-9999-8888"] },
+    ],
+  },
+  {
+    title: "39. 【collections】Counterによる最頻出要素の抽出",
+    difficulty: "中級",
+    description:
+      "<code>collections.Counter</code> を用いて、リスト <code>items</code> と整数 <code>n</code> を受け取り、最も出現回数が多い上位 <code>n</code> 個の要素をリスト形式（出現頻度降順）で返す関数 <code>get_top_n_items(items, n)</code> を実装してください。",
+    template: `from collections import Counter
+
+def get_top_n_items(items, n):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: 'get_top_n_items(["apple", "banana", "apple", "orange", "banana", "apple"], 2)', expected: ["apple", "banana"] },
+      { input: 'get_top_n_items([1, 2, 3, 1, 2, 1], 1)', expected: [1] },
+      { input: 'get_top_n_items(["cat", "dog"], 2)', expected: ["cat", "dog"] },
+    ],
+  },
+  {
+    title: "40. 【collections】defaultdictによるグループ化",
+    difficulty: "中級",
+    description:
+      "<code>collections.defaultdict</code> を用いて、商品タプルのリスト <code>items</code> (形式: <code>[(カテゴリ, 商品名), ...]</code>) を受け取り、カテゴリ名をキー、そのカテゴリに属する商品名リストを値とする通常の辞書 (<code>dict</code>) を返す関数 <code>group_by_category(items)</code> を実装してください。",
+    template: `from collections import defaultdict
+
+def group_by_category(items):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      {
+        input: 'group_by_category([("果物", "りんご"), ("野菜", "トマト"), ("果物", "バナナ")])',
+        expected: '{"果物": ["りんご", "バナナ"], "野菜": ["トマト"]}',
+      },
+      {
+        input: 'group_by_category([("本", "Python入門"), ("本", "JavaScript入門")])',
+        expected: '{"本": ["Python入門", "JavaScript入門"]}',
+      },
+      { input: 'group_by_category([])', expected: "{}" },
+    ],
+  },
+  {
+    title: "41. 【itertools】組み合わせ(Combinations)の全探索",
+    difficulty: "上級",
+    description:
+      "<code>itertools.combinations</code> を用いて、数値リスト <code>numbers</code> と目標値 <code>target_sum</code> を受け取り、合計が <code>target_sum</code> になる2つの数値のペア <code>(a, b)</code> をすべてリストにして返す関数 <code>find_sum_pairs(numbers, target_sum)</code> を実装してください。ペア内の順序は元の出現順とし、重複する同一ペアは省いてください。",
+    template: `import itertools
+
+def find_sum_pairs(numbers, target_sum):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: "find_sum_pairs([1, 2, 3, 4, 5], 6)", expected: "[(1, 5), (2, 4)]" },
+      { input: "find_sum_pairs([10, 20, 30], 50)", expected: "[(20, 30)]" },
+      { input: "find_sum_pairs([1, 2, 3], 10)", expected: "[]" },
+    ],
+  },
+  {
+    title: "42. 【itertools】累積和の生成",
+    difficulty: "初級",
+    description:
+      "<code>itertools.accumulate</code> を用いて、数値リスト <code>numbers</code> を受け取り、その累積和（各要素までの合計値のリスト）を返す関数 <code>calc_running_totals(numbers)</code> を実装してください。空リストの場合は空リストを返してください。",
+    template: `import itertools
+
+def calc_running_totals(numbers):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: "calc_running_totals([1, 2, 3, 4, 5])", expected: [1, 3, 6, 10, 15] },
+      { input: "calc_running_totals([10, -5, 20])", expected: [10, 5, 25] },
+      { input: "calc_running_totals([])", expected: [] },
+    ],
+  },
+  {
+    title: "43. 【json】売上JSONデータの集計",
+    difficulty: "中級",
+    description:
+      "<code>json</code> モジュールを用いて、売上データのJSON文字列 <code>json_str</code> (例: <code>'[{\"item\": \"A\", \"price\": 100, \"qty\": 2}, ...]'</code>) を受け取り、全体の合計売上金額 (<code>price * qty</code> の総和) を計算して返す関数 <code>calc_total_sales_from_json(json_str)</code> を実装してください。",
+    template: `import json
+
+def calc_total_sales_from_json(json_str):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: 'calc_total_sales_from_json(\'[{"item": "A", "price": 100, "qty": 2}, {"item": "B", "price": 250, "qty": 3}]\')', expected: 950 },
+      { input: 'calc_total_sales_from_json(\'[]\')', expected: 0 },
+      { input: 'calc_total_sales_from_json(\'[{"item": "X", "price": 500, "qty": 1}]\')', expected: 500 },
+    ],
+  },
+  {
+    title: "44. 【statistics】データセットの統計量計算",
+    difficulty: "中級",
+    description:
+      "<code>statistics</code> モジュールを用いて、数値リスト <code>data</code> を受け取り、平均値 (<code>mean</code>) と 中央値 (<code>median</code>) を計算して <code>{'mean': 平均, 'median': 中央値}</code> の辞書を返す関数 <code>get_stats_summary(data)</code> を実装してください。数値は小数（または整数）のままで構いません。",
+    template: `import statistics
+
+def get_stats_summary(data):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: "get_stats_summary([10, 20, 30, 40, 50])", expected: '{"mean": 30.0, "median": 30}' },
+      { input: "get_stats_summary([1, 2, 9])", expected: '{"mean": 4.0, "median": 2}' },
+      { input: "get_stats_summary([5, 5, 5])", expected: '{"mean": 5.0, "median": 5}' },
+    ],
+  },
+  {
+    title: "45. 【urllib.parse】URLクエリパラメータの解析",
+    difficulty: "中級",
+    description:
+      "<code>urllib.parse</code> モジュールを用いて、URL文字列 <code>url</code> を受け取り、そのクエリパラメータ（<code>?key=value&...</code>）を解析して、各パラメータの最初の値を格納した辞書 (<code>{key: value}</code>) を返す関数 <code>parse_query_params(url)</code> を実装してください。クエリがない場合は空の辞書を返してください。",
+    template: `from urllib.parse import urlparse, parse_qs
+
+def parse_query_params(url):
+    # ここにコードを書いてください
+    pass
+`,
+    test_cases: [
+      { input: 'parse_query_params("https://example.com/search?q=python&lang=ja")', expected: '{"q": "python", "lang": "ja"}' },
+      { input: 'parse_query_params("https://example.com/item?id=12345")', expected: '{"id": "12345"}' },
+      { input: 'parse_query_params("https://example.com/home")', expected: "{}" },
+    ],
+  },
 ];
 
 let codingProblems = shuffleArray(defaultCodingProblems);
@@ -3417,15 +3628,27 @@ const categorizedCodingTopics = {
     "【関数】引数を反転して返す文字列処理",
     "【関数】リスト内の偶数値のみのフィルタリングと和の算出",
     "【関数】基本FizzBuzzゲーム関数の実装",
-    "【関数】mathライブラリを使った円の面積・平方根計算",
+    "【math】mathライブラリを使った2点間距離・平方根・円周計算",
+    "【datetime】2つの日付の経過日数差分の計算 (datetime.date)",
+    "【itertools】itertools.accumulate による累積和リスト生成",
+    "【random】randomモジュールを使ったサイコロ抽選・ランダム選択",
     "【対話CLI】input()で名前を受け取り挨拶するCLIプログラム",
     "【対話CLI】input()で年齢を受け取り成人/未成年判定",
     "【対話CLI】input()で2つの数値を入力して四則演算する計算機",
     "【可視化】Matplotlibで月別売上の折れ線グラフを描画 (plt.plot)",
     "【可視化】Matplotlibで果物の売上個数の棒グラフを描画 (plt.bar)",
-    "【標準ライブラリ】randomモジュールを使ったサイコロ抽選関数",
   ],
   intermediate: [
+    "【re】reモジュールを使ったメールアドレスやURLの正規表現バリデーション",
+    "【re】re.findall を使ったテキスト内からの電話番号・郵便番号抽出",
+    "【datetime】datetimeとtimedeltaを用いた指定日数後の日付フォーマット変換",
+    "【collections】collections.Counter を用いた文章内最頻出単語トップN抽出",
+    "【collections】collections.defaultdict を用いたカテゴリ別データグループ化",
+    "【collections】collections.deque を用いた固定長ローリングバッファ処理",
+    "【json】jsonモジュールを使った売上データのパースと集計処理",
+    "【statistics】statisticsモジュールを使った平均・中央値・標準偏差の算出",
+    "【urllib.parse】urllib.parse を使ったURLクエリパラメータの辞書化と解析",
+    "【base64】base64モジュールを用いた文字列のエンコード/デコード処理",
     "【関数】文章内の単語出現頻度をカウントして辞書で返す関数",
     "【関数】独自例外(ValueError)を適切にraiseする入力値検証",
     "【関数】再帰関数を用いたフィボナッチ数列や最大公約数(GCD)計算",
@@ -3433,17 +3656,18 @@ const categorizedCodingTopics = {
     "【対話CLI】input()で買い物金額と所持金を受け取りお釣りを計算するレジCLI",
     "【可視化】Matplotlibで身長と体重の散布図を描画 (plt.scatter)",
     "【可視化】Matplotlibでアンケート回答割合の円グラフを描画 (plt.pie)",
-    "【標準ライブラリ】datetimeモジュールを使った2つの日付の日数差分計算",
-    "【標準ライブラリ】reモジュールを使ったメールアドレスや郵便番号の正規表現抽出",
-    "【標準ライブラリ】collections.Counter を用いた最頻出要素の抽出",
   ],
   advanced: [
+    "【itertools】itertools.combinations による合計指定ペアの全探索",
+    "【itertools】itertools.permutations や product を用いた順列・直積全列挙",
+    "【itertools】itertools.groupby を用いた連続同一要素の圧縮・集計",
+    "【functools】functools.lru_cache を用いた再帰計算の高速メモ化",
+    "【heapq】heapqモジュールを用いた大規模データからの最小K件の高速抽出",
     "【クラス設計】銀行口座クラス（預金・引出・残高照会・履歴管理）の設計",
     "【クラス設計】二分探索木(BST)や連結リストのクラス実装",
     "【デコレータ】関数の実行時間を計測・キャッシュするカスタムデコレータ",
     "【対話CLI】input()でコマンド（deposit, withdraw, balance）を受け取るATM対話型システム",
     "【可視化】Matplotlibで複数データ系列の比較折れ線グラフ・凡例付き描画",
-    "【標準ライブラリ】itertoolsを使った順列・組み合わせ(permutations/combinations)全探索",
     "【アルゴリズム】幅優先探索(BFS)または深さ優先探索(DFS)を用いた最短経路探索",
   ],
 };
