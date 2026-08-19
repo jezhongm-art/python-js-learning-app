@@ -5239,16 +5239,19 @@ function renderSkillChart(data) {
     chartRankBadge.className = `inline-block px-3 py-1 rounded-full text-xs font-bold ${rankClass} w-max`;
   }
 
-  // 推奨単元
+  // 推奨単元 (全11章マスター)
   const chapterTitles = {
+    0: "第0章: Python独特の世界観と他言語との違い",
     1: "第1章: Pythonの第一歩と基本データ型",
-    2: "第2章: 条件分岐とループ処理の極意",
-    3: "第3章: 関数設計とスコープ",
-    4: "第4章: 高度なデータ構造 (辞書・集合・内包表記)",
-    5: "第5章: 実用標準ライブラリの徹底活用",
-    6: "第6章: データ可視化とグラフ描画 (Matplotlib)",
-    7: "第7章: オブジェクト指向とクラス設計",
-    8: "第8章: 実践アルゴリズムと効率化",
+    2: "第2章: 条件分岐とロジック構築の極意",
+    3: "第3章: ループ処理と反復制御",
+    4: "第4章: データ構造の完全制覇 (リスト・タプル・辞書・集合)",
+    5: "第5章: 内包表記とモダンPython記法",
+    6: "第6章: 実務レベルの関数設計と型ヒント",
+    7: "第7章: 例外処理とファイル・データ入出力",
+    8: "第8章: 実用標準ライブラリの徹底活用",
+    9: "第9章: オブジェクト指向とクラス設計",
+    10: "第10章: 実践アルゴリズムと効率化・最適化",
   };
   if (chartRecommendedTitle) chartRecommendedTitle.textContent = chapterTitles[recChapter] || `第${recChapter}章`;
   if (chartJumpTextbookBtn) {
@@ -5348,363 +5351,10 @@ function renderSkillChart(data) {
 // ==========================================
 // 3. パーソナライズ教科書学習 (Textbook Curriculum)
 // ==========================================
-const defaultTextbookChapters = [
-  {
-    id: 1,
-    order: 1,
-    title: "第1章: Pythonの第一歩と基本データ型",
-    subtitle: "変数・数値・文字列・四則演算のマスター",
-    icon: "sparkles",
-    category: "basic",
-    target_level: 1,
-    summary: "Pythonの基本思想、変数の定義、数値型(int, float)、文字列型(str)の操作とf-stringによる美しい文字列フォーマットを学びます。",
-    lessons: [
-      {
-        id: 1,
-        chapter_id: 1,
-        chapter_order: 1,
-        chapter_title: "Pythonの第一歩と基本データ型",
-        order: 1,
-        title: "1.1 変数宣言と数値の計算",
-        reading_time_minutes: 3,
-        content_html: `
-          <h3>Pythonにおける変数と計算の基礎</h3>
-          <p>Pythonでは変数の型宣言（intやletなど）は不要で、値を代入するだけで自動的に型が決まります。</p>
-          <pre><code class="language-python"># 変数の代入
-price = 1200
-tax_rate = 0.1
-total = price * (1 + tax_rate)
-print(total) # 1320.0</code></pre>
-          <h4>主な算術演算子</h4>
-          <ul>
-            <li><code>+</code> (加算), <code>-</code> (減算), <code>*</code> (乗算), <code>/</code> (除算・小数)</li>
-            <li><code>//</code> (整数除算・切り捨て), <code>%</code> (余り・剰余), <code>**</code> (べき乗)</li>
-          </ul>
-        `,
-        key_takeaways: ["代入記号 = で変数を定義", "除算 / は常に float 型を返す", "// は商、% は余りを計算"],
-        example_code: "a = 17\nb = 5\nprint('商:', a // b)\nprint('余り:', a % b)",
-        exercise: {
-          id: 1,
-          title: "台形の面積計算",
-          description: "<p>上底 <code>top</code>、下底 <code>bottom</code>、高さ <code>height</code> を受け取り、台形の面積 <code>(top + bottom) * height / 2</code> を計算して返す関数 <code>calc_trapezoid_area(top, bottom, height)</code> を実装してください。</p>",
-          template: "def calc_trapezoid_area(top, bottom, height):\n    # ここにコードを書いてください\n    pass\n",
-          test_cases: [
-            { input: "calc_trapezoid_area(3, 5, 4)", expected: 16.0 },
-            { input: "calc_trapezoid_area(10, 20, 5)", expected: 75.0 },
-          ],
-          solution_code: "def calc_trapezoid_area(top, bottom, height):\n    return (top + bottom) * height / 2\n",
-          explanation: "台形の公式 (上底 + 下底) * 高さ / 2 をそのまま計算式にして返します。",
-        },
-      },
-      {
-        id: 2,
-        chapter_id: 1,
-        chapter_order: 1,
-        chapter_title: "Pythonの第一歩と基本データ型",
-        order: 2,
-        title: "1.2 文字列の操作と f-string",
-        reading_time_minutes: 4,
-        content_html: `
-          <h3>文字列の埋め込みとスライス</h3>
-          <p>Python 3.6以降の標準である <code>f-string</code> (フォーマット済み文字列) を使うと、変数を直感的に埋め込めます。</p>
-          <pre><code class="language-python">item = "りんご"
-count = 3
-price = 150
-message = f"{item}が{count}個で合計{count * price}円です。"
-print(message)</code></pre>
-        `,
-        key_takeaways: ['f"..." 内で {変数} や {式} を評価可能', "len(str) で文字列の長さを取得"],
-        example_code: "name = 'Python'\nprint(f'Hello, {name}!')",
-        exercise: {
-          id: 2,
-          title: "商品ラベルの生成",
-          description: '<p>商品名 <code>product</code> と 単価 <code>price</code> を受け取り、<code>"【商品】{product} : ￥{price}"</code> というラベル文字列を返す関数 <code>make_price_label(product, price)</code> を実装してください。</p>',
-          template: "def make_price_label(product, price):\n    # ここにコードを書いてください\n    pass\n",
-          test_cases: [
-            { input: 'make_price_label("ノートPC", 85000)', expected: "【商品】ノートPC : ￥85000" },
-            { input: 'make_price_label("マウス", 2400)', expected: "【商品】マウス : ￥2400" },
-          ],
-          solution_code: 'def make_price_label(product, price):\n    return f"【商品】{product} : ￥{price}"\n',
-          explanation: "f-string で変数を埋め込んで指定のフォーマットを作成します。",
-        },
-      },
-    ],
-  },
-  {
-    id: 2,
-    order: 2,
-    title: "第2章: 条件分岐とループ処理の極意",
-    subtitle: "if文・for文・while文による柔軟な制御",
-    icon: "arrows-split",
-    category: "control",
-    target_level: 2,
-    summary: "プログラムに知性を与える条件分岐 (if-elif-else) と、反復処理 (for, while, range) の基礎から応用までを習得します。",
-    lessons: [
-      {
-        id: 3,
-        chapter_id: 2,
-        chapter_order: 2,
-        chapter_title: "条件分岐とループ処理の極意",
-        order: 1,
-        title: "2.1 if-elif-else による複数条件分岐",
-        reading_time_minutes: 4,
-        content_html: `
-          <h3>条件分岐の組み立て</h3>
-          <p>Pythonはインデント（字下げ・半角スペース4つ）でブロックを表現します。</p>
-          <pre><code class="language-python">score = 85
-if score >= 90:
-    grade = "A"
-elif score >= 70:
-    grade = "B"
-else:
-    grade = "C"</code></pre>
-        `,
-        key_takeaways: ["コロン : の後にインデントで処理を書く", "論理演算子 and, or, not で複合条件"],
-        example_code: "age = 20\nif age >= 18:\n    print('成人')\nelse:\n    print('未成年')",
-        exercise: {
-          id: 3,
-          title: "年齢区分判定プログラム",
-          description: '<p>年齢 <code>age</code> を受け取り、12歳以下なら <code>"child"</code>、13〜19歳なら <code>"teen"</code>、20〜64歳なら <code>"adult"</code>、65歳以上なら <code>"senior"</code> を返す関数 <code>get_age_category(age)</code> を実装してください。</p>',
-          template: "def get_age_category(age):\n    # ここにコードを書いてください\n    pass\n",
-          test_cases: [
-            { input: "get_age_category(10)", expected: "child" },
-            { input: "get_age_category(15)", expected: "teen" },
-            { input: "get_age_category(30)", expected: "adult" },
-            { input: "get_age_category(70)", expected: "senior" },
-          ],
-          solution_code: 'def get_age_category(age):\n    if age <= 12:\n        return "child"\n    elif age <= 19:\n        return "teen"\n    elif age <= 64:\n        return "adult"\n    else:\n        return "senior"\n',
-          explanation: "年齢の範囲を if-elif-else で段階的に判定して対応する文字列を返します。",
-        },
-      },
-    ],
-  },
-  {
-    id: 3,
-    order: 3,
-    title: "第3章: 関数設計とスコープ",
-    subtitle: "再利用可能なモジュール化と引数・戻り値",
-    icon: "code",
-    category: "basic",
-    target_level: 2,
-    summary: "defによる関数定義、デフォルト引数、可変長引数(*args, **kwargs)、ローカル・グローバルスコープを学びます。",
-    lessons: [
-      {
-        id: 4,
-        chapter_id: 3,
-        chapter_order: 3,
-        chapter_title: "関数設計とスコープ",
-        order: 1,
-        title: "3.1 関数の基本とデフォルト引数",
-        reading_time_minutes: 4,
-        content_html: "<p>関数を使うことで同じ処理をまとめ、コードを綺麗に保ちます。</p>",
-        key_takeaways: ["def 関数名(引数): で定義", "return で戻り値を返す"],
-        example_code: "def add(a, b=10):\n    return a + b\nprint('結果:', add(5))",
-        exercise: {
-          id: 4,
-          title: "割引計算関数",
-          description: "<p>定価 <code>price</code> と 割引率 <code>discount</code> (0.0〜1.0) を受け取り、割引後の整数金額（<code>int(price * (1 - discount))</code>）を返す関数 <code>apply_discount(price, discount)</code> を実装してください。</p>",
-          template: "def apply_discount(price, discount):\n    # ここにコードを書いてください\n    pass\n",
-          test_cases: [
-            { input: "apply_discount(1000, 0.2)", expected: 800 },
-            { input: "apply_discount(500, 0.1)", expected: 450 },
-          ],
-          solution_code: "def apply_discount(price, discount):\n    return int(price * (1 - discount))\n",
-          explanation: "定価に (1 - 割引率) を掛けて int() で端数を切り捨てて返します。",
-        },
-      },
-    ],
-  },
-  {
-    id: 4,
-    order: 4,
-    title: "第4章: 高度なデータ構造 (辞書・集合・内包表記)",
-    subtitle: "高速なデータ検索・操作・フィルタリング",
-    icon: "database",
-    category: "data_structure",
-    target_level: 3,
-    summary: "キーと値で管理する辞書 (dict)、重複を許さない集合 (set)、そしてPythonらしい簡潔なリスト内包表記を極めます。",
-    lessons: [
-      {
-        id: 5,
-        chapter_id: 4,
-        chapter_order: 4,
-        chapter_title: "高度なデータ構造 (辞書・集合・内包表記)",
-        order: 1,
-        title: "4.1 辞書操作とリスト内包表記",
-        reading_time_minutes: 5,
-        content_html: `
-          <h3>リスト内包表記の威力</h3>
-          <p>forループを使わずに1行で新しいリストを生成できます。</p>
-          <pre><code class="language-python"># 1〜10の偶数の2乗リスト
-squares = [x**2 for x in range(1, 11) if x % 2 == 0]
-print(squares) # [4, 16, 36, 64, 100]</code></pre>
-        `,
-        key_takeaways: ["[式 for 変数 in イテラブル if 条件] で簡潔に記述", "辞書の .get(key, default) で安全に値取得"],
-        example_code: "data = {'apple': 100, 'banana': 200}\nprint('りんご:', data.get('apple'))",
-        exercise: {
-          id: 5,
-          title: "指定文字数以上の単語フィルタリング",
-          description: "<p>単語リスト <code>words</code> と 最小文字数 <code>min_len</code> を受け取り、文字数が <code>min_len</code> 以上の単語のみを大文字に変換したリストを返す関数 <code>filter_and_upper_words(words, min_len)</code> を実装してください。</p>",
-          template: "def filter_and_upper_words(words, min_len):\n    # ここにコードを書いてください\n    pass\n",
-          test_cases: [
-            { input: 'filter_and_upper_words(["cat", "elephant", "dog", "tiger"], 4)', expected: ["ELEPHANT", "TIGER"] },
-            { input: 'filter_and_upper_words(["a", "bb"], 3)', expected: [] },
-          ],
-          solution_code: "def filter_and_upper_words(words, min_len):\n    return [w.upper() for w in words if len(w) >= min_len]\n",
-          explanation: "リスト内包表記で len(w) >= min_len の条件を満たす単語を w.upper() で大文字化して集めます。",
-        },
-      },
-    ],
-  },
-  {
-    id: 5,
-    order: 5,
-    title: "第5章: 実用標準ライブラリの徹底活用",
-    subtitle: "datetime, math, re, collections, itertools",
-    icon: "puzzle-piece",
-    category: "library",
-    target_level: 3,
-    summary: "実務開発に直結する日付操作(datetime)、正規表現(re)、要素集計(collections.Counter)、組み合わせ(itertools)を学びます。",
-    lessons: [
-      {
-        id: 6,
-        chapter_id: 5,
-        chapter_order: 5,
-        chapter_title: "実用標準ライブラリの徹底活用",
-        order: 1,
-        title: "5.1 datetime と re による実務データ処理",
-        reading_time_minutes: 5,
-        content_html: "<p>日時計算や文字列からの情報抽出は、実務で最も頻繁に遭遇するタスクです。</p>",
-        key_takeaways: ["datetime.date と timedelta による日付演算", "re.findall や re.sub による正規表現抽出・置換"],
-        example_code: "import re\ntext = 'ID: A123, B456'\nprint(re.findall(r'[A-Z][0-9]{3}', text))",
-        exercise: {
-          id: 6,
-          title: "郵便番号の抽出とハイフン統一",
-          description: '<p><code>re</code> モジュールを用いて、文章 <code>text</code> から日本の7桁郵便番号（<code>123-4567</code> または <code>1234567</code>）をすべて抽出し、すべて <code>"XXX-XXXX"</code> 形式に正規化したリストを返す関数 <code>extract_and_format_zipcodes(text)</code> を実装してください。</p>',
-          template: "import re\n\ndef extract_and_format_zipcodes(text):\n    # ここにコードを書いてください\n    pass\n",
-          test_cases: [
-            { input: 'extract_and_format_zipcodes("〒100-0001 東京都、〒1500042 渋谷区")', expected: ["100-0001", "150-0042"] },
-            { input: 'extract_and_format_zipcodes("郵便番号なし")', expected: [] },
-          ],
-          solution_code: "import re\n\ndef extract_and_format_zipcodes(text):\n    matches = re.findall(r'(\\d{3})-?(\\d{4})', text)\n    return [f\"{m[0]}-{m[1]}\" for m in matches]\n",
-          explanation: '(\\d{3})-?(\\d{4}) で3桁と4桁をグループキャプチャし、f"{m[0]}-{m[1]}" でハイフン付きに成形します。',
-        },
-      },
-    ],
-  },
-  {
-    id: 6,
-    order: 6,
-    title: "第6章: データ可視化とグラフ描画 (Matplotlib)",
-    subtitle: "折れ線・棒グラフ・散布図・円グラフ",
-    icon: "chart-bar",
-    category: "plot",
-    target_level: 3,
-    summary: "データを視覚的に伝えるグラフ描画スキル。matplotlib.pyplot を使った各種グラフの作成とスタイリングを習得します。",
-    lessons: [
-      {
-        id: 7,
-        chapter_id: 6,
-        chapter_order: 6,
-        chapter_title: "データ可視化とグラフ描画 (Matplotlib)",
-        order: 1,
-        title: "6.1 基本的なグラフ描画のフロー",
-        reading_time_minutes: 4,
-        content_html: "<p>plt.plot(折れ線), plt.bar(棒グラフ), plt.scatter(散布図), plt.pie(円グラフ) の基本構文を理解します。</p>",
-        key_takeaways: ["import matplotlib.pyplot as plt でインポート", "plt.title(), plt.xlabel(), plt.ylabel() でラベル付け", "plt.show() で描画完了"],
-        example_code: "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3], [10, 20, 15])\nplt.title('Sample')\nplt.show()",
-        exercise: {
-          id: 7,
-          title: "売上個数の棒グラフ作成",
-          description: '<p><code>plt.bar()</code> を用いて、果物 <code>fruits = ["りんご", "みかん", "バナナ"]</code> と 売上個数 <code>counts = [80, 120, 60]</code> の棒グラフを描画し、タイトルを <code>"果物売上"</code> として <code>plt.show()</code> してください。</p>',
-          template: "import matplotlib.pyplot as plt\n\nfruits = [\"りんご\", \"みかん\", \"バナナ\"]\ncounts = [80, 120, 60]\n\n# ここに棒グラフを描画するコードを書いてください\n\n",
-          problem_type: "plot",
-          test_cases: [
-            { check: "type", expected: "bar", input_label: "グラフ種別が 'bar' (棒グラフ)" },
-            { check: "title", expected: "果物売上", input_label: "タイトルが '果物売上'" },
-            { check: "labels", expected: ["りんご", "みかん", "バナナ"], input_label: "ラベルが果物一覧" },
-            { check: "first_dataset_data", expected: [80, 120, 60], input_label: "データ配列が [80, 120, 60]" },
-          ],
-          solution_code: 'import matplotlib.pyplot as plt\n\nfruits = ["りんご", "みかん", "バナナ"]\ncounts = [80, 120, 60]\n\nplt.bar(fruits, counts)\nplt.title("果物売上")\nplt.show()\n',
-          explanation: 'plt.bar(fruits, counts) でカテゴリ棒グラフを生成し、plt.title("果物売上") を付与して show() します。',
-        },
-      },
-    ],
-  },
-  {
-    id: 7,
-    order: 7,
-    title: "第7章: オブジェクト指向とクラス設計",
-    subtitle: "クラス定義・カプセル化・特殊メソッド",
-    icon: "cube",
-    category: "algorithm",
-    target_level: 4,
-    summary: "classによるデータと振る舞いのカプセル化、__init__コンストラクタ、プロパティデコレータ(@property)、継承を学びます。",
-    lessons: [
-      {
-        id: 8,
-        chapter_id: 7,
-        chapter_order: 7,
-        chapter_title: "オブジェクト指向とクラス設計",
-        order: 1,
-        title: "7.1 クラスの基本とインスタンス化",
-        reading_time_minutes: 5,
-        content_html: "<p>クラスを使うことで、状態（属性）と振る舞い（メソッド）を1つの型として定義できます。</p>",
-        key_takeaways: ["__init__(self, ...) で初期化", "self はインスタンス自身を参照"],
-        example_code: "class Dog:\n    def __init__(self, name):\n        self.name = name\n    def bark(self):\n        return f'{self.name} says Woof!'\n\ndog = Dog('Pochi')\nprint(dog.bark())",
-        exercise: {
-          id: 8,
-          title: "銀行口座クラスの設計",
-          description: "<p>初期残高 <code>balance</code> を保持し、預金 <code>deposit(amount)</code> と 引出 <code>withdraw(amount)</code> (残高不足時は False、成功時は True を返す)、残高照会 <code>get_balance()</code> を備えた <code>BankAccount</code> クラスを実装してください。</p>",
-          template: "class BankAccount:\n    def __init__(self, initial_balance=0):\n        # ここにコードを書いてください\n        pass\n",
-          setup_code: "def test_bank():\n    acc = BankAccount(100)\n    acc.deposit(50)\n    w1 = acc.withdraw(30)\n    w2 = acc.withdraw(200)\n    return (acc.get_balance(), w1, w2)",
-          test_cases: [
-            { input: "test_bank()", expected: "(120, True, False)" },
-          ],
-          solution_code: "class BankAccount:\n    def __init__(self, initial_balance=0):\n        self.balance = initial_balance\n    def deposit(self, amount):\n        self.balance += amount\n    def withdraw(self, amount):\n        if self.balance >= amount:\n            self.balance -= amount\n            return True\n        return False\n    def get_balance(self):\n        return self.balance\n",
-          explanation: "初期残高を self.balance に保持し、各メソッドで加減算と条件チェックを行います。",
-        },
-      },
-    ],
-  },
-  {
-    id: 8,
-    order: 8,
-    title: "第8章: 実践アルゴリズムと効率化",
-    subtitle: "二分探索・再帰・デコレータ・計算量最適化",
-    icon: "lightning",
-    category: "algorithm",
-    target_level: 4,
-    summary: "本格的なアルゴリズム設計、再帰関数、メモ化(キャッシュ)、そして計算量(O記法)を意識したプロフェッショナルなコーディングを学びます。",
-    lessons: [
-      {
-        id: 9,
-        chapter_id: 8,
-        chapter_order: 8,
-        chapter_title: "実践アルゴリズムと効率化",
-        order: 1,
-        title: "8.1 二分探索 (Binary Search) の実装",
-        reading_time_minutes: 5,
-        content_html: "<p>ソート済みリストから O(log N) の高速さで目的の値を探索する二分探索を学びます。</p>",
-        key_takeaways: ["中央値 (mid) とターゲットを比較", "探索範囲を毎ステップ半分に絞り込む"],
-        example_code: "def binary_search(arr, target):\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n\nprint(binary_search([1, 3, 5, 7, 9], 5))",
-        exercise: {
-          id: 9,
-          title: "二分探索関数の完成",
-          description: "<p>昇順ソート済みリスト <code>sorted_list</code> と 検索値 <code>target</code> を受け取り、存在すればそのインデックス（0始まり）、存在しなければ <code>-1</code> を返す関数 <code>binary_search(sorted_list, target)</code> を実装してください。</p>",
-          template: "def binary_search(sorted_list, target):\n    # ここにコードを書いてください\n    pass\n",
-          test_cases: [
-            { input: "binary_search([1, 3, 5, 7, 9, 11], 7)", expected: 3 },
-            { input: "binary_search([10, 20, 30, 40], 10)", expected: 0 },
-            { input: "binary_search([2, 4, 6, 8], 5)", expected: -1 },
-          ],
-          solution_code: "def binary_search(sorted_list, target):\n    left, right = 0, len(sorted_list) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if sorted_list[mid] == target:\n            return mid\n        elif sorted_list[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n",
-          explanation: "leftとrightのポインタを中央値との大小関係に応じて更新し、高速に対象インデックスを見つけます。",
-        },
-      },
-    ],
-  },
-];
+const defaultTextbookChapters =
+  typeof window !== "undefined" && window.textbookDataChapters && window.textbookDataChapters.length > 0
+    ? window.textbookDataChapters
+    : (typeof textbookDataChapters !== "undefined" ? textbookDataChapters : []);
 
 let textbookChapters = [];
 let currentTextbookLesson = null;
@@ -5859,15 +5509,15 @@ function renderTextbookTree(chapters) {
         ${(ch.lessons || [])
           .map((l) => {
             const st = l.user_status || getLocalLessonProgress(l.id) || {};
-            let badge = `<span class="text-[10px] text-slate-400">未受講</span>`;
+            let badge = `<span class="text-[10px] text-slate-400 whitespace-nowrap shrink-0">未受講</span>`;
             if (st.is_skipped_by_assessment) {
-              badge = `<span class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded">診断スキップ</span>`;
+              badge = `<span class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded whitespace-nowrap shrink-0">診断スキップ</span>`;
             } else if (st.is_completed || st.exercise_passed) {
-              badge = `<span class="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded">完了</span>`;
+              badge = `<span class="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded whitespace-nowrap shrink-0">完了</span>`;
             }
             return `
-            <button onclick="loadLesson(${l.id})" class="w-full text-left p-2 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex justify-between items-center ${currentTextbookLesson && currentTextbookLesson.id === l.id ? "bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-300"}">
-              <span class="truncate">${escapeHtml(l.title)}</span>
+            <button onclick="loadLesson(${l.id})" class="w-full text-left p-2 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-2 ${currentTextbookLesson && currentTextbookLesson.id === l.id ? "bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-300"}">
+              <span class="truncate min-w-0 flex-1">${escapeHtml(l.title)}</span>
               ${badge}
             </button>
           `;
