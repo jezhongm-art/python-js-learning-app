@@ -2795,10 +2795,10 @@ function renderCodingSelect() {
   codingSelect.innerHTML = codingProblems
     .map((ch, idx) => {
       const isCompleted = learningProgress.completedProblems.includes(ch.title);
-      const checkMark = isCompleted ? "✓ " : "";
+      const statusPrefix = isCompleted ? "[済] " : "";
       const prefix = ch.isAiGenerated ? "[AI] " : "";
       const title = ch.title.replace(/^\[AI\]\s*/, "").replace(/^\d+\.\s*/, "");
-      return `<option value="${idx}">${checkMark}${prefix}${title}</option>`;
+      return `<option value="${idx}">${statusPrefix}${prefix}${title}</option>`;
     })
     .join("");
 
@@ -3685,115 +3685,117 @@ const aiQuizTopicInput = document.getElementById("ai-quiz-topic");
 const aiQuizDifficultySelect = document.getElementById("ai-quiz-difficulty");
 const aiQuizGenerateBtn = document.getElementById("ai-quiz-generate-btn");
 
-aiQuizGenerateBtn.onclick = async () => {
-  if (aiQuizGenerateBtn.disabled) return;
-  aiQuizGenerateBtn.disabled = true;
-  let topic = aiQuizTopicInput.value.trim();
-  let difficulty = aiQuizDifficultySelect.value;
+if (aiQuizGenerateBtn) {
+  aiQuizGenerateBtn.onclick = async () => {
+    if (aiQuizGenerateBtn.disabled) return;
+    aiQuizGenerateBtn.disabled = true;
+    let topic = aiQuizTopicInput.value.trim();
+    let difficulty = aiQuizDifficultySelect.value;
 
-  if (difficulty === "random") {
-    const levels = ["beginner", "intermediate", "advanced"];
-    difficulty = levels[Math.floor(Math.random() * levels.length)];
-  }
+    if (difficulty === "random") {
+      const levels = ["beginner", "intermediate", "advanced"];
+      difficulty = levels[Math.floor(Math.random() * levels.length)];
+    }
 
-  if (!topic) {
-    const pool = categorizedQuizTopics[difficulty];
-    topic = pool[Math.floor(Math.random() * pool.length)];
-  }
+    if (!topic) {
+      const pool = categorizedQuizTopics[difficulty];
+      topic = pool[Math.floor(Math.random() * pool.length)];
+    }
 
-  const label = difficultyLabels[difficulty];
-  showAiLoader(
-    "AIクイズを作成中...",
-    `Gemini 3.7 Flashが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
-  );
+    const label = difficultyLabels[difficulty];
+    showAiLoader(
+      "AIクイズを作成中...",
+      `Gemini 3.7 Flashが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
+    );
 
-  let difficultyPromptConstraint = "";
-  if (difficulty === "beginner") {
-    difficultyPromptConstraint =
-      "Pythonの基本概念、初級文法、初学者がつまずきやすい落とし穴に焦点を当てた、難しすぎない問題にしてください。";
-  } else if (difficulty === "intermediate") {
-    difficultyPromptConstraint =
-      "標準ライブラリの適切な組み合わせ、リスト内包表記の挙動、エラーを適切にハンドルする作法など、ある程度実務で見かける応用的な問題にしてください。";
-  } else {
-    difficultyPromptConstraint =
-      "Pythonの内部構造、言語仕様(MRO、特殊メソッド、非同期処理の仕組み、デコレータ、メモリ管理)など、熟練者でも一瞬迷うような非常に高い完成度・深さの問題にしてください。";
-  }
+    let difficultyPromptConstraint = "";
+    if (difficulty === "beginner") {
+      difficultyPromptConstraint =
+        "Pythonの基本概念、初級文法、初学者がつまずきやすい落とし穴に焦点を当てた、難しすぎない問題にしてください。";
+    } else if (difficulty === "intermediate") {
+      difficultyPromptConstraint =
+        "標準ライブラリの適切な組み合わせ、リスト内包表記の挙動、エラーを適切にハンドルする作法など、ある程度実務で見かける応用的な問題にしてください。";
+    } else {
+      difficultyPromptConstraint =
+        "Pythonの内部構造、言語仕様(MRO、特殊メソッド、非同期処理の仕組み、デコレータ、メモリ管理)など、熟練者でも一瞬迷うような非常に高い完成度・深さの問題にしてください。";
+    }
 
-  const systemPrompt = `あなたは優秀なPythonプログラミング講師です。
+    const systemPrompt = `あなたは優秀なPythonプログラミング講師です。
 提示された難易度レベルに【100%厳格に合致する】、Python知識を問う高品質な4択クイズを日本語で1問作成してください。
 安易に正解できる問題ではなく、コードの実行結果を注意深く推測する必要がある問題を作ってください。`;
 
-  const userPrompt = `難易度: ${label}
+    const userPrompt = `難易度: ${label}
 対象トピック: ${topic}
 難易度設計基準: ${difficultyPromptConstraint}
 
 この情報を元に、4択クイズ（問題文、選択肢4つ、その中の1つが完全一致する正解文字列）を1問作成し、指定のJSON形式で返してください。`;
 
-  const quizSchema = {
-    type: "OBJECT",
-    properties: {
-      question: {
-        type: "STRING",
-        description:
-          "クイズの問題文。ソースコードを含む場合はマークダウンのコードブロック(```)等で整形してください。",
+    const quizSchema = {
+      type: "OBJECT",
+      properties: {
+        question: {
+          type: "STRING",
+          description:
+            "クイズの問題文。ソースコードを含む場合はマークダウンのコードブロック(```)等で整形してください。",
+        },
+        options: {
+          type: "ARRAY",
+          items: { type: "STRING" },
+          description: "4つの明確に異なる選択肢テキストのリスト",
+        },
+        correctAnswer: {
+          type: "STRING",
+          description:
+            "optionsリストの要素のいずれかと一字一句完全に一致する正解のテキスト",
+        },
       },
-      options: {
-        type: "ARRAY",
-        items: { type: "STRING" },
-        description: "4つの明確に異なる選択肢テキストのリスト",
-      },
-      correctAnswer: {
-        type: "STRING",
-        description:
-          "optionsリストの要素のいずれかと一字一句完全に一致する正解のテキスト",
-      },
-    },
-    required: ["question", "options", "correctAnswer"],
-  };
-
-  try {
-    const jsonText = await callGemini(
-      systemPrompt,
-      userPrompt,
-      true,
-      quizSchema,
-    );
-    const parsedQuiz = JSON.parse(jsonText);
-
-    const shuffledOptions = shuffleArray(parsedQuiz.options);
-    const correctIndex = shuffledOptions.indexOf(parsedQuiz.correctAnswer);
-
-    let finalCorrectIndex = correctIndex;
-    if (correctIndex === -1) {
-      shuffledOptions.push(parsedQuiz.correctAnswer);
-      finalCorrectIndex = shuffledOptions.length - 1;
-    }
-
-    const newQuestion = {
-      question: `[AI生成 - ${label}] ${parsedQuiz.question ? parsedQuiz.question.replace(/\\n/g, "\n") : ""}`,
-      options: shuffledOptions,
-      correctIndex: finalCorrectIndex,
-      correctAnswer: parsedQuiz.correctAnswer,
-      isAiGenerated: true,
+      required: ["question", "options", "correctAnswer"],
     };
 
-    quizQuestions = [newQuestion, ...quizQuestions];
-    currentQuizIndex = 0;
-    quizScore = 0;
-    quizUserAnswers = [];
+    try {
+      const jsonText = await callGemini(
+        systemPrompt,
+        userPrompt,
+        true,
+        quizSchema,
+      );
+      const parsedQuiz = JSON.parse(jsonText);
 
-    quizResultContainer.classList.add("hidden");
-    document.getElementById("quiz-container").classList.remove("hidden");
-    showQuizQuestion();
+      const shuffledOptions = shuffleArray(parsedQuiz.options);
+      const correctIndex = shuffledOptions.indexOf(parsedQuiz.correctAnswer);
 
-    aiQuizTopicInput.value = "";
-  } catch (err) {
-    notify(`${err.message}`, "AIクイズ生成失敗", "error");
-  } finally {
-    hideAiLoader();
-    aiQuizGenerateBtn.disabled = false;
-  }
-};
+      let finalCorrectIndex = correctIndex;
+      if (correctIndex === -1) {
+        shuffledOptions.push(parsedQuiz.correctAnswer);
+        finalCorrectIndex = shuffledOptions.length - 1;
+      }
+
+      const newQuestion = {
+        question: `[AI生成 - ${label}] ${parsedQuiz.question ? parsedQuiz.question.replace(/\\n/g, "\n") : ""}`,
+        options: shuffledOptions,
+        correctIndex: finalCorrectIndex,
+        correctAnswer: parsedQuiz.correctAnswer,
+        isAiGenerated: true,
+      };
+
+      quizQuestions = [newQuestion, ...quizQuestions];
+      currentQuizIndex = 0;
+      quizScore = 0;
+      quizUserAnswers = [];
+
+      quizResultContainer.classList.add("hidden");
+      document.getElementById("quiz-container").classList.remove("hidden");
+      showQuizQuestion();
+
+      aiQuizTopicInput.value = "";
+    } catch (err) {
+      notify(`${err.message}`, "AIクイズ生成失敗", "error");
+    } finally {
+      hideAiLoader();
+      aiQuizGenerateBtn.disabled = false;
+    }
+  };
+}
 
 // ==========================================
 // AIコーディング問題生成処理 (Gemini 3.7 Flash)
@@ -3803,53 +3805,54 @@ const aiCodingDifficultySelect = document.getElementById("ai-coding-difficulty")
 const aiCodingTypeSelect = document.getElementById("ai-coding-type");
 const aiCodingGenerateBtn = document.getElementById("ai-coding-generate-btn");
 
-aiCodingGenerateBtn.onclick = async () => {
-  if (aiCodingGenerateBtn.disabled) return;
-  aiCodingGenerateBtn.disabled = true;
-  let topic = aiCodingTopicInput.value.trim();
-  let difficulty = aiCodingDifficultySelect.value;
-  let selectedType = aiCodingTypeSelect ? aiCodingTypeSelect.value : "auto";
+if (aiCodingGenerateBtn) {
+  aiCodingGenerateBtn.onclick = async () => {
+    if (aiCodingGenerateBtn.disabled) return;
+    aiCodingGenerateBtn.disabled = true;
+    let topic = aiCodingTopicInput.value.trim();
+    let difficulty = aiCodingDifficultySelect.value;
+    let selectedType = aiCodingTypeSelect ? aiCodingTypeSelect.value : "auto";
 
-  if (difficulty === "random") {
-    const levels = ["beginner", "intermediate", "advanced"];
-    difficulty = levels[Math.floor(Math.random() * levels.length)];
-  }
+    if (difficulty === "random") {
+      const levels = ["beginner", "intermediate", "advanced"];
+      difficulty = levels[Math.floor(Math.random() * levels.length)];
+    }
 
-  if (!topic) {
-    const pool = categorizedCodingTopics[difficulty];
-    topic = pool[Math.floor(Math.random() * pool.length)];
-  }
+    if (!topic) {
+      const pool = categorizedCodingTopics[difficulty];
+      topic = pool[Math.floor(Math.random() * pool.length)];
+    }
 
-  const label = difficultyLabels[difficulty];
-  showAiLoader(
-    "AI課題をビルド中...",
-    `Gemini 3.7 Flashが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
-  );
+    const label = difficultyLabels[difficulty];
+    showAiLoader(
+      "AI課題をビルド中...",
+      `Gemini 3.7 Flashが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
+    );
 
-  let difficultyPromptConstraint = "";
-  if (difficulty === "beginner") {
-    difficultyPromptConstraint =
-      "初心者向け。基本文法、単純な計算、基本的なループやif条件分岐、初歩的なinput対話や基本グラフ(折れ線/棒グラフ)などを対象とします。";
-  } else if (difficulty === "intermediate") {
-    difficultyPromptConstraint =
-      "中級者向け。データ構造、標準ライブラリ（math, datetime, re, random, collections等）の活用、少し複雑なinput対話計算CLI、散布図や円グラフなどのMatplotlib可視化などを対象とします。";
-  } else {
-    difficultyPromptConstraint =
-      "上級者向け。クラス設計、特殊メソッド、デコレータ、高度アルゴリズム、複数系列グラフのカスタマイズ、複合コマンド対話型システムなどを対象とします。";
-  }
+    let difficultyPromptConstraint = "";
+    if (difficulty === "beginner") {
+      difficultyPromptConstraint =
+        "初心者向け。基本文法、単純な計算、基本的なループやif条件分岐、初歩的なinput対話や基本グラフ(折れ線/棒グラフ)などを対象とします。";
+    } else if (difficulty === "intermediate") {
+      difficultyPromptConstraint =
+        "中級者向け。データ構造、標準ライブラリ（math, datetime, re, random, collections等）の活用、少し複雑なinput対話計算CLI、散布図や円グラフなどのMatplotlib可視化などを対象とします。";
+    } else {
+      difficultyPromptConstraint =
+        "上級者向け。クラス設計、特殊メソッド、デコレータ、高度アルゴリズム、複数系列グラフのカスタマイズ、複合コマンド対話型システムなどを対象とします。";
+    }
 
-  let typeConstraint = "";
-  if (selectedType === "function") {
-    typeConstraint = "問題タイプは必ず「function」（関数・クラス・アルゴリズム・標準ライブラリ活用）にしてください。";
-  } else if (selectedType === "cli") {
-    typeConstraint = "問題タイプは必ず「cli」（input() による対話入力と print() による出力検証）にしてください。";
-  } else if (selectedType === "plot") {
-    typeConstraint = "問題タイプは必ず「plot」（matplotlib.pyplot によるグラフ描画・データ可視化）にしてください。";
-  } else {
-    typeConstraint = "テーマの内容に応じて、最も適した問題タイプ（'function', 'cli', 'plot' のいずれか）を柔軟に選択してください。";
-  }
+    let typeConstraint = "";
+    if (selectedType === "function") {
+      typeConstraint = "問題タイプは必ず「function」（関数・クラス・アルゴリズム・標準ライブラリ活用）にしてください。";
+    } else if (selectedType === "cli") {
+      typeConstraint = "問題タイプは必ず「cli」（input() による対話入力と print() による出力検証）にしてください。";
+    } else if (selectedType === "plot") {
+      typeConstraint = "問題タイプは必ず「plot」（matplotlib.pyplot によるグラフ描画・データ可視化）にしてください。";
+    } else {
+      typeConstraint = "テーマの内容に応じて、最も適した問題タイプ（'function', 'cli', 'plot' のいずれか）を柔軟に選択してください。";
+    }
 
-  const systemPrompt = `あなたは非常に優秀なPython教育試験設計士です。
+    const systemPrompt = `あなたは非常に優秀なPython教育試験設計士です。
 ユーザーが指定するテーマ・難易度・問題タイプに完全に合致したコーディング問題を1問作成してください。
 
 【問題タイプ（type）と評価ルール】
@@ -3876,161 +3879,162 @@ aiCodingGenerateBtn.onclick = async () => {
 - templateプロパティには「答えそのもの」を絶対に含めないでください。生徒が自力でコードを書くための出題用雛形（関数定義やコメント、初期データ変数定義のみ）にしてください。
 - descriptionはHTMLタグ（<p>, <code>, <ul>, <li>, <h3>等）を使用して見やすく記述してください。`;
 
-  const userPrompt = `難易度: ${label}
+    const userPrompt = `難易度: ${label}
 指定テーマ: ${topic}
 難易度規約: ${difficultyPromptConstraint}
 タイプ指定: ${typeConstraint}
 
 指定のJSONスキーマに従って、高品質な問題データを出力してください。`;
 
-  const codingSchema = {
-    type: "OBJECT",
-    properties: {
-      title: {
-        type: "STRING",
-        description: "課題のタイトル（例: 【対話型CLI】簡単計算機、日時差分計算関数、月別売上折れ線グラフ）",
-      },
-      type: {
-        type: "STRING",
-        description: "問題タイプ: 'function' (関数/標準ライブラリ), 'cli' (input/print対話型), 'plot' (Matplotlibグラフ可視化)",
-      },
-      difficulty: {
-        type: "STRING",
-        description: "難易度: '初級', '中級', '上級'",
-      },
-      description: {
-        type: "STRING",
-        description: "HTML形式の詳細な問題説明。実装すべき仕様や計算手順を分かりやすく解説。",
-      },
-      template: {
-        type: "STRING",
-        description: "出題用スターターコード（複数行）。解答コードそのものは含めず、書き始めの雛形を提供すること。",
-      },
-      setup_code: {
-        type: "STRING",
-        description: "テストケース実行前に評価される準備用のPythonコード（不要な場合は空文字列とする）",
-      },
-      test_cases: {
-        type: "ARRAY",
-        description: "自動評価用のテストケース一覧（3〜5件）",
-        items: {
-          type: "OBJECT",
-          properties: {
-            input: { type: "STRING", description: "関数呼び出し式（function用）" },
-            expected: { type: "STRING", description: "期待される戻り値や検証値" },
-            inputs: { type: "ARRAY", items: { type: "STRING" }, description: "input()へ渡す入力値の配列（cli用）" },
-            match: { type: "STRING", description: "照合モード: 'contains' または 'exact'（cli用）" },
-            check: { type: "STRING", description: "グラフ検証項目: 'type'|'title'|'labels'|'first_dataset_data'|'datasets_count'（plot用）" },
-            input_label: { type: "STRING", description: "検証項目の日本語説明（plot用）" },
+    const codingSchema = {
+      type: "OBJECT",
+      properties: {
+        title: {
+          type: "STRING",
+          description: "課題のタイトル（例: 【対話型CLI】簡単計算機、日時差分計算関数、月別売上折れ線グラフ）",
+        },
+        type: {
+          type: "STRING",
+          description: "問題タイプ: 'function' (関数/標準ライブラリ), 'cli' (input/print対話型), 'plot' (Matplotlibグラフ可視化)",
+        },
+        difficulty: {
+          type: "STRING",
+          description: "難易度: '初級', '中級', '上級'",
+        },
+        description: {
+          type: "STRING",
+          description: "HTML形式の詳細な問題説明。実装すべき仕様や計算手順を分かりやすく解説。",
+        },
+        template: {
+          type: "STRING",
+          description: "出題用スターターコード（複数行）。解答コードそのものは含めず、書き始めの雛形を提供すること。",
+        },
+        setup_code: {
+          type: "STRING",
+          description: "テストケース実行前に評価される準備用のPythonコード（不要な場合は空文字列とする）",
+        },
+        test_cases: {
+          type: "ARRAY",
+          description: "自動評価用のテストケース一覧（3〜5件）",
+          items: {
+            type: "OBJECT",
+            properties: {
+              input: { type: "STRING", description: "関数呼び出し式（function用）" },
+              expected: { type: "STRING", description: "期待される戻り値や検証値" },
+              inputs: { type: "ARRAY", items: { type: "STRING" }, description: "input()へ渡す入力値の配列（cli用）" },
+              match: { type: "STRING", description: "照合モード: 'contains' または 'exact'（cli用）" },
+              check: { type: "STRING", description: "グラフ検証項目: 'type'|'title'|'labels'|'first_dataset_data'|'datasets_count'（plot用）" },
+              input_label: { type: "STRING", description: "検証項目の日本語説明（plot用）" },
+            },
           },
         },
       },
-    },
-    required: ["title", "type", "difficulty", "description", "template", "test_cases"],
-  };
-
-  try {
-    const jsonText = await callGemini(
-      systemPrompt,
-      userPrompt,
-      true,
-      codingSchema,
-    );
-    const parsedProblem = JSON.parse(jsonText);
-
-    // 1. タイプと難易度の正規化
-    const pType = ["cli", "plot", "function"].includes(parsedProblem.type) ? parsedProblem.type : "function";
-    let pDiff = parsedProblem.difficulty || label.slice(0, 2);
-    if (!["初級", "中級", "上級"].includes(pDiff)) {
-      pDiff = difficulty === "beginner" ? "初級" : difficulty === "advanced" ? "上級" : "中級";
-    }
-
-    // 2. 改行コードの正規化処理
-    let cleanTemplate = parsedProblem.template
-      ? parsedProblem.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n")
-      : "";
-
-    if (!cleanTemplate.includes("\n")) {
-      if (pType === "cli") {
-        cleanTemplate = `# input() で値を受け取り、処理結果を出力してください\n# ここにコードを書いてください\n`;
-      } else if (pType === "plot") {
-        cleanTemplate = `import matplotlib.pyplot as plt\n\n# ここにグラフ描画コードを書いてください\n`;
-      } else {
-        cleanTemplate = `${cleanTemplate}\n    # ここにコードを記述してください\n    pass\n`;
-      }
-    }
-
-    // 3. テストケースの正規化
-    const cleanTestCases = Array.isArray(parsedProblem.test_cases)
-      ? parsedProblem.test_cases.map((tc) => {
-          if (pType === "cli") {
-            return {
-              inputs: Array.isArray(tc.inputs) ? tc.inputs.map(String) : [String(tc.input || "")],
-              expected: String(tc.expected || ""),
-              match: tc.match || "contains",
-            };
-          } else if (pType === "plot") {
-            let exp = tc.expected;
-            if (typeof exp === "string") {
-              try { exp = JSON.parse(exp); } catch (_) {}
-            }
-            return {
-              check: tc.check || "type",
-              expected: exp,
-              input_label: tc.input_label || `グラフ検証: ${tc.check || "type"}`,
-            };
-          } else {
-            let exp = tc.expected;
-            if (typeof exp === "string") {
-              let s = exp.trim();
-              while (
-                (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) ||
-                (s.length >= 2 && s.startsWith('"') && s.endsWith('"'))
-              ) {
-                s = s.slice(1, -1).trim();
-              }
-              exp = s;
-            }
-            return {
-              input: tc.input || "",
-              expected: exp,
-            };
-          }
-        })
-      : [];
-
-    const newProblem = {
-      title: `[AI生成 - ${pDiff}] ${parsedProblem.title.replace(/^\[.*?\]\s*/, "")}`,
-      type: pType,
-      difficulty: pDiff,
-      description: parsedProblem.description
-        ? parsedProblem.description.replace(/\\n/g, "\n")
-        : "",
-      template: cleanTemplate,
-      setup_code: parsedProblem.setup_code
-        ? parsedProblem.setup_code.replace(/\\n/g, "\n")
-        : "",
-      test_cases: cleanTestCases,
-      isAiGenerated: true,
+      required: ["title", "type", "difficulty", "description", "template", "test_cases"],
     };
 
-    codingProblems = [newProblem, ...codingProblems];
-    currentCodingIndex = 0;
-    codingScores = [];
+    try {
+      const jsonText = await callGemini(
+        systemPrompt,
+        userPrompt,
+        true,
+        codingSchema,
+      );
+      const parsedProblem = JSON.parse(jsonText);
 
-    codingResultContainer.classList.add("hidden");
-    document.getElementById("coding-quiz-container").classList.remove("hidden");
-    showCodingProblem();
+      // 1. タイプと難易度の正規化
+      const pType = ["cli", "plot", "function"].includes(parsedProblem.type) ? parsedProblem.type : "function";
+      let pDiff = parsedProblem.difficulty || label.slice(0, 2);
+      if (!["初級", "中級", "上級"].includes(pDiff)) {
+        pDiff = difficulty === "beginner" ? "初級" : difficulty === "advanced" ? "上級" : "中級";
+      }
 
-    aiCodingTopicInput.value = "";
-    notify(`AI問題「${newProblem.title}」を生成しました！`, "success");
-  } catch (err) {
-    notify(`${err.message}`, "AI課題生成失敗", "error");
-  } finally {
-    hideAiLoader();
-    aiCodingGenerateBtn.disabled = false;
-  }
-};
+      // 2. 改行コードの正規化処理
+      let cleanTemplate = parsedProblem.template
+        ? parsedProblem.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n")
+        : "";
+
+      if (!cleanTemplate.includes("\n")) {
+        if (pType === "cli") {
+          cleanTemplate = `# input() で値を受け取り、処理結果を出力してください\n# ここにコードを書いてください\n`;
+        } else if (pType === "plot") {
+          cleanTemplate = `import matplotlib.pyplot as plt\n\n# ここにグラフ描画コードを書いてください\n`;
+        } else {
+          cleanTemplate = `${cleanTemplate}\n    # ここにコードを記述してください\n    pass\n`;
+        }
+      }
+
+      // 3. テストケースの正規化
+      const cleanTestCases = Array.isArray(parsedProblem.test_cases)
+        ? parsedProblem.test_cases.map((tc) => {
+            if (pType === "cli") {
+              return {
+                inputs: Array.isArray(tc.inputs) ? tc.inputs.map(String) : [String(tc.input || "")],
+                expected: String(tc.expected || ""),
+                match: tc.match || "contains",
+              };
+            } else if (pType === "plot") {
+              let exp = tc.expected;
+              if (typeof exp === "string") {
+                try { exp = JSON.parse(exp); } catch (_) {}
+              }
+              return {
+                check: tc.check || "type",
+                expected: exp,
+                input_label: tc.input_label || `グラフ検証: ${tc.check || "type"}`,
+              };
+            } else {
+              let exp = tc.expected;
+              if (typeof exp === "string") {
+                let s = exp.trim();
+                while (
+                  (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) ||
+                  (s.length >= 2 && s.startsWith('"') && s.endsWith('"'))
+                ) {
+                  s = s.slice(1, -1).trim();
+                }
+                exp = s;
+              }
+              return {
+                input: tc.input || "",
+                expected: exp,
+              };
+            }
+          })
+        : [];
+
+      const newProblem = {
+        title: `[AI生成 - ${pDiff}] ${parsedProblem.title.replace(/^\[.*?\]\s*/, "")}`,
+        type: pType,
+        difficulty: pDiff,
+        description: parsedProblem.description
+          ? parsedProblem.description.replace(/\\n/g, "\n")
+          : "",
+        template: cleanTemplate,
+        setup_code: parsedProblem.setup_code
+          ? parsedProblem.setup_code.replace(/\\n/g, "\n")
+          : "",
+        test_cases: cleanTestCases,
+        isAiGenerated: true,
+      };
+
+      codingProblems = [newProblem, ...codingProblems];
+      currentCodingIndex = 0;
+      codingScores = [];
+
+      codingResultContainer.classList.add("hidden");
+      document.getElementById("coding-quiz-container").classList.remove("hidden");
+      showCodingProblem();
+
+      aiCodingTopicInput.value = "";
+      notify(`AI問題「${newProblem.title}」を生成しました`, "success");
+    } catch (err) {
+      notify(`${err.message}`, "AI課題生成失敗", "error");
+    } finally {
+      hideAiLoader();
+      aiCodingGenerateBtn.disabled = false;
+    }
+  };
+}
 
 // ==========================================
 // AIヒント機能（省略化JSON履歴・高速マルチターン対応）
@@ -4051,17 +4055,18 @@ function summarizeAdviceText(text) {
   return clean;
 }
 
-aiHintBtn.onclick = async () => {
-  const problem = codingProblems[currentCodingIndex];
-  const userCode = codeEditor.value;
+if (aiHintBtn) {
+  aiHintBtn.onclick = async () => {
+    const problem = codingProblems[currentCodingIndex];
+    const userCode = codeEditor.value;
 
-  aiHintContent.innerHTML =
-    '<span class="animate-pulse text-indigo-500 font-bold">AIがコードを分析し、タイピングしています...</span>';
-  aiHintPanel.classList.remove("hidden");
-  aiReviewPanel.classList.add("hidden");
-  aiHintPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    aiHintContent.innerHTML =
+      '<span class="animate-pulse text-indigo-500 font-bold">AIがコードを分析し、タイピングしています...</span>';
+    aiHintPanel.classList.remove("hidden");
+    aiReviewPanel.classList.add("hidden");
+    aiHintPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
-  const systemPrompt = `あなたはプログラミングを始めたばかりの超初心者（forやifの使い方もまだよくわかっていない生徒）に、優しく伴走するPythonの家庭教師AIです。
+    const systemPrompt = `あなたはプログラミングを始めたばかりの超初心者（forやifの使い方もまだよくわかっていない生徒）に、優しく伴走するPythonの家庭教師AIです。
 これは連続する指導セッションです。過去の指導履歴（JSON形式）を参照し、生徒の進歩を認めつつ、次のステップを指導してください。
 
 以下の【絶対ルール】を厳守して指導してください。
@@ -4071,10 +4076,10 @@ aiHintBtn.onclick = async () => {
 4. バグがあれば、何行目で何が起きているかを小学生でもわかるように優しく日本語で解説し、考え方のステップをナビゲートしてください。
 5. 過去の指導からコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
 
-  let userPrompt = "";
+    let userPrompt = "";
 
-  if (pyHintHistoryLogs.length === 0) {
-    userPrompt = `【問題タイトル】: ${problem.title}
+    if (pyHintHistoryLogs.length === 0) {
+      userPrompt = `【問題タイトル】: ${problem.title}
 【問題文】: ${problem.description}
 【期待するテストケース例】: ${JSON.stringify(problem.test_cases)}
 
@@ -4084,9 +4089,9 @@ ${userCode}
 \`\`\`
 
 この情報を元に、超初心者に向けた丁寧なアドバイスをMarkdown形式の日本語で作成してください。`;
-  } else {
-    const historyJson = JSON.stringify(pyHintHistoryLogs, null, 2);
-    userPrompt = `【問題タイトル】: ${problem.title}
+    } else {
+      const historyJson = JSON.stringify(pyHintHistoryLogs, null, 2);
+      userPrompt = `【問題タイトル】: ${problem.title}
 【問題文】: ${problem.description}
 
 【これまでの指導履歴（JSON形式・省サイズ）】:
@@ -4100,54 +4105,56 @@ ${userCode}
 \`\`\`
 
 これまでの指導履歴（JSON）と現在の最新コードを比較し、生徒のコードの改善点を具体的に褒めた上で、次に修正すべきポイントやヒントを簡潔にMarkdown形式でアドバイスしてください。`;
-  }
+    }
 
-  try {
-    let aiResponseText = "";
-    await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
-      aiResponseText = fullText;
-      aiHintContent.innerHTML = sanitizeHtml(marked.parse(fullText));
-    });
+    try {
+      let aiResponseText = "";
+      await callGeminiStream(systemPrompt, userPrompt, (fullText) => {
+        aiResponseText = fullText;
+        aiHintContent.innerHTML = sanitizeHtml(marked.parse(fullText));
+      });
 
-    // 指導履歴に省略化JSONオブジェクトとして記録
-    pyHintHistoryLogs.push({
-      turn: pyHintHistoryLogs.length + 1,
-      submittedCode: userCode.length > 250 ? userCode.slice(0, 247) + "..." : userCode,
-      adviceSummary: summarizeAdviceText(aiResponseText)
-    });
-  } catch (err) {
-    notify(`${err.message}`, "AIヒント取得失敗", "error");
-  }
-};
+      // 指導履歴に省略化JSONオブジェクトとして記録
+      pyHintHistoryLogs.push({
+        turn: pyHintHistoryLogs.length + 1,
+        submittedCode: userCode.length > 250 ? userCode.slice(0, 247) + "..." : userCode,
+        adviceSummary: summarizeAdviceText(aiResponseText),
+      });
+    } catch (err) {
+      notify(`${err.message}`, "AIヒント取得失敗", "error");
+    }
+  };
+}
 
 // ==========================================
 // AIレビュー＆模範解答機能 (事前テスト検証対応)
 // ==========================================
-aiReviewBtn.onclick = async () => {
-  const problem = codingProblems[currentCodingIndex];
-  const userCode = codeEditor.value;
+if (aiReviewBtn) {
+  aiReviewBtn.onclick = async () => {
+    const problem = codingProblems[currentCodingIndex];
+    const userCode = codeEditor.value;
 
-  aiReviewContent.innerHTML =
-    '<span class="animate-pulse text-purple-500 font-bold">AIがコードを分析し、タイピングしています...</span>';
-  aiReviewPanel.classList.remove("hidden");
-  aiHintPanel.classList.add("hidden");
-  aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    aiReviewContent.innerHTML =
+      '<span class="animate-pulse text-purple-500 font-bold">AIがコードを分析し、タイピングしています...</span>';
+    aiReviewPanel.classList.remove("hidden");
+    aiHintPanel.classList.add("hidden");
+    aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
-  // テストケースから評価対象の関数名を特定
-  let targetFnName = "solution";
-  if (problem.test_cases && problem.test_cases.length > 0 && problem.test_cases[0].input) {
-    const match = problem.test_cases[0].input.match(/^([a-zA-Z_]\w*)\s*\(/);
-    if (match) targetFnName = match[1];
-  }
+    // テストケースから評価対象の関数名を特定
+    let targetFnName = "solution";
+    if (problem.test_cases && problem.test_cases.length > 0 && problem.test_cases[0].input) {
+      const match = problem.test_cases[0].input.match(/^([a-zA-Z_]\w*)\s*\(/);
+      if (match) targetFnName = match[1];
+    }
 
-  const systemPrompt = `あなたはシニアPythonエンジニアであり、素晴らしい技術指導者です。
+    const systemPrompt = `あなたはシニアPythonエンジニアであり、素晴らしい技術指導者です。
 【最優先絶対ルール】
 1. 模範解答コードブロック（\`\`\`python ... \`\`\`）内の関数名は、必ず「${targetFnName}」という名称で正確に定義してください。異なる関数名を使うと自動採点でエラーになります。
 2. 提示されたすべてのテストケース（型チェックによるTypeErrorのraise指定を含む）に100%合格する、完全かつ動作可能なコード例を提示してください。
 3. コードプレースホルダー（passやTODOなど）を含めず、そのままコピー＆ペーストして採点実行が通る完成コードにしてください。
 4. 解答コードブロックは必ずマークダウン（\`\`\`python）で記述してください。`;
 
-  const userPrompt = `【課題タイトル】: ${problem.title}
+    const userPrompt = `【課題タイトル】: ${problem.title}
 【課題説明】: ${problem.description}
 【検証される関数名】: ${targetFnName}
 【期待されるアサーションテスト】: ${JSON.stringify(problem.test_cases)}
@@ -4162,95 +4169,1943 @@ ${userCode}
 2. **もっとも洗練された模範解答コード例**: 関数名を「${targetFnName}」とし、全テストケースを通るPEP 8適合コード。
 3. **計算量と設計のアプローチ解説**: なぜこの模範コードが優れているのか、計算量（O記法）も交えた技術解説。`;
 
-  try {
-    let fullText = "";
-    await callGeminiStream(systemPrompt, userPrompt, (text) => {
-      fullText = text;
-      aiReviewContent.innerHTML = sanitizeHtml(marked.parse(text));
-    });
+    try {
+      let fullText = "";
+      await callGeminiStream(systemPrompt, userPrompt, (text) => {
+        fullText = text;
+        aiReviewContent.innerHTML = sanitizeHtml(marked.parse(text));
+      });
 
-    // 模範解答コードの自動バックグラウンド検証
-    const codeMatch = fullText.match(/```python\s*([\s\S]*?)```/);
-    if (codeMatch && codeMatch[1]) {
-      const modelCode = codeMatch[1].trim();
-      if (window.run_python_tests) {
-        const payload = JSON.stringify({
-          setup_code: problem.setup_code || "",
-          test_cases: problem.test_cases || [],
-        });
-        const testResRaw = window.run_python_tests(modelCode, payload);
-        const testRes = JSON.parse(testResRaw);
-        if (testRes && testRes.tests) {
-          const passCount = testRes.tests.filter((t) => t.pass).length;
-          const totalCount = testRes.tests.length;
-          const verifyStatus = document.createElement("div");
-          if (passCount === totalCount) {
-            verifyStatus.className =
-              "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
-            verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。そのままコピー＆ペーストして実行・採点いただけます。`;
-          } else {
-            verifyStatus.className =
-              "mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2";
-            verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> 検証結果: テスト合格 (${passCount}/${totalCount})。一部の前提条件に関する調整が必要な場合があります。`;
+      // 模範解答コードの自動バックグラウンド検証
+      const codeMatch = fullText.match(/```python\s*([\s\S]*?)```/);
+      if (codeMatch && codeMatch[1]) {
+        const modelCode = codeMatch[1].trim();
+        if (window.run_python_tests) {
+          const payload = JSON.stringify({
+            setup_code: problem.setup_code || "",
+            test_cases: problem.test_cases || [],
+          });
+          const testResRaw = window.run_python_tests(modelCode, payload);
+          const testRes = JSON.parse(testResRaw);
+          if (testRes && testRes.tests) {
+            const passCount = testRes.tests.filter((t) => t.pass).length;
+            const totalCount = testRes.tests.length;
+            const verifyStatus = document.createElement("div");
+            if (passCount === totalCount) {
+              verifyStatus.className =
+                "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
+              verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。そのままコピー＆ペーストして実行・採点いただけます。`;
+            } else {
+              verifyStatus.className =
+                "mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2";
+              verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> 検証結果: テスト合格 (${passCount}/${totalCount})。一部の前提条件に関する調整が必要な場合があります。`;
+            }
+            aiReviewContent.appendChild(verifyStatus);
           }
-          aiReviewContent.appendChild(verifyStatus);
         }
       }
+    } catch (err) {
+      notify(`${err.message}`, "AIレビュー取得失敗", "error");
     }
+  };
+}
+
+// ==========================================
+// Django API クライアント設定 & 共通ヘルパー
+// ==========================================
+const DJANGO_API_BASE = "http://localhost:8000/api";
+let currentUserId = localStorage.getItem("python_learner_id") || `user_${Math.random().toString(36).substring(2, 9)}`;
+localStorage.setItem("python_learner_id", currentUserId);
+
+async function apiRequest(endpoint, method = "GET", body = null) {
+  try {
+    const options = {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch(`${DJANGO_API_BASE}${endpoint}`, options);
+    if (!res.ok) {
+      throw new Error(`APIエラー (${res.status}): ${res.statusText}`);
+    }
+    return await res.json();
   } catch (err) {
-    notify(`${err.message}`, "AIレビュー取得失敗", "error");
-  }
-};
-
-// ==========================================
-// モード切り替えロジック
-// ==========================================
-const modeQuizBtn = document.getElementById("mode-quiz");
-const modeCodingBtn = document.getElementById("mode-coding");
-const quizMode = document.getElementById("quiz-mode");
-const codingMode = document.getElementById("coding-mode");
-
-function setActiveMode(mode) {
-  const activeClass = ["bg-white", "text-indigo-700", "shadow-sm"];
-  const inactiveClass = ["text-indigo-100", "hover:text-white"];
-
-  if (mode === "quiz") {
-    modeQuizBtn.classList.add(...activeClass);
-    modeQuizBtn.classList.remove(...inactiveClass);
-    modeCodingBtn.classList.remove(...activeClass);
-    modeCodingBtn.classList.add(...inactiveClass);
-    quizMode.classList.remove("hidden");
-    codingMode.classList.add("hidden");
-  } else {
-    modeCodingBtn.classList.add(...activeClass);
-    modeCodingBtn.classList.remove(...inactiveClass);
-    modeQuizBtn.classList.remove(...activeClass);
-    modeQuizBtn.classList.add(...inactiveClass);
-    codingMode.classList.remove("hidden");
-    quizMode.classList.add("hidden");
+    console.warn(`Django APIへの接続: ${err.message}`);
+    return null;
   }
 }
 
-modeQuizBtn.onclick = () => {
-  setActiveMode("quiz");
-  currentQuizIndex = 0;
-  quizScore = 0;
-  quizUserAnswers = [];
-  showQuizQuestion();
-  quizResultContainer.classList.add("hidden");
-  document.getElementById("quiz-container").classList.remove("hidden");
-};
+// ==========================================
+// モード切り替えロジック (5モード対応)
+// ==========================================
+const modeAssessmentBtn = document.getElementById("mode-assessment");
+const modeTextbookBtn = document.getElementById("mode-textbook");
+const modeSkillChartBtn = document.getElementById("mode-skill-chart");
+const modeCodingBtn = document.getElementById("mode-coding");
+const modeQuizBtn = document.getElementById("mode-quiz");
 
-modeCodingBtn.onclick = () => {
-  setActiveMode("coding");
-  currentCodingIndex = 0;
-  codingScores = [];
-  codingProblems = shuffleArray(defaultCodingProblems);
-  showCodingProblem();
-  codingResultContainer.classList.add("hidden");
-  document.getElementById("coding-quiz-container").classList.remove("hidden");
-};
+const assessmentMode = document.getElementById("assessment-mode");
+const textbookMode = document.getElementById("textbook-mode");
+const skillChartMode = document.getElementById("skill-chart-mode");
+const codingMode = document.getElementById("coding-mode");
+const quizMode = document.getElementById("quiz-mode");
+
+const allModes = [
+  { name: "assessment", btn: modeAssessmentBtn, el: assessmentMode },
+  { name: "textbook", btn: modeTextbookBtn, el: textbookMode },
+  { name: "skill-chart", btn: modeSkillChartBtn, el: skillChartMode },
+  { name: "coding", btn: modeCodingBtn, el: codingMode },
+  { name: "quiz", btn: modeQuizBtn, el: quizMode },
+];
+
+function setActiveMode(modeName) {
+  const activeBtnClass = ["bg-white", "text-indigo-700", "shadow-sm", "font-bold"];
+  const inactiveBtnClass = ["text-indigo-100", "hover:text-white", "font-semibold"];
+
+  allModes.forEach((m) => {
+    if (m.btn) {
+      if (m.name === modeName) {
+        m.btn.classList.add(...activeBtnClass);
+        m.btn.classList.remove(...inactiveBtnClass);
+      } else {
+        m.btn.classList.remove(...activeBtnClass);
+        m.btn.classList.add(...inactiveBtnClass);
+      }
+    }
+    if (m.el) {
+      if (m.name === modeName) {
+        m.el.classList.remove("hidden");
+      } else {
+        m.el.classList.add("hidden");
+      }
+    }
+  });
+
+  // モード開始時の初期化
+  if (modeName === "textbook") {
+    loadTextbookRoadmap();
+  } else if (modeName === "skill-chart") {
+    loadLatestSkillChart();
+  }
+}
+
+if (modeAssessmentBtn) modeAssessmentBtn.onclick = () => setActiveMode("assessment");
+if (modeTextbookBtn) modeTextbookBtn.onclick = () => setActiveMode("textbook");
+if (modeSkillChartBtn) modeSkillChartBtn.onclick = () => setActiveMode("skill-chart");
+
+if (modeCodingBtn) {
+  modeCodingBtn.onclick = () => {
+    setActiveMode("coding");
+    currentCodingIndex = 0;
+    codingScores = [];
+    codingProblems = shuffleArray(defaultCodingProblems);
+    showCodingProblem();
+    codingResultContainer.classList.add("hidden");
+    document.getElementById("coding-quiz-container").classList.remove("hidden");
+  };
+}
+
+if (modeQuizBtn) {
+  modeQuizBtn.onclick = () => {
+    setActiveMode("quiz");
+    currentQuizIndex = 0;
+    quizScore = 0;
+    quizUserAnswers = [];
+    showQuizQuestion();
+    quizResultContainer.classList.add("hidden");
+    document.getElementById("quiz-container").classList.remove("hidden");
+  };
+}
+
+// ==========================================
+// 汎用リッチエディタ バインディングヘルパー
+// (シンタックスハイライト, 行番号, インデントガイド, フォントサイズ, コピー, Ctrl+Enter)
+// ==========================================
+function bindRichCodeEditor(config) {
+  const {
+    textarea,
+    backdrop,
+    lineNumbers,
+    cursorPos,
+    charCount,
+    fontSizeDecBtn,
+    fontSizeIncBtn,
+    copyBtn,
+    resetBtn,
+    onRun,
+    getTemplate,
+  } = config;
+
+  if (!textarea) return { update: () => {} };
+
+  let currentFontSize = 14;
+
+  function updateBackdropAndLines() {
+    const text = textarea.value;
+
+    // 行番号更新
+    if (lineNumbers) {
+      const lineCount = (text.match(/\n/g) || []).length + 1;
+      let html = "";
+      for (let i = 1; i <= lineCount; i++) {
+        html += `<div class="editor-line">${i}</div>`;
+      }
+      lineNumbers.innerHTML = html;
+      lineNumbers.scrollTop = textarea.scrollTop;
+    }
+
+    // Prism.js シンタックスハイライト & インデントガイド更新
+    if (backdrop) {
+      let highlighted = "";
+      try {
+        if (window.Prism && window.Prism.languages.python) {
+          highlighted = window.Prism.highlight(text, window.Prism.languages.python, "python");
+        } else {
+          highlighted = escapeHtml(text);
+        }
+      } catch (err) {
+        highlighted = escapeHtml(text);
+      }
+
+      // インデントガイドの挿入
+      const highlightedLines = highlighted.split("\n");
+      const processedLines = highlightedLines.map((line) => {
+        const match = line.match(/^( +)/);
+        if (match) {
+          const spacesCount = match[1].length;
+          const indentCount = Math.floor(spacesCount / 4);
+          const remainingSpaces = spacesCount % 4;
+          let indentHtml = "";
+          for (let i = 0; i < indentCount; i++) {
+            indentHtml += '<span class="indent-guide">    </span>';
+          }
+          indentHtml += " ".repeat(remainingSpaces);
+          return indentHtml + line.slice(spacesCount);
+        }
+        return line;
+      });
+      highlighted = processedLines.join("\n");
+      if (text.endsWith("\n")) highlighted += "<br/>";
+
+      backdrop.innerHTML = `<code class="language-python" style="display: block; padding: 0; text-shadow: none;">${highlighted}</code>`;
+      backdrop.scrollTop = textarea.scrollTop;
+      backdrop.scrollLeft = textarea.scrollLeft;
+    }
+
+    // ステータス（カーソル位置・文字数）
+    updateCursorStatus();
+  }
+
+  function updateCursorStatus() {
+    const text = textarea.value;
+    const pos = textarea.selectionStart || 0;
+    const lines = text.substring(0, pos).split("\n");
+    const lineNum = lines.length;
+    const colNum = lines[lines.length - 1].length + 1;
+
+    if (cursorPos) cursorPos.textContent = `Ln ${lineNum}, Col ${colNum}`;
+    if (charCount) charCount.textContent = `${text.length} 文字`;
+  }
+
+  // スクロール同期
+  textarea.addEventListener("scroll", () => {
+    if (backdrop) {
+      backdrop.scrollTop = textarea.scrollTop;
+      backdrop.scrollLeft = textarea.scrollLeft;
+    }
+    if (lineNumbers) {
+      lineNumbers.scrollTop = textarea.scrollTop;
+    }
+  });
+
+  // 入力イベント
+  textarea.addEventListener("input", updateBackdropAndLines);
+  textarea.addEventListener("click", updateCursorStatus);
+  textarea.addEventListener("keyup", updateCursorStatus);
+
+  // スマートキーボード制御 (Tab, Shift+Tab, Enter, Backspace, Ctrl+Enter, 括弧補完)
+  textarea.addEventListener("keydown", function (e) {
+    const start = this.selectionStart;
+    const end = this.selectionEnd;
+    const value = this.value;
+
+    // 1. Ctrl + Enter / Cmd + Enter で実行
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      if (typeof onRun === "function") onRun();
+      return;
+    }
+
+    // 2. Tab & Shift+Tab (4スペースインデント)
+    if (e.key === "Tab") {
+      e.preventDefault();
+      if (start !== end) {
+        const startPos = value.lastIndexOf("\n", start - 1) + 1;
+        let endPos = value.indexOf("\n", end);
+        if (endPos === -1) endPos = value.length;
+        const selectedBlock = value.substring(startPos, endPos);
+        const lines = selectedBlock.split("\n");
+
+        if (e.shiftKey) {
+          const newLines = lines.map((l) => (l.startsWith("    ") ? l.substring(4) : l.replace(/^ {1,3}/, "")));
+          const replaced = newLines.join("\n");
+          this.value = value.substring(0, startPos) + replaced + value.substring(endPos);
+          this.selectionStart = startPos;
+          this.selectionEnd = startPos + replaced.length;
+        } else {
+          const newLines = lines.map((l) => "    " + l);
+          const replaced = newLines.join("\n");
+          this.value = value.substring(0, startPos) + replaced + value.substring(endPos);
+          this.selectionStart = startPos;
+          this.selectionEnd = startPos + replaced.length;
+        }
+      } else {
+        if (e.shiftKey) {
+          const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+          const line = value.substring(lineStart, start);
+          if (line.startsWith("    ")) {
+            this.value = value.substring(0, lineStart) + line.substring(4) + value.substring(start);
+            this.selectionStart = this.selectionEnd = Math.max(lineStart, start - 4);
+          }
+        } else {
+          this.value = value.substring(0, start) + "    " + value.substring(end);
+          this.selectionStart = this.selectionEnd = start + 4;
+        }
+      }
+      updateBackdropAndLines();
+      updateCursorStatus();
+      return;
+    }
+
+    // 3. Enter によるスマートインデント（「:」の後の自動字下げ＆インデント継承）
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const beforeCursor = value.substring(0, start);
+      const lastNewline = beforeCursor.lastIndexOf("\n");
+      const currentLine = beforeCursor.substring(lastNewline + 1);
+
+      const indentMatch = currentLine.match(/^([ \t]+)/);
+      let indent = indentMatch ? indentMatch[1] : "";
+
+      // コメント部分を除去した行末がコロン(:)で終わっている場合はさらに4スペース追加
+      const lineWithoutComment = currentLine.replace(/#.*$/, "").trim();
+      if (lineWithoutComment.endsWith(":")) {
+        indent += "    ";
+      }
+
+      this.value = value.substring(0, start) + "\n" + indent + value.substring(end);
+      this.selectionStart = this.selectionEnd = start + 1 + indent.length;
+      updateBackdropAndLines();
+      updateCursorStatus();
+      return;
+    }
+
+    // 4. Backspace (4スペースインデントの一括削除)
+    if (e.key === "Backspace" && start === end) {
+      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+      const lineBeforeCursor = value.substring(lineStart, start);
+      if (/^ +$/.test(lineBeforeCursor) && lineBeforeCursor.length > 0 && lineBeforeCursor.length % 4 === 0) {
+        e.preventDefault();
+        this.value = value.substring(0, start - 4) + value.substring(start);
+        this.selectionStart = this.selectionEnd = start - 4;
+        updateBackdropAndLines();
+        updateCursorStatus();
+        return;
+      }
+    }
+
+    // 5. 自動括弧・クォート補完
+    const pairs = { "(": ")", "[": "]", "{": "}", '"': '"', "'": "'" };
+    if (pairs[e.key] && start === end) {
+      e.preventDefault();
+      const closeChar = pairs[e.key];
+      this.value = value.substring(0, start) + e.key + closeChar + value.substring(end);
+      this.selectionStart = this.selectionEnd = start + 1;
+      updateBackdropAndLines();
+      updateCursorStatus();
+      return;
+    }
+  });
+
+  // フォントサイズ変更ボタン
+  if (fontSizeDecBtn) {
+    fontSizeDecBtn.onclick = () => {
+      currentFontSize = Math.max(11, currentFontSize - 1);
+      textarea.style.fontSize = `${currentFontSize}px`;
+      if (backdrop) backdrop.style.fontSize = `${currentFontSize}px`;
+      if (lineNumbers) lineNumbers.style.fontSize = `${currentFontSize}px`;
+      updateBackdropAndLines();
+    };
+  }
+
+  if (fontSizeIncBtn) {
+    fontSizeIncBtn.onclick = () => {
+      currentFontSize = Math.min(24, currentFontSize + 1);
+      textarea.style.fontSize = `${currentFontSize}px`;
+      if (backdrop) backdrop.style.fontSize = `${currentFontSize}px`;
+      if (lineNumbers) lineNumbers.style.fontSize = `${currentFontSize}px`;
+      updateBackdropAndLines();
+    };
+  }
+
+  // コピーボタン
+  if (copyBtn) {
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        notify("コードをクリップボードにコピーしました", "info");
+      } catch (err) {
+        notify("コピーに失敗しました", "error");
+      }
+    };
+  }
+
+  // リセットボタン
+  if (resetBtn) {
+    resetBtn.onclick = () => {
+      const tmpl = typeof getTemplate === "function" ? getTemplate() : "";
+      if (tmpl !== undefined) {
+        textarea.value = tmpl;
+        updateBackdropAndLines();
+        notify("初期コードにリセットしました", "info");
+      }
+    };
+  }
+
+  return {
+    update: updateBackdropAndLines,
+    setValue: (val) => {
+      textarea.value = val;
+      updateBackdropAndLines();
+      updateCursorStatus();
+    },
+  };
+}
+
+// ==========================================
+// 実力診断アセスメント 標準マスターデータ (8問)
+// (完全な模範解答コード・解説・段階的ヒント1/2を完備)
+// ==========================================
+const defaultAssessmentProblems = [
+  {
+    id: 1,
+    level: 1,
+    level_display: "Lv.1",
+    category: "basic",
+    category_display: "基本文法・型",
+    title: "1. 数値の四則演算と丸め処理",
+    description: "<p>2つの数値 <code>a</code>, <code>b</code> を受け取り、その平均値（(a + b) / 2）を計算して小数点第1位まで四捨五入した数値（<code>round(avg, 1)</code>）を返す関数 <code>calc_average(a, b)</code> を実装してください。</p>",
+    template: "def calc_average(a, b):\n    # ここにコードを書いてください\n    pass\n",
+    test_cases: [
+      { input: "calc_average(10, 20)", expected: 15.0 },
+      { input: "calc_average(5, 6)", expected: 5.5 },
+      { input: "calc_average(1, 2)", expected: 1.5 },
+    ],
+    hint_1: "平均値は <code>(a + b) / 2</code> で求められます。",
+    hint_2: "Pythonの組み込み関数 <code>round(value, 1)</code> を使うと小数点第1位に丸められます。",
+    model_answer: "def calc_average(a, b):\n    avg = (a + b) / 2\n    return round(avg, 1)\n",
+    model_answer_explanation: "(a + b) で合計を求め、2で割って平均値を算出した後、round(..., 1) で小数点以下1桁に整形して返します。",
+    weight: 10,
+  },
+  {
+    id: 2,
+    level: 1,
+    level_display: "Lv.1",
+    category: "basic",
+    category_display: "基本文法・型",
+    title: "2. 文字列の連結とフォーマット",
+    description: "<p>ユーザー名 <code>name</code> (文字列) と 年齢 <code>age</code> (整数) を受け取り、<code>\"私の名前は{name}で、{age}歳です。\"</code> という挨拶文字列を返す関数 <code>format_greeting(name, age)</code> を実装してください。</p>",
+    template: "def format_greeting(name, age):\n    # ここにコードを書いてください\n    pass\n",
+    test_cases: [
+      { input: 'format_greeting("田中", 25)', expected: "私の名前は田中で、25歳です。" },
+      { input: 'format_greeting("Alice", 18)', expected: "私の名前はAliceで、18歳です。" },
+    ],
+    hint_1: "Python 3.6以降で使える f-string (<code>f\"...\"</code>) を使うと綺麗に書けます。",
+    hint_2: "<code>return f\"私の名前は{name}で、{age}歳です。\"</code> のように変数を埋め込みます。",
+    model_answer: "def format_greeting(name, age):\n    return f\"私の名前は{name}で、{age}歳です。\"\n",
+    model_answer_explanation: "f-string（フォーマット済み文字列リテラル）を用いることで、変数を波括弧 {} の中に直接記述して読みやすく連結できます。",
+    weight: 10,
+  },
+  {
+    id: 3,
+    level: 2,
+    level_display: "Lv.2",
+    category: "control",
+    category_display: "制御構文・ループ",
+    title: "3. 条件分岐によるFizzBuzz判定",
+    description: "<p>整数 <code>n</code> を受け取り、15の倍数なら <code>\"FizzBuzz\"</code>、3の倍数なら <code>\"Fizz\"</code>、5の倍数なら <code>\"Buzz\"</code>、それ以外なら数値を文字列にしたもの（<code>str(n)</code>）を返す関数 <code>fizzbuzz_single(n)</code> を実装してください。</p>",
+    template: "def fizzbuzz_single(n):\n    # ここにコードを書いてください\n    pass\n",
+    test_cases: [
+      { input: "fizzbuzz_single(15)", expected: "FizzBuzz" },
+      { input: "fizzbuzz_single(9)", expected: "Fizz" },
+      { input: "fizzbuzz_single(10)", expected: "Buzz" },
+      { input: "fizzbuzz_single(7)", expected: "7" },
+    ],
+    hint_1: "15の倍数（3と5の両方の倍数）の判定を一番最初に行うのがポイントです。",
+    hint_2: "<code>n % 15 == 0</code> -> <code>n % 3 == 0</code> -> <code>n % 5 == 0</code> -> <code>str(n)</code> の順で if-elif-else を組み立てます。",
+    model_answer: "def fizzbuzz_single(n):\n    if n % 15 == 0:\n        return \"FizzBuzz\"\n    elif n % 3 == 0:\n        return \"Fizz\"\n    elif n % 5 == 0:\n        return \"Buzz\"\n    else:\n        return str(n)\n",
+    model_answer_explanation: "条件分岐は上から順に評価されるため、最も狭い条件（15の倍数）から先に判定します。",
+    weight: 10,
+  },
+  {
+    id: 4,
+    level: 2,
+    level_display: "Lv.2",
+    category: "control",
+    category_display: "制御構文・ループ",
+    title: "4. ループと偶数の合計算出",
+    description: "<p>整数のリスト <code>numbers</code> を受け取り、その中の<b>偶数のみ</b>を合計した数値を返す関数 <code>sum_even_numbers(numbers)</code> を実装してください。偶数がない場合やリストが空の場合は <code>0</code> を返してください。</p>",
+    template: "def sum_even_numbers(numbers):\n    # ここにコードを書いてください\n    pass\n",
+    test_cases: [
+      { input: "sum_even_numbers([1, 2, 3, 4, 5, 6])", expected: 12 },
+      { input: "sum_even_numbers([1, 3, 5])", expected: 0 },
+      { input: "sum_even_numbers([])", expected: 0 },
+      { input: "sum_even_numbers([10, -2, 4])", expected: 12 },
+    ],
+    hint_1: "forループでリストを1つずつ取り出し、<code>num % 2 == 0</code> で判定します。",
+    hint_2: "リスト内包表記 <code>sum([x for x in numbers if x % 2 == 0])</code> でも1行で書けます。",
+    model_answer: "def sum_even_numbers(numbers):\n    return sum(x for x in numbers if x % 2 == 0)\n",
+    model_answer_explanation: "ジェネレータ式またはforループで偶数条件 (x % 2 == 0) のみを抽出し、組み込み関数 sum() で合計を求めます。",
+    weight: 10,
+  },
+  {
+    id: 5,
+    level: 3,
+    level_display: "Lv.3",
+    category: "data_structure",
+    category_display: "データ構造",
+    title: "5. 辞書による単語カウント集計",
+    description: "<p>単語のリスト <code>words</code> を受け取り、各単語の出現回数を辞書形式（例: <code>{\"apple\": 2, \"banana\": 1}</code>）で集計して返す関数 <code>count_words(words)</code> を実装してください。</p>",
+    template: "def count_words(words):\n    # ここにコードを書いてください\n    pass\n",
+    test_cases: [
+      { input: 'count_words(["apple", "banana", "apple", "orange", "banana", "apple"])', expected: '{"apple": 3, "banana": 2, "orange": 1}' },
+      { input: 'count_words(["python"])', expected: '{"python": 1}' },
+      { input: "count_words([])", expected: "{}" },
+    ],
+    hint_1: "空の辞書 <code>counts = {}</code> を用意し、単語が辞書にあるか確認しながらカウントします。",
+    hint_2: "<code>collections.Counter(words)</code> を使って <code>dict(Counter(words))</code> としても作成できます。",
+    model_answer: "from collections import Counter\n\ndef count_words(words):\n    return dict(Counter(words))\n",
+    model_answer_explanation: "collections.Counter を利用すると、リスト内の要素の出現頻度を高速かつ安全にカウントして辞書化できます。",
+    weight: 15,
+  },
+  {
+    id: 6,
+    level: 3,
+    level_display: "Lv.3",
+    category: "library",
+    category_display: "標準ライブラリ",
+    title: "6. datetime による経過日数計算",
+    description: "<p><code>datetime</code> モジュールを用いて、2つの日付文字列 <code>d1</code>, <code>d2</code> (形式: \"YYYY-MM-DD\") を受け取り、2つの日付の間の日数差（絶対値の整数）を返す関数 <code>calc_days_between(d1, d2)</code> を実装してください。</p>",
+    template: "from datetime import datetime\n\ndef calc_days_between(d1, d2):\n    # ここにコードを書いてください\n    pass\n",
+    test_cases: [
+      { input: 'calc_days_between("2026-01-01", "2026-01-10")', expected: 9 },
+      { input: 'calc_days_between("2026-05-15", "2026-05-01")', expected: 14 },
+      { input: 'calc_days_between("2026-12-31", "2026-12-31")', expected: 0 },
+    ],
+    hint_1: "<code>datetime.strptime(date_str, \"%Y-%m-%d\")</code> で文字列を日付オブジェクトに変換します。",
+    hint_2: "2つの日付の差分（<code>date2 - date1</code>）から <code>.days</code> を取得し、<code>abs()</code> で絶対値にします。",
+    model_answer: "from datetime import datetime\n\ndef calc_days_between(d1, d2):\n    date1 = datetime.strptime(d1, \"%Y-%m-%d\")\n    date2 = datetime.strptime(d2, \"%Y-%m-%d\")\n    return abs((date2 - date1).days)\n",
+    model_answer_explanation: "datetime.strptime で文字列を日付型にパースし、差分の timedelta.days を計算して abs() で絶対値の日数を返します。",
+    weight: 15,
+  },
+  {
+    id: 7,
+    level: 3,
+    level_display: "Lv.3",
+    category: "plot",
+    category_display: "データ可視化",
+    title: "7. Matplotlib による月別売上折れ線グラフ描画",
+    description: "<p><code>matplotlib.pyplot</code> を用いて、月別売上データ <code>months</code> と <code>sales</code> を折れ線グラフとして描画し、タイトル <code>\"月別売上推移\"</code> を付与して <code>plt.show()</code> で出力するコードを作成してください。</p>",
+    template: "import matplotlib.pyplot as plt\n\nmonths = [\"4月\", \"5月\", \"6月\", \"7月\"]\nsales = [120, 180, 240, 200]\n\n# ここにグラフ描画コードを書いてください\n",
+    problem_type: "plot",
+    test_cases: [
+      { check: "type", expected: "line", input_label: "グラフタイプ（折れ線グラフ）" },
+      { check: "title", expected: "月別売上推移", input_label: "タイトル検証" },
+      { check: "labels", expected: ["4月", "5月", "6月", "7月"], input_label: "X軸ラベル検証" },
+      { check: "first_dataset_data", expected: [120, 180, 240, 200], input_label: "売上データ検証" },
+    ],
+    hint_1: "<code>plt.plot(months, sales, marker='o')</code> で折れ線グラフを描画します。",
+    hint_2: "<code>plt.title(\"月別売上推移\")</code> でタイトルを設定し、<code>plt.show()</code> で描画を確定させます。",
+    model_answer: "import matplotlib.pyplot as plt\n\nmonths = [\"4月\", \"5月\", \"6月\", \"7月\"]\nsales = [120, 180, 240, 200]\n\nplt.plot(months, sales, marker=\"o\")\nplt.title(\"月別売上推移\")\nplt.show()\n",
+    model_answer_explanation: "plt.plot で月別データを折れ線グラフ化し、plt.title でグラフタイトルを付与して plt.show() で描画します。",
+    weight: 20,
+  },
+  {
+    id: 8,
+    level: 4,
+    level_display: "Lv.4",
+    category: "algorithm",
+    category_display: "アルゴリズム",
+    title: "8. 二分探索 (Binary Search) による高速値検索",
+    description: "<p>昇順にソートされた整数のリスト <code>arr</code> と 検索したい値 <code>target</code> を受け取り、<b>二分探索（O(log N)）</b>を用いて <code>target</code> が存在するインデックス番号（0始まり）を返す関数 <code>binary_search(arr, target)</code> を実装してください。値が存在しない場合は <code>-1</code> を返してください。</p>",
+    template: "def binary_search(arr, target):\n    # ここにコードを書いてください\n    pass\n",
+    test_cases: [
+      { input: "binary_search([1, 3, 5, 7, 9, 11, 13], 7)", expected: 3 },
+      { input: "binary_search([1, 3, 5, 7, 9, 11, 13], 1)", expected: 0 },
+      { input: "binary_search([1, 3, 5, 7, 9, 11, 13], 13)", expected: 6 },
+      { input: "binary_search([1, 3, 5, 7, 9, 11, 13], 4)", expected: -1 },
+    ],
+    hint_1: "探索範囲の両端 <code>left = 0, right = len(arr) - 1</code> を持ち、中央インデックス <code>mid = (left + right) // 2</code> を比較します。",
+    hint_2: "<code>target</code> が中央値より大きければ <code>left = mid + 1</code>、小さければ <code>right = mid - 1</code> と更新し、見つからなければ <code>-1</code> を返します。",
+    model_answer: "def binary_search(arr, target):\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n",
+    model_answer_explanation: "ソート済み配列に対して探索範囲を半分ずつ絞り込むことで、O(log N) の計算量で目的の値を高速検索します。",
+    weight: 20,
+  },
+];
+
+// ==========================================
+// 1. 実力診断アセスメント (Assessment Engine)
+// ==========================================
+let assessmentSessionId = null;
+let assessmentProblems = [];
+let currentAssessmentIndex = 0;
+let assessmentTimerInterval = null;
+let assessmentQuestionStartTime = null;
+let assessmentAttemptCount = 0;
+
+const assessmentIntroCard = document.getElementById("assessment-intro-card");
+const assessmentRunnerCard = document.getElementById("assessment-runner-card");
+const assessmentStartBtn = document.getElementById("assessment-start-btn");
+const assessmentUserNameInput = document.getElementById("assessment-user-name");
+
+const assessmentProgressBadge = document.getElementById("assessment-progress-badge");
+const assessmentCategoryBadge = document.getElementById("assessment-category-badge");
+const assessmentLevelBadge = document.getElementById("assessment-level-badge");
+const assessmentTimerDisplay = document.getElementById("assessment-timer-display");
+const assessmentProgressBar = document.getElementById("assessment-progress-bar");
+
+const assessmentProblemTitle = document.getElementById("assessment-problem-title");
+const assessmentProblemDesc = document.getElementById("assessment-problem-desc");
+const assessmentEditor = document.getElementById("assessment-editor");
+const assessmentEditorBackdrop = document.getElementById("assessment-editor-backdrop");
+const assessmentLineNumbers = document.getElementById("assessment-line-numbers");
+const assessmentCursorPos = document.getElementById("assessment-cursor-pos");
+const assessmentCharCount = document.getElementById("assessment-char-count");
+const assessmentFontSizeDecBtn = document.getElementById("assessment-font-size-dec-btn");
+const assessmentFontSizeIncBtn = document.getElementById("assessment-font-size-inc-btn");
+const assessmentCopyCodeBtn = document.getElementById("assessment-copy-code-btn");
+const assessmentResetCodeBtn = document.getElementById("assessment-reset-code-btn");
+
+const assessmentHintBtn = document.getElementById("assessment-hint-btn");
+const assessmentHintBadge = document.getElementById("assessment-hint-badge");
+const assessmentAnswerBtn = document.getElementById("assessment-answer-btn");
+const assessmentRunBtn = document.getElementById("assessment-run-btn");
+
+const assessmentHintPanel = document.getElementById("assessment-hint-panel");
+const assessmentAnswerPanel = document.getElementById("assessment-answer-panel");
+const assessmentModelAnswerCode = document.getElementById("assessment-model-answer-code");
+const assessmentModelAnswerExp = document.getElementById("assessment-model-answer-exp");
+const assessmentTestResults = document.getElementById("assessment-test-results");
+
+// 実力診断エディタのリッチ機能バインド
+const assessmentRichEditor = bindRichCodeEditor({
+  textarea: assessmentEditor,
+  backdrop: assessmentEditorBackdrop,
+  lineNumbers: assessmentLineNumbers,
+  cursorPos: assessmentCursorPos,
+  charCount: assessmentCharCount,
+  fontSizeDecBtn: assessmentFontSizeDecBtn,
+  fontSizeIncBtn: assessmentFontSizeIncBtn,
+  copyBtn: assessmentCopyCodeBtn,
+  resetBtn: assessmentResetCodeBtn,
+  onRun: () => {
+    if (assessmentRunBtn) assessmentRunBtn.click();
+  },
+  getTemplate: () => {
+    const p = assessmentProblems[currentAssessmentIndex];
+    return p ? p.template : "";
+  },
+});
+
+// 診断開始ボタン
+if (assessmentStartBtn) {
+  assessmentStartBtn.onclick = async () => {
+    const customName = assessmentUserNameInput ? assessmentUserNameInput.value.trim() : "";
+    if (customName) currentUserId = customName;
+
+    showAiLoader("診断セッションを作成中...", "実力調査問題セットを読み込んでいます。");
+
+    // API呼び出し
+    const startData = await apiRequest("/assessment/start/", "POST", { user_identifier: currentUserId });
+    hideAiLoader();
+
+    if (startData && startData.problems && startData.problems.length > 0) {
+      assessmentSessionId = startData.session_id;
+      // APIから取得した問題にローカルの模範解答・ヒントデータをマージ（安全策）
+      assessmentProblems = startData.problems.map((p, idx) => {
+        const localP = defaultAssessmentProblems[idx] || {};
+        return {
+          ...localP,
+          ...p,
+          model_answer: localP.model_answer || p.model_answer,
+          model_answer_explanation: localP.model_answer_explanation || p.model_answer_explanation,
+          hint_1: localP.hint_1 || p.hint_1,
+          hint_2: localP.hint_2 || p.hint_2,
+        };
+      });
+    } else {
+      // API接続失敗時のローカルフォールバック（完全な8問）
+      assessmentSessionId = `local_${Date.now()}`;
+      assessmentProblems = JSON.parse(JSON.stringify(defaultAssessmentProblems));
+    }
+
+    currentAssessmentIndex = 0;
+    assessmentLogs = {};
+    assessmentIntroCard.classList.add("hidden");
+    assessmentRunnerCard.classList.remove("hidden");
+    renderAssessmentProblem(0);
+  };
+}
+
+function renderAssessmentProblem(index) {
+  if (index >= assessmentProblems.length) {
+    finishAssessment();
+    return;
+  }
+
+  const p = assessmentProblems[index];
+  currentAssessmentIndex = index;
+  assessmentAttemptCount = 0;
+  assessmentQuestionStartTime = Date.now();
+
+  // ヘッダー情報更新
+  if (assessmentProgressBadge) assessmentProgressBadge.textContent = `第 ${index + 1} / ${assessmentProblems.length} 問`;
+  if (assessmentCategoryBadge) assessmentCategoryBadge.textContent = p.category_display || p.category || "総合";
+  if (assessmentLevelBadge) assessmentLevelBadge.textContent = p.level_display || `Lv.${p.level || 1}`;
+  if (assessmentProgressBar) {
+    assessmentProgressBar.style.width = `${((index + 1) / assessmentProblems.length) * 100}%`;
+  }
+
+  // タイマー開始
+  if (assessmentTimerInterval) clearInterval(assessmentTimerInterval);
+  assessmentTimerInterval = setInterval(() => {
+    const elapsedSec = Math.floor((Date.now() - assessmentQuestionStartTime) / 1000);
+    const m = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+    const s = String(elapsedSec % 60).padStart(2, "0");
+    if (assessmentTimerDisplay) assessmentTimerDisplay.textContent = `経過: ${m}:${s}`;
+  }, 1000);
+
+  // 問題文 & エディタ
+  if (assessmentProblemTitle) assessmentProblemTitle.textContent = p.title;
+  if (assessmentProblemDesc) assessmentProblemDesc.innerHTML = p.description;
+  assessmentRichEditor.setValue(p.template || "");
+
+  // ヒント & 模範解答パネルリセット
+  p.currentHintLevel = 0;
+  p.modelAnswerViewed = false;
+  if (assessmentHintBadge) assessmentHintBadge.textContent = "1/2";
+  if (assessmentHintPanel) {
+    assessmentHintPanel.classList.add("hidden");
+    assessmentHintPanel.innerHTML = "";
+  }
+  if (assessmentAnswerPanel) assessmentAnswerPanel.classList.add("hidden");
+  if (assessmentTestResults) {
+    assessmentTestResults.classList.add("hidden");
+    assessmentTestResults.innerHTML = "";
+  }
+}
+
+// ヒント要求ボタン
+if (assessmentHintBtn) {
+  assessmentHintBtn.onclick = async () => {
+    const p = assessmentProblems[currentAssessmentIndex];
+    if (!p) return;
+
+    p.currentHintLevel = (p.currentHintLevel || 0) + 1;
+    const nextLevel = Math.min(p.currentHintLevel, 2);
+
+    // APIにヒント要求＆ログ記録
+    const hintRes = await apiRequest("/assessment/hint/", "POST", {
+      session_id: assessmentSessionId,
+      problem_id: p.id,
+      hint_level: nextLevel,
+    });
+
+    const hintText = hintRes && hintRes.hint_text
+      ? hintRes.hint_text
+      : nextLevel === 1
+        ? p.hint_1 || "入出力の型を確認してください。"
+        : p.hint_2 || "適切な組み込み関数を活用しましょう。";
+
+    assessmentHintPanel.innerHTML = `
+      <div class="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300 mb-1">
+        <span>ヒント ${nextLevel} (段階的アシスト)</span>
+      </div>
+      <div>${hintText}</div>
+    `;
+    assessmentHintPanel.classList.remove("hidden");
+    if (assessmentHintBadge) assessmentHintBadge.textContent = nextLevel >= 2 ? "2/2 (最大)" : "2/2";
+    notify(`ヒント ${nextLevel} を表示しました (自力スコアに反映されます)`, "info");
+  };
+}
+
+// 模範解答閲覧ボタン
+if (assessmentAnswerBtn) {
+  assessmentAnswerBtn.onclick = async () => {
+    const p = assessmentProblems[currentAssessmentIndex];
+    if (!p) return;
+
+    if (!confirm("模範解答を確認しますか？\n（※この問題の自力解決スコアは参考扱いとなります）")) return;
+
+    p.modelAnswerViewed = true;
+
+    // APIに模範解答閲覧ログ送信
+    const ansRes = await apiRequest("/assessment/answer/", "POST", {
+      session_id: assessmentSessionId,
+      problem_id: p.id,
+    });
+
+    const ansCode = (ansRes && ansRes.model_answer) || p.model_answer || p.template;
+    const ansExp = (ansRes && ansRes.explanation) || p.model_answer_explanation || "仕様に沿った標準的な実装です。";
+
+    if (assessmentModelAnswerCode) assessmentModelAnswerCode.textContent = ansCode;
+    if (assessmentModelAnswerExp) assessmentModelAnswerExp.textContent = ansExp;
+    assessmentAnswerPanel.classList.remove("hidden");
+    notify("模範解答を表示しました。理解した上でコードを書いてみましょう。", "warning");
+  };
+}
+
+let assessmentLogs = {};
+
+// 実行・採点ボタン
+if (assessmentRunBtn) {
+  assessmentRunBtn.onclick = async () => {
+    const p = assessmentProblems[currentAssessmentIndex];
+    if (!p || !assessmentEditor) return;
+
+    const userCode = assessmentEditor.value;
+    assessmentAttemptCount++;
+    const elapsedSec = Math.floor((Date.now() - assessmentQuestionStartTime) / 1000);
+
+    showAiLoader("テストケース実行中...", "Brythonランナーで自動検証しています。");
+
+    let runResult = null;
+    try {
+      if (typeof window.run_python_tests === "function") {
+        const payload = JSON.stringify({
+          type: p.problem_type || "function",
+          setup_code: p.setup_code || "",
+          test_cases: p.test_cases || [],
+        });
+        const rawJson = window.run_python_tests(userCode, payload);
+        runResult = JSON.parse(rawJson);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    hideAiLoader();
+
+    if (!runResult || runResult.error) {
+      assessmentTestResults.innerHTML = `
+        <div class="p-3 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 rounded-xl text-xs border border-rose-200 dark:border-rose-900/40">
+          <b>実行時エラー:</b> ${escapeHtml(runResult ? runResult.error : "Pythonコードの実行に失敗しました。")}
+        </div>
+      `;
+      assessmentTestResults.classList.remove("hidden");
+      notify("エラーが発生しました。修正して再試行してください。", "error");
+      return;
+    }
+
+    const tests = runResult.tests || [];
+    const allPassed = tests.length > 0 && tests.every((t) => t.pass);
+
+    if (allPassed) {
+      notify(`第 ${currentAssessmentIndex + 1} 問クリア！`, "success");
+
+      // ローカルログに記録
+      assessmentLogs[p.id] = {
+        problem_id: p.id,
+        is_passed: true,
+        user_code: userCode,
+        duration_seconds: elapsedSec,
+        attempt_count: assessmentAttemptCount,
+        currentHintLevel: p.currentHintLevel || 0,
+        modelAnswerViewed: p.modelAnswerViewed || false,
+      };
+
+      // APIに解答送信＆スコア記録
+      await apiRequest("/assessment/submit/", "POST", {
+        session_id: assessmentSessionId,
+        problem_id: p.id,
+        is_passed: true,
+        user_code: userCode,
+        duration_seconds: elapsedSec,
+        attempt_count: assessmentAttemptCount,
+      });
+
+      // 次の問題へ
+      setTimeout(() => {
+        renderAssessmentProblem(currentAssessmentIndex + 1);
+      }, 800);
+    } else {
+      const failCount = tests.filter((t) => !t.pass).length;
+      assessmentTestResults.innerHTML = `
+        <div class="p-3 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 rounded-xl text-xs border border-rose-200 dark:border-rose-900/40 space-y-1.5">
+          <div class="font-bold">不合格 (${tests.length - failCount} / ${tests.length} ケース通過)</div>
+          <div class="text-[11px]">期待値と戻り値が一致していません。ヒントを活用してもう一度確認してみましょう。</div>
+        </div>
+      `;
+      assessmentTestResults.classList.remove("hidden");
+      notify("不合格のテストケースがあります。コードを修正してください。", "warning");
+    }
+  };
+}
+
+// ローカル診断メトリクス計算エンジン
+function calculateLocalAssessmentMetrics(problems, logs) {
+  let totalEarnedScore = 0;
+  let totalMaxWeight = 0;
+  let passedCount = 0;
+  let fullyIndependentCount = 0;
+
+  const categoryMap = {
+    basic: { name: "基本文法・型", max: 0, earned: 0 },
+    control: { name: "制御構文・ループ", max: 0, earned: 0 },
+    data_structure: { name: "データ構造", max: 0, earned: 0 },
+    library: { name: "標準ライブラリ", max: 0, earned: 0 },
+    plot: { name: "データ可視化", max: 0, earned: 0 },
+    algorithm: { name: "アルゴリズム", max: 0, earned: 0 },
+  };
+
+  problems.forEach((p) => {
+    const w = p.weight || 10;
+    const cat = categoryMap[p.category] ? p.category : "basic";
+    categoryMap[cat].max += w;
+    totalMaxWeight += w;
+
+    const log = logs[p.id] || { is_passed: false, currentHintLevel: 0, modelAnswerViewed: false };
+    if (log.is_passed) {
+      passedCount++;
+      let scoreMultiplier = 1.0;
+      if (log.modelAnswerViewed) {
+        // 模範解答を見た場合は自力正解とみなさず、参考点(20%)のみ
+        scoreMultiplier = 0.2;
+      } else if (log.currentHintLevel === 2) {
+        scoreMultiplier = 0.5;
+      } else if (log.currentHintLevel === 1) {
+        scoreMultiplier = 0.8;
+      } else {
+        fullyIndependentCount++;
+      }
+
+      const earned = w * scoreMultiplier;
+      totalEarnedScore += earned;
+      categoryMap[cat].earned += earned;
+    }
+  });
+
+  const totalScorePct = totalMaxWeight > 0 ? Math.round((totalEarnedScore / totalMaxWeight) * 100) : 0;
+  const selfReliancePct = passedCount > 0 ? Math.round((fullyIndependentCount / passedCount) * 100) : 0;
+
+  const categoryScores = {};
+  let minCatScore = 100;
+  let minCatKey = "basic";
+
+  Object.entries(categoryMap).forEach(([k, v]) => {
+    const pct = v.max > 0 ? Math.round((v.earned / v.max) * 100) : 0;
+    categoryScores[k] = { name: v.name, score_pct: pct };
+    if (pct < minCatScore) {
+      minCatScore = pct;
+      minCatKey = k;
+    }
+  });
+
+  // 推奨章の決定
+  let recChapter = 1;
+  const catChapterMap = {
+    basic: 1,
+    control: 2,
+    data_structure: 4,
+    library: 5,
+    plot: 6,
+    algorithm: 8,
+  };
+
+  if (selfReliancePct < 40 || totalScorePct < 50) {
+    recChapter = 1; // 基礎から復習
+  } else if (categoryScores[minCatKey]) {
+    recChapter = catChapterMap[minCatKey] || 1;
+  }
+
+  // AI講評
+  let feedback = "";
+  if (selfReliancePct === 0 && passedCount > 0) {
+    feedback = `すべての問題で模範解答を閲覧しながらクリアしました。解答の解法パターンを把握できた良い機会です。自力でコードを書ける力を養うため、第${recChapter}章から教科書学習でじっくり復習をスタートしましょう。`;
+  } else if (selfReliancePct < 50) {
+    feedback = `総合スコアは ${totalScorePct}点、自力達成度は ${selfReliancePct}% です。模範解答やヒントを参考にした単元（${categoryScores[minCatKey]?.name || "基礎"}）を補強するため、第${recChapter}章から教科書学習を始めるのが最適です。`;
+  } else if (selfReliancePct < 80) {
+    feedback = `良好な学習ペースです。総合スコア ${totalScorePct}点、自力達成度 ${selfReliancePct}% を記録しました。弱点分野の第${recChapter}章を教科書で確認しつつ、さらなるスキルアップを目指しましょう。`;
+  } else {
+    feedback = `素晴らしい自力解決力です！総合スコア ${totalScorePct}点、自力達成度 ${selfReliancePct}% を達成しました。応用的な第${recChapter}章から教科書学習を進めましょう。`;
+  }
+
+  return {
+    total_score: totalScorePct,
+    self_reliance_score: selfReliancePct,
+    recommended_chapter: recChapter,
+    ai_feedback: feedback,
+    category_scores: categoryScores,
+  };
+}
+
+// 診断完了処理
+async function finishAssessment() {
+  if (assessmentTimerInterval) clearInterval(assessmentTimerInterval);
+  showAiLoader("実力診断結果を集計中...", "総合スコア、自力解決度、6分野レーダーチャートを分析しています。");
+
+  // API完了呼び出し
+  const sessionResult = await apiRequest("/assessment/complete/", "POST", {
+    session_id: assessmentSessionId,
+  });
+
+  hideAiLoader();
+
+  // スキルチャート画面へ遷移して結果を描画
+  setActiveMode("skill-chart");
+  if (sessionResult && sessionResult.total_score != null) {
+    renderSkillChart(sessionResult);
+  } else {
+    // ローカル評価エンジンで正確に算出
+    const localResult = calculateLocalAssessmentMetrics(assessmentProblems, assessmentLogs);
+    renderSkillChart(localResult);
+  }
+}
+
+// ==========================================
+// 2. スキルチャート & レーダー描画 (Skill Chart Analytics)
+// ==========================================
+let radarChartInstance = null;
+let latestSessionResult = null;
+
+const skillChartEmpty = document.getElementById("skill-chart-empty");
+const skillChartContent = document.getElementById("skill-chart-content");
+const gotoAssessmentBtn = document.getElementById("goto-assessment-btn");
+
+const chartTotalScore = document.getElementById("chart-total-score");
+const chartRankBadge = document.getElementById("chart-rank-badge");
+const chartSelfReliance = document.getElementById("chart-self-reliance");
+const chartRecommendedTitle = document.getElementById("chart-recommended-title");
+const chartRecommendedDesc = document.getElementById("chart-recommended-desc");
+const chartJumpTextbookBtn = document.getElementById("chart-jump-textbook-btn");
+
+const skillRadarCanvas = document.getElementById("skill-radar-canvas");
+const chartAiFeedback = document.getElementById("chart-ai-feedback");
+const chartCategoryBars = document.getElementById("chart-category-bars");
+
+if (gotoAssessmentBtn) {
+  gotoAssessmentBtn.onclick = () => setActiveMode("assessment");
+}
+
+function loadLatestSkillChart() {
+  if (latestSessionResult) {
+    renderSkillChart(latestSessionResult);
+  } else {
+    if (skillChartEmpty) skillChartEmpty.classList.remove("hidden");
+    if (skillChartContent) skillChartContent.classList.add("hidden");
+  }
+}
+
+function renderSkillChart(data) {
+  latestSessionResult = data;
+  if (skillChartEmpty) skillChartEmpty.classList.add("hidden");
+  if (skillChartContent) skillChartContent.classList.remove("hidden");
+
+  const score = data.total_score || 0;
+  const selfReliance = data.self_reliance_score != null ? data.self_reliance_score : 100;
+  const recChapter = data.recommended_chapter || 1;
+
+  if (chartTotalScore) chartTotalScore.textContent = score;
+  if (chartSelfReliance) chartSelfReliance.textContent = selfReliance;
+
+  // ランク判定
+  let rank = "Rank C: 初級・入門レベル";
+  let rankClass = "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300";
+  if (score >= 90) {
+    rank = "Rank S: プロフェッショナル";
+    rankClass = "bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300";
+  } else if (score >= 75) {
+    rank = "Rank A: 実践・応用レベル";
+    rankClass = "bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300";
+  } else if (score >= 60) {
+    rank = "Rank B: 基礎完成レベル";
+    rankClass = "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300";
+  }
+  if (chartRankBadge) {
+    chartRankBadge.textContent = rank;
+    chartRankBadge.className = `inline-block px-3 py-1 rounded-full text-xs font-bold ${rankClass} w-max`;
+  }
+
+  // 推奨単元
+  const chapterTitles = {
+    1: "第1章: Pythonの第一歩と基本データ型",
+    2: "第2章: 条件分岐とループ処理の極意",
+    3: "第3章: 関数設計とスコープ",
+    4: "第4章: 高度なデータ構造 (辞書・集合・内包表記)",
+    5: "第5章: 実用標準ライブラリの徹底活用",
+    6: "第6章: データ可視化とグラフ描画 (Matplotlib)",
+    7: "第7章: オブジェクト指向とクラス設計",
+    8: "第8章: 実践アルゴリズムと効率化",
+  };
+  if (chartRecommendedTitle) chartRecommendedTitle.textContent = chapterTitles[recChapter] || `第${recChapter}章`;
+  if (chartJumpTextbookBtn) {
+    chartJumpTextbookBtn.onclick = async () => {
+      setActiveMode("textbook");
+      await loadLessonByChapter(recChapter);
+    };
+  }
+
+  // AI講評
+  if (chartAiFeedback) {
+    chartAiFeedback.textContent = data.ai_feedback || "基礎を着実に身につけて、次のステップへ進みましょう。";
+  }
+
+  // カテゴリバー描画
+  if (chartCategoryBars && data.category_scores) {
+    chartCategoryBars.innerHTML = Object.entries(data.category_scores)
+      .map(
+        ([k, c]) => `
+      <div class="space-y-1">
+        <div class="flex justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+          <span>${c.name}</span>
+          <span class="font-bold text-indigo-600 dark:text-indigo-400">${c.score_pct}%</span>
+        </div>
+        <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+          <div class="bg-indigo-600 h-full rounded-full transition-all duration-500" style="width: ${c.score_pct}%"></div>
+        </div>
+      </div>
+    `
+      )
+      .join("");
+  }
+
+  // 6軸レーダーチャート描画
+  if (skillRadarCanvas && window.Chart && data.category_scores) {
+    const isDark = document.documentElement.classList.contains("dark");
+    const textColor = isDark ? "#cbd5e1" : "#475569";
+    const gridColor = isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)";
+
+    const labels = [];
+    const values = [];
+    Object.values(data.category_scores).forEach((c) => {
+      labels.push(c.name);
+      values.push(c.score_pct);
+    });
+
+    if (radarChartInstance) radarChartInstance.destroy();
+
+    radarChartInstance = new window.Chart(skillRadarCanvas.getContext("2d"), {
+      type: "radar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "習熟度スコア (%)",
+            data: values,
+            backgroundColor: "rgba(99, 102, 241, 0.25)",
+            borderColor: "#6366f1",
+            pointBackgroundColor: "#4f46e5",
+            pointBorderColor: "#fff",
+            pointHoverBackgroundColor: "#fff",
+            pointHoverBorderColor: "#4f46e5",
+            borderWidth: 2,
+            pointRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            angleLines: { color: gridColor },
+            grid: { color: gridColor },
+            pointLabels: {
+              color: textColor,
+              font: { size: 11, weight: "bold", family: "system-ui, sans-serif" },
+            },
+            ticks: {
+              display: false,
+              min: 0,
+              max: 100,
+              stepSize: 25,
+            },
+            suggestedMin: 0,
+            suggestedMax: 100,
+          },
+        },
+        plugins: {
+          legend: { display: false },
+        },
+      },
+    });
+  }
+}
+
+// ==========================================
+// 3. パーソナライズ教科書学習 (Textbook Curriculum)
+// ==========================================
+const defaultTextbookChapters = [
+  {
+    id: 1,
+    order: 1,
+    title: "第1章: Pythonの第一歩と基本データ型",
+    subtitle: "変数・数値・文字列・四則演算のマスター",
+    icon: "sparkles",
+    category: "basic",
+    target_level: 1,
+    summary: "Pythonの基本思想、変数の定義、数値型(int, float)、文字列型(str)の操作とf-stringによる美しい文字列フォーマットを学びます。",
+    lessons: [
+      {
+        id: 1,
+        chapter_id: 1,
+        chapter_order: 1,
+        chapter_title: "Pythonの第一歩と基本データ型",
+        order: 1,
+        title: "1.1 変数宣言と数値の計算",
+        reading_time_minutes: 3,
+        content_html: `
+          <h3>Pythonにおける変数と計算の基礎</h3>
+          <p>Pythonでは変数の型宣言（intやletなど）は不要で、値を代入するだけで自動的に型が決まります。</p>
+          <pre><code class="language-python"># 変数の代入
+price = 1200
+tax_rate = 0.1
+total = price * (1 + tax_rate)
+print(total) # 1320.0</code></pre>
+          <h4>主な算術演算子</h4>
+          <ul>
+            <li><code>+</code> (加算), <code>-</code> (減算), <code>*</code> (乗算), <code>/</code> (除算・小数)</li>
+            <li><code>//</code> (整数除算・切り捨て), <code>%</code> (余り・剰余), <code>**</code> (べき乗)</li>
+          </ul>
+        `,
+        key_takeaways: ["代入記号 = で変数を定義", "除算 / は常に float 型を返す", "// は商、% は余りを計算"],
+        example_code: "a = 17\nb = 5\nprint('商:', a // b)\nprint('余り:', a % b)",
+        exercise: {
+          id: 1,
+          title: "台形の面積計算",
+          description: "<p>上底 <code>top</code>、下底 <code>bottom</code>、高さ <code>height</code> を受け取り、台形の面積 <code>(top + bottom) * height / 2</code> を計算して返す関数 <code>calc_trapezoid_area(top, bottom, height)</code> を実装してください。</p>",
+          template: "def calc_trapezoid_area(top, bottom, height):\n    # ここにコードを書いてください\n    pass\n",
+          test_cases: [
+            { input: "calc_trapezoid_area(3, 5, 4)", expected: 16.0 },
+            { input: "calc_trapezoid_area(10, 20, 5)", expected: 75.0 },
+          ],
+          solution_code: "def calc_trapezoid_area(top, bottom, height):\n    return (top + bottom) * height / 2\n",
+          explanation: "台形の公式 (上底 + 下底) * 高さ / 2 をそのまま計算式にして返します。",
+        },
+      },
+      {
+        id: 2,
+        chapter_id: 1,
+        chapter_order: 1,
+        chapter_title: "Pythonの第一歩と基本データ型",
+        order: 2,
+        title: "1.2 文字列の操作と f-string",
+        reading_time_minutes: 4,
+        content_html: `
+          <h3>文字列の埋め込みとスライス</h3>
+          <p>Python 3.6以降の標準である <code>f-string</code> (フォーマット済み文字列) を使うと、変数を直感的に埋め込めます。</p>
+          <pre><code class="language-python">item = "りんご"
+count = 3
+price = 150
+message = f"{item}が{count}個で合計{count * price}円です。"
+print(message)</code></pre>
+        `,
+        key_takeaways: ['f"..." 内で {変数} や {式} を評価可能', "len(str) で文字列の長さを取得"],
+        example_code: "name = 'Python'\nprint(f'Hello, {name}!')",
+        exercise: {
+          id: 2,
+          title: "商品ラベルの生成",
+          description: '<p>商品名 <code>product</code> と 単価 <code>price</code> を受け取り、<code>"【商品】{product} : ￥{price}"</code> というラベル文字列を返す関数 <code>make_price_label(product, price)</code> を実装してください。</p>',
+          template: "def make_price_label(product, price):\n    # ここにコードを書いてください\n    pass\n",
+          test_cases: [
+            { input: 'make_price_label("ノートPC", 85000)', expected: "【商品】ノートPC : ￥85000" },
+            { input: 'make_price_label("マウス", 2400)', expected: "【商品】マウス : ￥2400" },
+          ],
+          solution_code: 'def make_price_label(product, price):\n    return f"【商品】{product} : ￥{price}"\n',
+          explanation: "f-string で変数を埋め込んで指定のフォーマットを作成します。",
+        },
+      },
+    ],
+  },
+  {
+    id: 2,
+    order: 2,
+    title: "第2章: 条件分岐とループ処理の極意",
+    subtitle: "if文・for文・while文による柔軟な制御",
+    icon: "arrows-split",
+    category: "control",
+    target_level: 2,
+    summary: "プログラムに知性を与える条件分岐 (if-elif-else) と、反復処理 (for, while, range) の基礎から応用までを習得します。",
+    lessons: [
+      {
+        id: 3,
+        chapter_id: 2,
+        chapter_order: 2,
+        chapter_title: "条件分岐とループ処理の極意",
+        order: 1,
+        title: "2.1 if-elif-else による複数条件分岐",
+        reading_time_minutes: 4,
+        content_html: `
+          <h3>条件分岐の組み立て</h3>
+          <p>Pythonはインデント（字下げ・半角スペース4つ）でブロックを表現します。</p>
+          <pre><code class="language-python">score = 85
+if score >= 90:
+    grade = "A"
+elif score >= 70:
+    grade = "B"
+else:
+    grade = "C"</code></pre>
+        `,
+        key_takeaways: ["コロン : の後にインデントで処理を書く", "論理演算子 and, or, not で複合条件"],
+        example_code: "age = 20\nif age >= 18:\n    print('成人')\nelse:\n    print('未成年')",
+        exercise: {
+          id: 3,
+          title: "年齢区分判定プログラム",
+          description: '<p>年齢 <code>age</code> を受け取り、12歳以下なら <code>"child"</code>、13〜19歳なら <code>"teen"</code>、20〜64歳なら <code>"adult"</code>、65歳以上なら <code>"senior"</code> を返す関数 <code>get_age_category(age)</code> を実装してください。</p>',
+          template: "def get_age_category(age):\n    # ここにコードを書いてください\n    pass\n",
+          test_cases: [
+            { input: "get_age_category(10)", expected: "child" },
+            { input: "get_age_category(15)", expected: "teen" },
+            { input: "get_age_category(30)", expected: "adult" },
+            { input: "get_age_category(70)", expected: "senior" },
+          ],
+          solution_code: 'def get_age_category(age):\n    if age <= 12:\n        return "child"\n    elif age <= 19:\n        return "teen"\n    elif age <= 64:\n        return "adult"\n    else:\n        return "senior"\n',
+          explanation: "年齢の範囲を if-elif-else で段階的に判定して対応する文字列を返します。",
+        },
+      },
+    ],
+  },
+  {
+    id: 3,
+    order: 3,
+    title: "第3章: 関数設計とスコープ",
+    subtitle: "再利用可能なモジュール化と引数・戻り値",
+    icon: "code",
+    category: "basic",
+    target_level: 2,
+    summary: "defによる関数定義、デフォルト引数、可変長引数(*args, **kwargs)、ローカル・グローバルスコープを学びます。",
+    lessons: [
+      {
+        id: 4,
+        chapter_id: 3,
+        chapter_order: 3,
+        chapter_title: "関数設計とスコープ",
+        order: 1,
+        title: "3.1 関数の基本とデフォルト引数",
+        reading_time_minutes: 4,
+        content_html: "<p>関数を使うことで同じ処理をまとめ、コードを綺麗に保ちます。</p>",
+        key_takeaways: ["def 関数名(引数): で定義", "return で戻り値を返す"],
+        example_code: "def add(a, b=10):\n    return a + b\nprint('結果:', add(5))",
+        exercise: {
+          id: 4,
+          title: "割引計算関数",
+          description: "<p>定価 <code>price</code> と 割引率 <code>discount</code> (0.0〜1.0) を受け取り、割引後の整数金額（<code>int(price * (1 - discount))</code>）を返す関数 <code>apply_discount(price, discount)</code> を実装してください。</p>",
+          template: "def apply_discount(price, discount):\n    # ここにコードを書いてください\n    pass\n",
+          test_cases: [
+            { input: "apply_discount(1000, 0.2)", expected: 800 },
+            { input: "apply_discount(500, 0.1)", expected: 450 },
+          ],
+          solution_code: "def apply_discount(price, discount):\n    return int(price * (1 - discount))\n",
+          explanation: "定価に (1 - 割引率) を掛けて int() で端数を切り捨てて返します。",
+        },
+      },
+    ],
+  },
+  {
+    id: 4,
+    order: 4,
+    title: "第4章: 高度なデータ構造 (辞書・集合・内包表記)",
+    subtitle: "高速なデータ検索・操作・フィルタリング",
+    icon: "database",
+    category: "data_structure",
+    target_level: 3,
+    summary: "キーと値で管理する辞書 (dict)、重複を許さない集合 (set)、そしてPythonらしい簡潔なリスト内包表記を極めます。",
+    lessons: [
+      {
+        id: 5,
+        chapter_id: 4,
+        chapter_order: 4,
+        chapter_title: "高度なデータ構造 (辞書・集合・内包表記)",
+        order: 1,
+        title: "4.1 辞書操作とリスト内包表記",
+        reading_time_minutes: 5,
+        content_html: `
+          <h3>リスト内包表記の威力</h3>
+          <p>forループを使わずに1行で新しいリストを生成できます。</p>
+          <pre><code class="language-python"># 1〜10の偶数の2乗リスト
+squares = [x**2 for x in range(1, 11) if x % 2 == 0]
+print(squares) # [4, 16, 36, 64, 100]</code></pre>
+        `,
+        key_takeaways: ["[式 for 変数 in イテラブル if 条件] で簡潔に記述", "辞書の .get(key, default) で安全に値取得"],
+        example_code: "data = {'apple': 100, 'banana': 200}\nprint('りんご:', data.get('apple'))",
+        exercise: {
+          id: 5,
+          title: "指定文字数以上の単語フィルタリング",
+          description: "<p>単語リスト <code>words</code> と 最小文字数 <code>min_len</code> を受け取り、文字数が <code>min_len</code> 以上の単語のみを大文字に変換したリストを返す関数 <code>filter_and_upper_words(words, min_len)</code> を実装してください。</p>",
+          template: "def filter_and_upper_words(words, min_len):\n    # ここにコードを書いてください\n    pass\n",
+          test_cases: [
+            { input: 'filter_and_upper_words(["cat", "elephant", "dog", "tiger"], 4)', expected: ["ELEPHANT", "TIGER"] },
+            { input: 'filter_and_upper_words(["a", "bb"], 3)', expected: [] },
+          ],
+          solution_code: "def filter_and_upper_words(words, min_len):\n    return [w.upper() for w in words if len(w) >= min_len]\n",
+          explanation: "リスト内包表記で len(w) >= min_len の条件を満たす単語を w.upper() で大文字化して集めます。",
+        },
+      },
+    ],
+  },
+  {
+    id: 5,
+    order: 5,
+    title: "第5章: 実用標準ライブラリの徹底活用",
+    subtitle: "datetime, math, re, collections, itertools",
+    icon: "puzzle-piece",
+    category: "library",
+    target_level: 3,
+    summary: "実務開発に直結する日付操作(datetime)、正規表現(re)、要素集計(collections.Counter)、組み合わせ(itertools)を学びます。",
+    lessons: [
+      {
+        id: 6,
+        chapter_id: 5,
+        chapter_order: 5,
+        chapter_title: "実用標準ライブラリの徹底活用",
+        order: 1,
+        title: "5.1 datetime と re による実務データ処理",
+        reading_time_minutes: 5,
+        content_html: "<p>日時計算や文字列からの情報抽出は、実務で最も頻繁に遭遇するタスクです。</p>",
+        key_takeaways: ["datetime.date と timedelta による日付演算", "re.findall や re.sub による正規表現抽出・置換"],
+        example_code: "import re\ntext = 'ID: A123, B456'\nprint(re.findall(r'[A-Z][0-9]{3}', text))",
+        exercise: {
+          id: 6,
+          title: "郵便番号の抽出とハイフン統一",
+          description: '<p><code>re</code> モジュールを用いて、文章 <code>text</code> から日本の7桁郵便番号（<code>123-4567</code> または <code>1234567</code>）をすべて抽出し、すべて <code>"XXX-XXXX"</code> 形式に正規化したリストを返す関数 <code>extract_and_format_zipcodes(text)</code> を実装してください。</p>',
+          template: "import re\n\ndef extract_and_format_zipcodes(text):\n    # ここにコードを書いてください\n    pass\n",
+          test_cases: [
+            { input: 'extract_and_format_zipcodes("〒100-0001 東京都、〒1500042 渋谷区")', expected: ["100-0001", "150-0042"] },
+            { input: 'extract_and_format_zipcodes("郵便番号なし")', expected: [] },
+          ],
+          solution_code: "import re\n\ndef extract_and_format_zipcodes(text):\n    matches = re.findall(r'(\\d{3})-?(\\d{4})', text)\n    return [f\"{m[0]}-{m[1]}\" for m in matches]\n",
+          explanation: '(\\d{3})-?(\\d{4}) で3桁と4桁をグループキャプチャし、f"{m[0]}-{m[1]}" でハイフン付きに成形します。',
+        },
+      },
+    ],
+  },
+  {
+    id: 6,
+    order: 6,
+    title: "第6章: データ可視化とグラフ描画 (Matplotlib)",
+    subtitle: "折れ線・棒グラフ・散布図・円グラフ",
+    icon: "chart-bar",
+    category: "plot",
+    target_level: 3,
+    summary: "データを視覚的に伝えるグラフ描画スキル。matplotlib.pyplot を使った各種グラフの作成とスタイリングを習得します。",
+    lessons: [
+      {
+        id: 7,
+        chapter_id: 6,
+        chapter_order: 6,
+        chapter_title: "データ可視化とグラフ描画 (Matplotlib)",
+        order: 1,
+        title: "6.1 基本的なグラフ描画のフロー",
+        reading_time_minutes: 4,
+        content_html: "<p>plt.plot(折れ線), plt.bar(棒グラフ), plt.scatter(散布図), plt.pie(円グラフ) の基本構文を理解します。</p>",
+        key_takeaways: ["import matplotlib.pyplot as plt でインポート", "plt.title(), plt.xlabel(), plt.ylabel() でラベル付け", "plt.show() で描画完了"],
+        example_code: "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3], [10, 20, 15])\nplt.title('Sample')\nplt.show()",
+        exercise: {
+          id: 7,
+          title: "売上個数の棒グラフ作成",
+          description: '<p><code>plt.bar()</code> を用いて、果物 <code>fruits = ["りんご", "みかん", "バナナ"]</code> と 売上個数 <code>counts = [80, 120, 60]</code> の棒グラフを描画し、タイトルを <code>"果物売上"</code> として <code>plt.show()</code> してください。</p>',
+          template: "import matplotlib.pyplot as plt\n\nfruits = [\"りんご\", \"みかん\", \"バナナ\"]\ncounts = [80, 120, 60]\n\n# ここに棒グラフを描画するコードを書いてください\n\n",
+          problem_type: "plot",
+          test_cases: [
+            { check: "type", expected: "bar", input_label: "グラフ種別が 'bar' (棒グラフ)" },
+            { check: "title", expected: "果物売上", input_label: "タイトルが '果物売上'" },
+            { check: "labels", expected: ["りんご", "みかん", "バナナ"], input_label: "ラベルが果物一覧" },
+            { check: "first_dataset_data", expected: [80, 120, 60], input_label: "データ配列が [80, 120, 60]" },
+          ],
+          solution_code: 'import matplotlib.pyplot as plt\n\nfruits = ["りんご", "みかん", "バナナ"]\ncounts = [80, 120, 60]\n\nplt.bar(fruits, counts)\nplt.title("果物売上")\nplt.show()\n',
+          explanation: 'plt.bar(fruits, counts) でカテゴリ棒グラフを生成し、plt.title("果物売上") を付与して show() します。',
+        },
+      },
+    ],
+  },
+  {
+    id: 7,
+    order: 7,
+    title: "第7章: オブジェクト指向とクラス設計",
+    subtitle: "クラス定義・カプセル化・特殊メソッド",
+    icon: "cube",
+    category: "algorithm",
+    target_level: 4,
+    summary: "classによるデータと振る舞いのカプセル化、__init__コンストラクタ、プロパティデコレータ(@property)、継承を学びます。",
+    lessons: [
+      {
+        id: 8,
+        chapter_id: 7,
+        chapter_order: 7,
+        chapter_title: "オブジェクト指向とクラス設計",
+        order: 1,
+        title: "7.1 クラスの基本とインスタンス化",
+        reading_time_minutes: 5,
+        content_html: "<p>クラスを使うことで、状態（属性）と振る舞い（メソッド）を1つの型として定義できます。</p>",
+        key_takeaways: ["__init__(self, ...) で初期化", "self はインスタンス自身を参照"],
+        example_code: "class Dog:\n    def __init__(self, name):\n        self.name = name\n    def bark(self):\n        return f'{self.name} says Woof!'\n\ndog = Dog('Pochi')\nprint(dog.bark())",
+        exercise: {
+          id: 8,
+          title: "銀行口座クラスの設計",
+          description: "<p>初期残高 <code>balance</code> を保持し、預金 <code>deposit(amount)</code> と 引出 <code>withdraw(amount)</code> (残高不足時は False、成功時は True を返す)、残高照会 <code>get_balance()</code> を備えた <code>BankAccount</code> クラスを実装してください。</p>",
+          template: "class BankAccount:\n    def __init__(self, initial_balance=0):\n        # ここにコードを書いてください\n        pass\n",
+          setup_code: "def test_bank():\n    acc = BankAccount(100)\n    acc.deposit(50)\n    w1 = acc.withdraw(30)\n    w2 = acc.withdraw(200)\n    return (acc.get_balance(), w1, w2)",
+          test_cases: [
+            { input: "test_bank()", expected: "(120, True, False)" },
+          ],
+          solution_code: "class BankAccount:\n    def __init__(self, initial_balance=0):\n        self.balance = initial_balance\n    def deposit(self, amount):\n        self.balance += amount\n    def withdraw(self, amount):\n        if self.balance >= amount:\n            self.balance -= amount\n            return True\n        return False\n    def get_balance(self):\n        return self.balance\n",
+          explanation: "初期残高を self.balance に保持し、各メソッドで加減算と条件チェックを行います。",
+        },
+      },
+    ],
+  },
+  {
+    id: 8,
+    order: 8,
+    title: "第8章: 実践アルゴリズムと効率化",
+    subtitle: "二分探索・再帰・デコレータ・計算量最適化",
+    icon: "lightning",
+    category: "algorithm",
+    target_level: 4,
+    summary: "本格的なアルゴリズム設計、再帰関数、メモ化(キャッシュ)、そして計算量(O記法)を意識したプロフェッショナルなコーディングを学びます。",
+    lessons: [
+      {
+        id: 9,
+        chapter_id: 8,
+        chapter_order: 8,
+        chapter_title: "実践アルゴリズムと効率化",
+        order: 1,
+        title: "8.1 二分探索 (Binary Search) の実装",
+        reading_time_minutes: 5,
+        content_html: "<p>ソート済みリストから O(log N) の高速さで目的の値を探索する二分探索を学びます。</p>",
+        key_takeaways: ["中央値 (mid) とターゲットを比較", "探索範囲を毎ステップ半分に絞り込む"],
+        example_code: "def binary_search(arr, target):\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n\nprint(binary_search([1, 3, 5, 7, 9], 5))",
+        exercise: {
+          id: 9,
+          title: "二分探索関数の完成",
+          description: "<p>昇順ソート済みリスト <code>sorted_list</code> と 検索値 <code>target</code> を受け取り、存在すればそのインデックス（0始まり）、存在しなければ <code>-1</code> を返す関数 <code>binary_search(sorted_list, target)</code> を実装してください。</p>",
+          template: "def binary_search(sorted_list, target):\n    # ここにコードを書いてください\n    pass\n",
+          test_cases: [
+            { input: "binary_search([1, 3, 5, 7, 9, 11], 7)", expected: 3 },
+            { input: "binary_search([10, 20, 30, 40], 10)", expected: 0 },
+            { input: "binary_search([2, 4, 6, 8], 5)", expected: -1 },
+          ],
+          solution_code: "def binary_search(sorted_list, target):\n    left, right = 0, len(sorted_list) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if sorted_list[mid] == target:\n            return mid\n        elif sorted_list[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n",
+          explanation: "leftとrightのポインタを中央値との大小関係に応じて更新し、高速に対象インデックスを見つけます。",
+        },
+      },
+    ],
+  },
+];
+
+let textbookChapters = [];
+let currentTextbookLesson = null;
+
+const textbookChaptersTree = document.getElementById("textbook-chapters-tree");
+const textbookOverallProgressBar = document.getElementById("textbook-overall-progress-bar");
+const textbookProgressText = document.getElementById("textbook-progress-text");
+
+const lessonChapterLabel = document.getElementById("lesson-chapter-label");
+const lessonTimeBadge = document.getElementById("lesson-time-badge");
+const lessonTitle = document.getElementById("lesson-title");
+const lessonContent = document.getElementById("lesson-content");
+const lessonTakeawaysList = document.getElementById("lesson-takeaways-list");
+
+const lessonExampleCode = document.getElementById("lesson-example-code");
+const lessonExampleOutput = document.getElementById("lesson-example-output");
+const lessonRunExampleBtn = document.getElementById("lesson-run-example-btn");
+
+const exerciseTitle = document.getElementById("exercise-title");
+const exerciseStatusBadge = document.getElementById("exercise-status-badge");
+const exerciseDesc = document.getElementById("exercise-desc");
+const exerciseEditor = document.getElementById("exercise-editor");
+const exerciseEditorBackdrop = document.getElementById("exercise-editor-backdrop");
+const exerciseLineNumbers = document.getElementById("exercise-line-numbers");
+const exerciseCursorPos = document.getElementById("exercise-cursor-pos");
+const exerciseCharCount = document.getElementById("exercise-char-count");
+const exerciseFontSizeDecBtn = document.getElementById("exercise-font-size-dec-btn");
+const exerciseFontSizeIncBtn = document.getElementById("exercise-font-size-inc-btn");
+const exerciseCopyCodeBtn = document.getElementById("exercise-copy-code-btn");
+
+const exerciseSolutionToggleBtn = document.getElementById("exercise-solution-toggle-btn");
+const exerciseSolutionPanel = document.getElementById("exercise-solution-panel");
+const exerciseSolutionCode = document.getElementById("exercise-solution-code");
+const exerciseSolutionExp = document.getElementById("exercise-solution-exp");
+const exerciseTestBtn = document.getElementById("exercise-test-btn");
+const exerciseResults = document.getElementById("exercise-results");
+const lessonCompleteNextBtn = document.getElementById("lesson-complete-next-btn");
+
+// 教科書演習エディタのリッチ機能バインド
+const exerciseRichEditor = bindRichCodeEditor({
+  textarea: exerciseEditor,
+  backdrop: exerciseEditorBackdrop,
+  lineNumbers: exerciseLineNumbers,
+  cursorPos: exerciseCursorPos,
+  charCount: exerciseCharCount,
+  fontSizeDecBtn: exerciseFontSizeDecBtn,
+  fontSizeIncBtn: exerciseFontSizeIncBtn,
+  copyBtn: exerciseCopyCodeBtn,
+  resetBtn: null,
+  onRun: () => {
+    if (exerciseTestBtn) exerciseTestBtn.click();
+  },
+  getTemplate: () => {
+    return currentTextbookLesson && currentTextbookLesson.exercise ? currentTextbookLesson.exercise.template : "";
+  },
+});
+
+function getLocalLessonProgress(lessonId) {
+  try {
+    const raw = localStorage.getItem(`lesson_progress_${lessonId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveLocalLessonProgress(lessonId, data) {
+  try {
+    localStorage.setItem(`lesson_progress_${lessonId}`, JSON.stringify(data));
+  } catch (e) {}
+}
+
+async function loadTextbookRoadmap() {
+  const data = await apiRequest(`/curriculum/chapters/?user_identifier=${currentUserId}`);
+  if (data && data.chapters && data.chapters.length > 0) {
+    textbookChapters = data.chapters;
+    if (textbookProgressText) {
+      textbookProgressText.textContent = `進捗: ${data.completed_lessons} / ${data.total_lessons} 単元 (${data.overall_progress_pct}%)`;
+    }
+    if (textbookOverallProgressBar) {
+      textbookOverallProgressBar.style.width = `${data.overall_progress_pct}%`;
+    }
+  } else {
+    // ローカルマスターデータ（全8章・9レッスン）を採用
+    textbookChapters = JSON.parse(JSON.stringify(defaultTextbookChapters));
+
+    let totalLessons = 0;
+    let completedLessons = 0;
+
+    textbookChapters.forEach((ch) => {
+      let chCompleted = 0;
+      ch.lessons.forEach((l) => {
+        totalLessons++;
+        const prog = getLocalLessonProgress(l.id);
+        if (prog && (prog.is_completed || prog.exercise_passed)) {
+          l.user_status = { is_completed: true, exercise_passed: prog.exercise_passed };
+          completedLessons++;
+          chCompleted++;
+        } else {
+          l.user_status = { is_completed: false, exercise_passed: false };
+        }
+      });
+      ch.total_lessons_count = ch.lessons.length;
+      ch.completed_lessons_count = chCompleted;
+      ch.is_mastered = chCompleted === ch.lessons.length && ch.lessons.length > 0;
+    });
+
+    const pct = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+    if (textbookProgressText) {
+      textbookProgressText.textContent = `進捗: ${completedLessons} / ${totalLessons} 単元 (${pct}%)`;
+    }
+    if (textbookOverallProgressBar) {
+      textbookOverallProgressBar.style.width = `${pct}%`;
+    }
+  }
+
+  renderTextbookTree(textbookChapters);
+
+  // 最初の未完了レッスンまたは第1単元を開く
+  if (!currentTextbookLesson && textbookChapters.length > 0) {
+    let targetLesson = null;
+    for (const ch of textbookChapters) {
+      for (const l of ch.lessons) {
+        if (!l.user_status || !l.user_status.is_completed) {
+          targetLesson = l;
+          break;
+        }
+      }
+      if (targetLesson) break;
+    }
+    if (!targetLesson && textbookChapters[0].lessons.length > 0) {
+      targetLesson = textbookChapters[0].lessons[0];
+    }
+    if (targetLesson) loadLesson(targetLesson.id);
+  }
+}
+
+function renderTextbookTree(chapters) {
+  if (!textbookChaptersTree) return;
+  textbookChaptersTree.innerHTML = chapters
+    .map(
+      (ch) => `
+    <div class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-850">
+      <div class="p-3 bg-slate-50 dark:bg-slate-800 flex justify-between items-center cursor-pointer select-none">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-xs text-slate-800 dark:text-slate-200">${escapeHtml(ch.title)}</span>
+          ${ch.is_mastered ? `<span class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded">マスター済</span>` : ""}
+        </div>
+        <span class="text-[10px] text-slate-400 font-semibold">${ch.completed_lessons_count || 0}/${ch.total_lessons_count || (ch.lessons ? ch.lessons.length : 0)}</span>
+      </div>
+      <div class="p-2 space-y-1">
+        ${(ch.lessons || [])
+          .map((l) => {
+            const st = l.user_status || getLocalLessonProgress(l.id) || {};
+            let badge = `<span class="text-[10px] text-slate-400">未受講</span>`;
+            if (st.is_skipped_by_assessment) {
+              badge = `<span class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded">診断スキップ</span>`;
+            } else if (st.is_completed || st.exercise_passed) {
+              badge = `<span class="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded">完了</span>`;
+            }
+            return `
+            <button onclick="loadLesson(${l.id})" class="w-full text-left p-2 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex justify-between items-center ${currentTextbookLesson && currentTextbookLesson.id === l.id ? "bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-300"}">
+              <span class="truncate">${escapeHtml(l.title)}</span>
+              ${badge}
+            </button>
+          `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `
+    )
+    .join("");
+}
+
+async function loadLesson(lessonId) {
+  showAiLoader("単元を読み込み中...", "解説と演習問題を準備しています。");
+  let data = await apiRequest(`/curriculum/lessons/${lessonId}/?user_identifier=${currentUserId}`);
+  hideAiLoader();
+
+  if (!data) {
+    // ローカルマスターデータから該当レッスンを検索
+    for (const ch of defaultTextbookChapters) {
+      const found = ch.lessons.find((l) => l.id === Number(lessonId));
+      if (found) {
+        data = JSON.parse(JSON.stringify(found));
+        const prog = getLocalLessonProgress(lessonId);
+        data.user_progress = prog || { is_completed: false, exercise_passed: false };
+        break;
+      }
+    }
+  }
+
+  if (!data) return;
+  currentTextbookLesson = data;
+
+  if (lessonChapterLabel) lessonChapterLabel.textContent = `第${data.chapter_order}章: ${data.chapter_title || ""}`;
+  if (lessonTimeBadge) lessonTimeBadge.textContent = `読了目安: ${data.reading_time_minutes || 5}分`;
+  if (lessonTitle) lessonTitle.textContent = data.title;
+  if (lessonContent) lessonContent.innerHTML = data.content_html;
+
+  // 重要ポイント
+  if (lessonTakeawaysList) {
+    const takeaways = data.key_takeaways || [];
+    lessonTakeawaysList.innerHTML = takeaways.map((t) => `<li>${escapeHtml(t)}</li>`).join("");
+  }
+
+  // サンプルコード
+  if (lessonExampleCode) {
+    lessonExampleCode.textContent = data.example_code || "# サンプルコードはありません";
+    if (window.Prism) {
+      window.Prism.highlightElement(lessonExampleCode);
+    }
+  }
+  if (lessonExampleOutput) {
+    lessonExampleOutput.classList.add("hidden");
+    lessonExampleOutput.innerHTML = "";
+  }
+
+  // 演習問題
+  const ex = data.exercise;
+  if (ex) {
+    if (exerciseTitle) exerciseTitle.textContent = ex.title;
+    if (exerciseDesc) exerciseDesc.innerHTML = ex.description;
+    const initialCode = data.user_progress && data.user_progress.saved_code ? data.user_progress.saved_code : ex.template;
+    exerciseRichEditor.setValue(initialCode || "");
+
+    if (exerciseSolutionCode) exerciseSolutionCode.textContent = ex.solution_code || "";
+    if (exerciseSolutionExp) exerciseSolutionExp.textContent = ex.explanation || "";
+    if (exerciseStatusBadge) {
+      const passed = data.user_progress && (data.user_progress.exercise_passed || data.user_progress.is_completed || data.user_progress.is_skipped_by_assessment);
+      exerciseStatusBadge.textContent = passed ? "合格・マスター" : "未クリア";
+      exerciseStatusBadge.className = `px-2.5 py-0.5 ${passed ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"} text-xs font-bold rounded`;
+    }
+  }
+
+  if (exerciseSolutionPanel) exerciseSolutionPanel.classList.add("hidden");
+  if (exerciseResults) {
+    exerciseResults.classList.add("hidden");
+    exerciseResults.innerHTML = "";
+  }
+
+  // ツリーの選択ハイライトを更新
+  renderTextbookTree(textbookChapters);
+}
+
+window.loadLesson = loadLesson;
+
+async function loadLessonByChapter(chapterOrder) {
+  if (!textbookChapters || textbookChapters.length === 0) {
+    await loadTextbookRoadmap();
+  }
+  const ch = textbookChapters.find((c) => c.order === Number(chapterOrder));
+  if (ch && ch.lessons && ch.lessons.length > 0) {
+    loadLesson(ch.lessons[0].id);
+  }
+}
+
+// サンプルコード実行ボタン
+if (lessonRunExampleBtn) {
+  lessonRunExampleBtn.onclick = () => {
+    if (!currentTextbookLesson || !currentTextbookLesson.example_code) return;
+    try {
+      if (typeof window.run_python_interactive === "function") {
+        const res = JSON.parse(window.run_python_interactive(currentTextbookLesson.example_code));
+        if (lessonExampleOutput) {
+          lessonExampleOutput.textContent = res.stdout || res.error || "（実行完了・出力なし）";
+          lessonExampleOutput.classList.remove("hidden");
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+}
+
+// 模範解答表示トグル
+if (exerciseSolutionToggleBtn) {
+  exerciseSolutionToggleBtn.onclick = () => {
+    if (exerciseSolutionPanel) {
+      exerciseSolutionPanel.classList.toggle("hidden");
+    }
+  };
+}
+
+// 演習課題の実行・採点ボタン
+if (exerciseTestBtn) {
+  exerciseTestBtn.onclick = async () => {
+    if (!currentTextbookLesson || !currentTextbookLesson.exercise) return;
+    const ex = currentTextbookLesson.exercise;
+    const userCode = exerciseEditor ? exerciseEditor.value : "";
+
+    showAiLoader("演習コードを採点中...", "テストケースを実行しています。");
+    let runResult = null;
+    try {
+      if (typeof window.run_python_tests === "function") {
+        const payload = JSON.stringify({
+          type: ex.problem_type || "function",
+          setup_code: ex.setup_code || "",
+          test_cases: ex.test_cases || [],
+        });
+        const rawJson = window.run_python_tests(userCode, payload);
+        runResult = JSON.parse(rawJson);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    hideAiLoader();
+
+    if (!runResult || runResult.error) {
+      if (exerciseResults) {
+        exerciseResults.innerHTML = `<div class="p-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 rounded-lg text-xs border border-rose-200">エラー: ${escapeHtml(runResult ? runResult.error : "実行に失敗しました。")}</div>`;
+        exerciseResults.classList.remove("hidden");
+      }
+      return;
+    }
+
+    const tests = runResult.tests || [];
+    const allPassed = tests.length > 0 && tests.every((t) => t.pass);
+
+    if (allPassed) {
+      if (exerciseResults) {
+        exerciseResults.innerHTML = `<div class="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs border border-emerald-200 font-bold">全テストケース合格！単元マスターです！</div>`;
+        exerciseResults.classList.remove("hidden");
+      }
+      notify("演習問題合格！単元完了を記録しました。", "success");
+
+      // ローカル保存
+      saveLocalLessonProgress(currentTextbookLesson.id, {
+        is_completed: true,
+        exercise_passed: true,
+        saved_code: userCode,
+      });
+
+      // APIに進捗保存
+      await apiRequest(`/curriculum/lessons/${currentTextbookLesson.id}/complete/`, "POST", {
+        user_identifier: currentUserId,
+        exercise_passed: true,
+        saved_code: userCode,
+      });
+
+      // ロードマップ再読込
+      loadTextbookRoadmap();
+    } else {
+      if (exerciseResults) {
+        exerciseResults.innerHTML = `<div class="p-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 rounded-lg text-xs border border-rose-200">不合格のケースがあります。コードを見直してみましょう。</div>`;
+        exerciseResults.classList.remove("hidden");
+      }
+      notify("テストケースに不一致があります。", "warning");
+    }
+  };
+}
+
+// 単元完了して次へボタン
+if (lessonCompleteNextBtn) {
+  lessonCompleteNextBtn.onclick = async () => {
+    if (!currentTextbookLesson) return;
+    const userCode = exerciseEditor ? exerciseEditor.value : "";
+
+    // ローカル保存
+    saveLocalLessonProgress(currentTextbookLesson.id, {
+      is_completed: true,
+      exercise_passed: false,
+      saved_code: userCode,
+    });
+
+    // 完了登録
+    await apiRequest(`/curriculum/lessons/${currentTextbookLesson.id}/complete/`, "POST", {
+      user_identifier: currentUserId,
+      exercise_passed: false,
+      saved_code: userCode,
+    });
+
+    notify("単元を完了しました！次のステップへ進みます。", "success");
+    await loadTextbookRoadmap();
+
+    // 次の単元を探して移動
+    let foundCurrent = false;
+    let nextLessonId = null;
+
+    for (const ch of textbookChapters) {
+      for (const l of ch.lessons) {
+        if (foundCurrent) {
+          nextLessonId = l.id;
+          break;
+        }
+        if (l.id === currentTextbookLesson.id) {
+          foundCurrent = true;
+        }
+      }
+      if (nextLessonId) break;
+    }
+
+    if (nextLessonId) {
+      loadLesson(nextLessonId);
+    } else {
+      notify("おめでとうございます！全カリキュラムを完了しました！", "success");
+    }
+  };
+}
 
 // 初回起動
-setActiveMode("quiz");
-showQuizQuestion();
+setActiveMode("assessment");
+
