@@ -365,7 +365,7 @@ export class GeminiModelRouter {
       throw new Error("オフライン状態です。インターネット接続を確認してください。");
     }
 
-    const apiKey = this.getApiKey();
+    const apiKey = (options.apiKey || this.getApiKey() || "").trim();
     if (!apiKey) {
       throw new Error("Gemini APIキーが設定されていません。画面上部の「APIキー設定」から登録してください。");
     }
@@ -477,7 +477,7 @@ export class GeminiModelRouter {
       throw new Error("オフライン状態です。インターネット接続を確認してください。");
     }
 
-    const apiKey = this.getApiKey();
+    const apiKey = (options.apiKey || this.getApiKey() || "").trim();
     if (!apiKey) {
       throw new Error("Gemini APIキーが設定されていません。画面上部の「APIキー設定」から登録してください。");
     }
@@ -680,6 +680,7 @@ export class GeminiModelRouter {
     const finalError = new Error(
       "現在AIサービスに接続できません。しばらくしてから再試行してください。"
     );
+    finalError.name = "AllGeminiModelsFailedError";
     finalError.originalError = lastError;
     throw finalError;
   }

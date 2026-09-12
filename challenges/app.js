@@ -719,6 +719,190 @@ const difficultyMeta = {
   hard:   { label: "上級", color: "bg-rose-100 text-rose-800" },
 };
 
+/**
+ * AIレスポンスからJSONを堅牢に抽出・パース
+ */
+function extractAndParseJson(rawText) {
+  if (!rawText || typeof rawText !== "string") {
+    throw new Error("AIレスポンスが空です。");
+  }
+  let text = rawText.trim();
+  // 外側のMarkdownフェンスを安全に除去（内部の```に影響されないよう先頭・末尾のみを除去）
+  if (text.startsWith("```")) {
+    text = text.replace(/^```(?:json)?\s*\r?\n?/i, "");
+  }
+  if (text.endsWith("```")) {
+    text = text.replace(/\r?\n?```\s*$/i, "");
+  }
+  text = text.trim();
+
+  // 前後に会話文などがある場合、最も外側の { ... } を抽出
+  const startIdx = text.indexOf("{");
+  const endIdx = text.lastIndexOf("}");
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    text = text.substring(startIdx, endIdx + 1);
+  }
+
+  return JSON.parse(text);
+}
+
+/**
+ * JavaScript課題のSchema Normalizer (Canonical Challenge Object化)
+ */
+function normalizeJsChallenge(raw, fallbackDiff = "初級") {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("パース結果がオブジェクトではありません。");
+  }
+
+  let cleanTemplate = String(raw.template || "")
+    .replace(/```(?:javascript|js)?/gi, "")
+    .replace(/```/g, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
+  let cleanRefSolution = String(raw.referenceSolution || raw.reference_solution || raw.solution || "")
+    .replace(/```(?:javascript|js)?/gi, "")
+    .replace(/```/g, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
+  const fnName = raw.functionName ? raw.functionName.replace(/[^\w$]/g, "") : "solution";
+
+  let rawCases = raw.testCases || raw.test_cases || raw.cases || raw.tests || [];
+  if (!Array.isArray(rawCases)) {
+    if (typeof rawCases === "object" && rawCases !== null) {
+      rawCases = Object.values(rawCases);
+    } else {
+      rawCases = [];
+    }
+  }
+
+  const canonicalCases = rawCases.map((tc, idx) => {
+    if (typeof tc !== "object" || tc === null) {
+      return { input: [tc], expected: undefined, inputLabel: `ケース ${idx + 1}` };
+    }
+
+    let input = tc.input !== undefined ? tc.input : (tc.inputs !== undefined ? tc.inputs : (tc.args !== undefined ? tc.args : []));
+    if (!Array.isArray(input)) {
+      input = input === undefined || input === null ? [] : [input];
+    }
+
+    let exp = tc.expected !== undefined ? tc.expected :
+              tc.output !== undefined ? tc.output :
+              tc.result !== undefined ? tc.result :
+              tc.expected_output !== undefined ? tc.expected_output :
+              tc.val !== undefined ? tc.val : undefined;
+
+    // 型正規化
+    if (typeof exp === "string") {
+      const trimmedExp = exp.trim();
+      if ((trimmedExp.startsWith("[") && trimmedExp.endsWith("]")) ||
+          (trimmedExp.startsWith("{") && trimmedExp.endsWith("}")) ||
+          trimmedExp === "true" || trimmedExp === "false" ||
+          (!isNaN(Number(trimmedExp)) && trimmedExp !== "")) {
+        try {
+          exp = JSON.parse(trimmedExp);
+        } catch (_) {
+          let s = trimmedExp;
+          while ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) {
+            if (s.length >= 2) s = s.slice(1, -1).trim();
+            else break;
+          }
+          exp = s;
+        }
+      }
+    }
+
+    let label = tc.inputLabel || tc.label;
+    if (!label) {
+      try {
+        label = `${fnName}(${input.map((x) => JSON.stringify(x)).join(", ")})`;
+      } catch (e) {
+        label = `${fnName}(ケース ${idx + 1})`;
+      }
+    }
+
+    return {
+      input,
+      expected: exp,
+      domCheck: tc.domCheck || tc.dom_check || "",
+      inputLabel: label,
+    };
+  });
+
+  return {
+    title: String(raw.title || "AIコーディング課題"),
+    difficulty: raw.difficulty || fallbackDiff,
+    description: String(raw.description || "").replace(/\\n/g, "\n"),
+    htmlFixture: String(raw.htmlFixture || raw.html_fixture || "").replace(/\\n/g, "\n"),
+    template: cleanTemplate,
+    functionName: fnName,
+    referenceSolution: cleanRefSolution,
+    testCases: canonicalCases,
+  };
+}
+
+/**
+ * JavaScript課題のChallenge Repairer (自動修復層)
+ */
+function repairJsChallenge(challenge) {
+  // 1. テンプレートの改行補正
+  if (!challenge.template.includes("\n")) {
+    challenge.template = `function ${challenge.functionName}() {\n    // ここにコードを記述してください\n    \n}`;
+    console.log("[REPAIR] Multi-line template repaired for JS");
+  }
+
+  // 2. expected 欠落の自動補完 (referenceSolution からの導出)
+  const hasMissingExpected = challenge.testCases.some(tc => tc.expected === undefined || tc.expected === null);
+  if (hasMissingExpected && challenge.referenceSolution) {
+    console.log("[REPAIR] Detected missing expected values in JS challenge. Attempting auto-derivation...");
+    try {
+      const candidateCopy = {
+        ...challenge,
+        testCases: challenge.testCases.map(tc => ({
+          ...tc,
+          expected: tc.expected !== undefined ? tc.expected : "__NEED_DERIVATION__"
+        }))
+      };
+      const evalRes = executeJsCodeAgainstCases(challenge.referenceSolution, candidateCopy);
+      if (evalRes && Array.isArray(evalRes.results)) {
+        let repairedCount = 0;
+        evalRes.results.forEach((r, idx) => {
+          if (challenge.testCases[idx] && (challenge.testCases[idx].expected === undefined || challenge.testCases[idx].expected === null)) {
+            if (r.actual !== undefined && r.actual !== null && !r.error) {
+              challenge.testCases[idx].expected = r.actual;
+              repairedCount++;
+            }
+          }
+        });
+        if (repairedCount > 0) {
+          console.log(`[REPAIR] Successfully derived ${repairedCount} missing expected values in JS challenge!`);
+        }
+      }
+    } catch (e) {
+      console.warn("[REPAIR] Could not auto-derive JS expected values:", e);
+    }
+  }
+
+  // 3. それでも expected が undefined のものは null に安全フォールバック
+  challenge.testCases.forEach((tc, idx) => {
+    if (tc.expected === undefined) {
+      console.warn(`[REPAIR] JS Case ${idx + 1} still missing expected. Falling back to null.`);
+      tc.expected = null;
+    }
+  });
+
+  return challenge;
+}
+
+if (typeof window !== "undefined") {
+  window.extractAndParseJson = extractAndParseJson;
+  window.normalizeJsChallenge = normalizeJsChallenge;
+  window.repairJsChallenge = repairJsChallenge;
+}
+
 async function generateAiChallenge() {
   const difficulty = aiDifficultySelect.value;
   const rawTopic   = aiTopicInput.value.trim();
@@ -738,21 +922,20 @@ async function generateAiChallenge() {
 指定された難易度とテーマに厳密に合致した、ブラウザ上で動的テスト可能なコーディング問題（関数の戻り値判定問題、またはHTML DOM操作問題）を1問設計してください。
 【最重要要件】
 生成する課題には、指定したすべての testCases に100%合格する完全な模範解答コード「referenceSolution」を必ず含めてください。
-この模範解答コードは、システム内部のテスト実行エンジンで実際にテストされ、1ケースでも不合格になった場合は自動的に棄却・再生成されます。
+各テストケースには必ず input と expected を含めてください。
 必ず指定のJSONスキーマに従ったレスポンスを返してください。`;
 
-  // プロンプトを強化し、テンプレートに必ず改行を含めるよう指示
   const userPrompt = `難易度: ${meta.label}
 テーマ: ${topic}
 難易度設計基準: ${diffConstraint}
 
 以下のJSONスキーマで問題を1問生成してください。
 アルゴリズム関数問題、またはHTMLのDOM操作問題（htmlFixtureとdomCheckを含む問題）のいずれかを設計してください。
-DOM操作問題の場合は、必ず htmlFixture（例: '<h1 id="title">Old Title</h1>'）と、各testCaseに domCheck（例: 'document.querySelector("#title").textContent'）を含めてください。
-testCasesは4件以上（またはDOM問題の場合は1〜4件の検証）を含めること。
-functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してください。
+DOM操作問題の場合は、必ず htmlFixture と、各testCaseに domCheck を含めてください。
+各テストケースには必ず input と expected を含めてください。
+functionNameは英語のキャメルケースで、descriptionはHTMLタグを使用してください。
 【必須】templateは必ず関数の開き波括弧の後に改行(\\n)を入れた3行以上の複数行コードにしてください。
-【必須】referenceSolutionには、すべてのテストケースを通過する完全で動作可能な模範解答コード（function \${functionName}(...) { ... }）を記述してください。`;
+【必須】referenceSolutionには、すべてのテストケースを通過する完全で動作可能な模範解答コードを記述してください。`;
 
   const schema = {
     type: "OBJECT",
@@ -760,20 +943,20 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
       title:             { type: "STRING", description: "課題のタイトル（日本語）" },
       functionName:      { type: "STRING", description: "実装すべき関数名（英語キャメルケース）" },
       description:       { type: "STRING", description: "HTML形式の詳細な問題説明" },
-      template:          { type: "STRING", description: "初期コードテンプレート。必ず改行(\\n)を入れた複数行で指定（例: 'function foo() {\\n    // ここにコードを記述してください\\n    \\n}'）" },
-      referenceSolution: { type: "STRING", description: "全テストケースに100%合格する完全な模範解答コード（関数名はfunctionNameと一致させること）" },
-      htmlFixture:       { type: "STRING", description: "DOM操作問題の場合、操作対象となる初期HTMLコード。関数問題の場合は空文字列" },
+      template:          { type: "STRING", description: "初期コードテンプレート。必ず改行(\\n)を入れた複数行で指定" },
+      referenceSolution: { type: "STRING", description: "全テストケースに100%合格する完全な模範解答コード" },
+      htmlFixture:       { type: "STRING", description: "DOM操作問題の場合の初期HTML。関数問題なら空文字列" },
       testCases: {
         type: "ARRAY",
         items: {
           type: "OBJECT",
           properties: {
             input:      { type: "ARRAY", items: {}, description: "関数への引数リスト" },
-            expected:   { description: "期待される戻り値、またはDOM操作後の期待値" },
-            domCheck:   { type: "STRING", description: "DOM操作問題の場合、操作後のDOM状態を取得して検証するJavaScript評価式（例: 'document.querySelector(\"#title\").textContent'）。関数問題の場合は空文字列" },
-            inputLabel: { type: "STRING", description: "テストの表示ラベル（例: updateTitle() -> #title.textContent）" },
+            expected:   { description: "期待される戻り値、またはDOM操作後の期待値。絶対に省略しないこと" },
+            domCheck:   { type: "STRING", description: "DOM検証式" },
+            inputLabel: { type: "STRING", description: "テストの表示ラベル" },
           },
-          required: ["input", "expected", "inputLabel"],
+          required: ["input", "expected"],
         },
       },
     },
@@ -781,104 +964,136 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
   };
 
   try {
-    let verified = false;
-    let newChallenge = null;
+    let finalChallenge = null;
     let attempt = 0;
     const maxAttempts = 3;
     let currentPrompt = userPrompt;
+    let lastValidationFailure = null;
+    let failureReasonCode = "UNKNOWN";
 
-    while (attempt < maxAttempts && !verified) {
+    while (attempt < maxAttempts && !finalChallenge) {
       attempt++;
-      showAiLoader(
-        "AI課題を生成・検証中...",
-        `Gemini AIが課題と模範解答を生成し、テスト実行エンジンで自己検証しています（試行 ${attempt}/${maxAttempts}）...`
-      );
-
-      const jsonText = await callGemini(systemPrompt, currentPrompt, true, schema);
-      const parsed   = JSON.parse(jsonText);
-
-      // 1. 改行コードの正規化処理
-      let cleanTemplate = parsed.template ? parsed.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n") : "";
-      let cleanRefSolution = parsed.referenceSolution ? parsed.referenceSolution.replace(/\\n/g, "\n").replace(/\r\n/g, "\n") : "";
-
-      // 2. 万が一AIが1行で生成した場合の自動フォーマット(複数行化)処理の安全装置
-      if (!cleanTemplate.includes("\n")) {
-        const fnName = parsed.functionName || "solution";
-        cleanTemplate = `function ${fnName}() {\n    // ここにコードを記述してください\n    \n}`;
+      if (lastValidationFailure) {
+        console.log(`[AI GENERATION] Regenerating JS problem (attempt ${attempt}/${maxAttempts}). Reason: ${lastValidationFailure}`);
+        showAiLoader(
+          "AI課題を修復・再生成中...",
+          `前回の生成データに不整合があったため、AIが修復・再構築しています（試行 ${attempt}/${maxAttempts}）...`
+        );
+        currentPrompt = `${userPrompt}\n\n【重要：前回の自己検証失敗理由】\n${lastValidationFailure}\nすべてのテストケースに必ず input と expected を含め、referenceSolution で100%合格する完全なJSONを出力してください。`;
+      } else {
+        console.log(`[AI GENERATION] Requesting JS challenge generation (attempt ${attempt}/${maxAttempts})...`);
+        showAiLoader(
+          "AI課題を生成・検証中...",
+          `Gemini AIが課題と模範解答を生成し、テスト実行エンジンで自己検証しています（試行 ${attempt}/${maxAttempts}）...`
+        );
       }
 
-      // 新しい課題オブジェクトを構築
-      const cleanFnName = parsed.functionName ? parsed.functionName.replace(/[^\w$]/g, "") : "solution";
+      // 1. [AI GENERATION]
+      let jsonText = "";
+      try {
+        jsonText = await callGemini(systemPrompt, currentPrompt, true, schema);
+        console.log(`[AI GENERATION] Response received (length: ${jsonText.length})`);
+      } catch (apiErr) {
+        console.error(`[AI GENERATION] API Error:`, apiErr);
+        failureReasonCode = apiErr.message && apiErr.message.includes("混雑") ? "AI_SERVICE_UNAVAILABLE" : "AI_API_ERROR";
+        throw apiErr;
+      }
 
-      let cleanTestCases = Array.isArray(parsed.testCases) ? parsed.testCases : [];
-      cleanTestCases = cleanTestCases.map((tc, idx) => {
-        let input = tc.input;
-        if (!Array.isArray(input)) {
-          input = input === undefined || input === null ? [] : [input];
-        }
-        let label = tc.inputLabel;
-        if (!label) {
-          try {
-            label = `${cleanFnName}(${input.map((x) => JSON.stringify(x)).join(", ")})`;
-          } catch (e) {
-            label = `${cleanFnName}(ケース ${idx + 1})`;
-          }
-        }
-        return {
-          input,
-          expected: tc.expected,
-          domCheck: tc.domCheck || "",
-          inputLabel: label,
+      // 2. [PARSE]
+      let rawObj = null;
+      try {
+        rawObj = extractAndParseJson(jsonText);
+        console.log("[PARSE] JSON successfully parsed");
+      } catch (parseErr) {
+        console.warn("[PARSE] JSON parse failed:", parseErr.message);
+        failureReasonCode = "INVALID_JSON";
+        lastValidationFailure = `INVALID_JSON: JSONの構文解析に失敗しました (${parseErr.message})`;
+        continue;
+      }
+
+      // 3. [NORMALIZE]
+      let canonical = null;
+      try {
+        canonical = normalizeJsChallenge(rawObj, meta.label);
+        console.log("[NORMALIZE] Successfully normalized to Canonical Challenge:", canonical.title);
+      } catch (normErr) {
+        console.warn("[NORMALIZE] Normalization failed:", normErr.message);
+        failureReasonCode = "NORMALIZATION_FAILED";
+        lastValidationFailure = `NORMALIZATION_FAILED: スキーマ正規化に失敗 (${normErr.message})`;
+        continue;
+      }
+
+      // 4. [VALIDATE]
+      if (!canonical.testCases || canonical.testCases.length === 0) {
+        console.warn("[VALIDATE] No test cases present");
+        failureReasonCode = "INVALID_TEST_CASE";
+        lastValidationFailure = "INVALID_TEST_CASE: テストケースが0件です。";
+        continue;
+      }
+
+      if (!canonical.referenceSolution) {
+        console.warn("[VALIDATE] Missing referenceSolution");
+        failureReasonCode = "INVALID_REFERENCE_SOLUTION";
+        lastValidationFailure = "INVALID_REFERENCE_SOLUTION: referenceSolution（模範解答コード）が空です。";
+        continue;
+      }
+
+      // 5. [REPAIR]
+      try {
+        canonical = repairJsChallenge(canonical);
+        console.log("[REPAIR] Repair stage completed");
+      } catch (repairErr) {
+        console.warn("[REPAIR] Repair warning:", repairErr.message);
+      }
+
+      // 6. [ORACLE] 参照実装によるテスト実実行
+      const evalRes = executeJsCodeAgainstCases(canonical.referenceSolution, canonical);
+      if (evalRes.allPass) {
+        console.log(`[ORACLE] Attempt ${attempt} PASSED all test cases! CHALLENGE_READY.`);
+        finalChallenge = {
+          id:                `ai-${Date.now()}`,
+          title:             `[AI] ${canonical.title.replace(/^\[AI\]\s*/, "")}`,
+          difficulty:        meta.label,
+          difficultyColor:   meta.color,
+          description:       canonical.description,
+          htmlFixture:       canonical.htmlFixture,
+          template:          canonical.template,
+          referenceSolution: canonical.referenceSolution,
+          functionName:      canonical.functionName,
+          testCases:         canonical.testCases,
+          isAiGenerated:     true,
         };
-      });
-
-      const candidate = {
-        id:                `ai-${Date.now()}`,
-        title:             `[AI] ${parsed.title}`,
-        difficulty:        meta.label,
-        difficultyColor:   meta.color,
-        description:       parsed.description ? parsed.description.replace(/\\n/g, "\n") : "",
-        htmlFixture:       parsed.htmlFixture ? parsed.htmlFixture.replace(/\\n/g, "\n") : "",
-        template:          cleanTemplate,
-        referenceSolution: cleanRefSolution,
-        functionName:      cleanFnName,
-        testCases:         cleanTestCases,
-        isAiGenerated:     true,
-      };
-
-      // 3. 模範解答コードをテスト実行エンジンで自己検証（出題前Oracleテスト）
-      if (cleanRefSolution) {
-        const evalRes = executeJsCodeAgainstCases(cleanRefSolution, candidate);
-        if (evalRes.allPass) {
-          console.log(`[AI Challenge Verification] Attempt ${attempt} PASSED all test cases!`);
-          verified = true;
-          newChallenge = candidate;
-          break;
-        } else {
-          console.warn(`[AI Challenge Verification] Attempt ${attempt} FAILED:`, evalRes.results);
-          const failedDetails = evalRes.results
-            .filter((r) => !r.pass)
-            .map((r) => `ケース: ${r.inputLabel}, 期待値: ${JSON.stringify(r.expected)}, 実際: ${JSON.stringify(r.actual)}`)
-            .join("\n");
-          currentPrompt = `${userPrompt}\n\n【警告: 前回の模範解答がテストに不合格でした。修正して再生成してください】\n不合格内容:\n${failedDetails}\n必ず提示するすべての testCases に100%合格する referenceSolution と整合性のとれた testCases を返してください。`;
-        }
+        break;
       } else {
-        currentPrompt = `${userPrompt}\n\n【エラー: referenceSolution が空でした。必ず全テストケースに合格する模範解答コードを含めてください】`;
+        console.warn(`[ORACLE] Attempt ${attempt} FAILED:`, evalRes.results);
+        failureReasonCode = "VALIDATION_FAILED";
+        const failedDetails = evalRes.results
+          .filter((r) => !r.pass)
+          .map((r) => `ケース: ${r.inputLabel}, 期待値: ${JSON.stringify(r.expected)}, 実際: ${JSON.stringify(r.actual)}`)
+          .join("\n");
+        lastValidationFailure = `VALIDATION_FAILED: 以下のテストケースで不合格となりました:\n${failedDetails}`;
       }
     }
 
-    if (!verified || !newChallenge) {
-      throw new Error(`AI生成課題の模範解答がテスト検証を通過できませんでした（${maxAttempts}回試行）。条件を変えて再度お試しください。`);
+    if (!finalChallenge) {
+      let userMessage = "AI課題の生成に失敗しました。";
+      if (failureReasonCode === "INVALID_JSON" || failureReasonCode === "NORMALIZATION_FAILED") {
+        userMessage = "AIが生成した問題データを解析・修復できませんでした。";
+      } else if (failureReasonCode === "VALIDATION_FAILED") {
+        userMessage = "問題と模範解答の自己検証に合格できませんでした。条件を変えて再度お試しください。";
+      }
+      throw new Error(`${userMessage}（詳細: ${lastValidationFailure || failureReasonCode}）`);
     }
 
     // リストの先頭に追加して選択
-    challenges.unshift(newChallenge);
+    challenges.unshift(finalChallenge);
     currentChallengeIndex = 0;
     renderChallengeList();
     selectChallenge(0);
 
     aiTopicInput.value = "";
   } catch (err) {
+    console.error("[CHALLENGE GENERATION FAILED]", err);
     alert(`AI課題生成失敗: ${err.message}`);
   } finally {
     hideAiLoader();

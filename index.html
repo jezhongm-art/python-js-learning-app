@@ -423,8 +423,34 @@
                   exec(user_code, _local_namespace, _local_namespace)
 
                   for idx, case_ in enumerate(test_cases):
-                      expr = case_['input']
-                      raw_expected = case_['expected']
+                      if not isinstance(case_, dict):
+                          case_ = {'input': str(case_), 'expected': None}
+
+                      expr = case_.get('input', '')
+                      # 'expected' または異名キー ('output', 'result') から安全に取得
+                      raw_expected = case_.get('expected')
+                      if raw_expected is None:
+                          raw_expected = case_.get('output', case_.get('result', None))
+
+                      if raw_expected is None:
+                          # 期待値が定義されていないケースの安全ハンドリング
+                          actual_val = None
+                          eval_err = None
+                          try:
+                              actual_val = eval(expr, _local_namespace, _local_namespace) if expr else None
+                          except Exception as e_none:
+                              eval_err = f"{e_none.__class__.__name__}: {str(e_none)}"
+
+                          results.append({
+                              'index': idx,
+                              'input': expr or f"ケース {idx + 1}",
+                              'expected': "(未設定)",
+                              'actual': eval_err if eval_err else repr(actual_val),
+                              'pass': False,
+                              'status': 'TEST_FAILED',
+                              'error': "テストケースに期待値 (expected) が設定されていません"
+                          })
+                          continue
 
                       expected = raw_expected
                       if isinstance(raw_expected, str):
@@ -434,7 +460,8 @@
                           except Exception:
                               expected = raw_expected
 
-                      expected = clean_quote_str(expected)
+                      if expected is not None:
+                          expected = clean_quote_str(expected)
 
                       try:
                           actual = eval(expr, _local_namespace, _local_namespace)

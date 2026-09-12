@@ -3726,8 +3726,235 @@ if (aiQuizGenerateBtn) {
 }
 
 // ==========================================
-// AIコーディング問題生成処理 (Gemini 3.7 Flash)
+// AIコーディング問題生成処理 ＆ スキーマ正規化・修復・Oracleパイプライン
 // ==========================================
+
+/**
+ * AIレスポンスからJSONを堅牢に抽出・パース
+ */
+function extractAndParseJson(rawText) {
+  if (!rawText || typeof rawText !== "string") {
+    throw new Error("AIレスポンスが空です。");
+  }
+  let text = rawText.trim();
+  // 外側のMarkdownフェンスを安全に除去（内部の```に影響されないよう先頭・末尾のみを除去）
+  if (text.startsWith("```")) {
+    text = text.replace(/^```(?:json)?\s*\r?\n?/i, "");
+  }
+  if (text.endsWith("```")) {
+    text = text.replace(/\r?\n?```\s*$/i, "");
+  }
+  text = text.trim();
+
+  // 前後に会話文などがある場合、最も外側の { ... } を抽出
+  const startIdx = text.indexOf("{");
+  const endIdx = text.lastIndexOf("}");
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    text = text.substring(startIdx, endIdx + 1);
+  }
+
+  return JSON.parse(text);
+}
+
+/**
+ * Python課題のSchema Normalizer (Canonical Challenge Object化)
+ */
+function normalizePythonChallenge(raw, fallbackType = "function", fallbackDiff = "初級") {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("パース結果がオブジェクトではありません。");
+  }
+
+  const pType = ["cli", "plot", "function"].includes(raw.type) ? raw.type : fallbackType;
+  let pDiff = raw.difficulty || fallbackDiff;
+  if (!["初級", "中級", "上級"].includes(pDiff)) {
+    pDiff = fallbackDiff;
+  }
+
+  // テンプレートと模範解答の改行コード正規化とMarkdownフェンス除去
+  let cleanTemplate = String(raw.template || "")
+    .replace(/```(?:python)?/gi, "")
+    .replace(/```/g, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
+  let cleanRefSolution = String(raw.reference_solution || raw.referenceSolution || raw.solution || "")
+    .replace(/```(?:python)?/gi, "")
+    .replace(/```/g, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
+  // テストケース配列の異名キー解決 (test_cases, testCases, cases, tests)
+  let rawCases = raw.test_cases || raw.testCases || raw.cases || raw.tests || [];
+  if (!Array.isArray(rawCases)) {
+    if (typeof rawCases === "object" && rawCases !== null) {
+      rawCases = Object.values(rawCases);
+    } else {
+      rawCases = [];
+    }
+  }
+
+  const canonicalCases = rawCases.map((tc, idx) => {
+    if (typeof tc !== "object" || tc === null) {
+      return { input: String(tc || ""), expected: undefined };
+    }
+
+    // 期待値キーの異名解決 (expected, output, result, expected_output, expectedOutput, val)
+    let exp = tc.expected !== undefined ? tc.expected :
+              tc.output !== undefined ? tc.output :
+              tc.result !== undefined ? tc.result :
+              tc.expected_output !== undefined ? tc.expected_output :
+              tc.expectedOutput !== undefined ? tc.expectedOutput :
+              tc.val !== undefined ? tc.val : undefined;
+
+    // 型正規化: 文字列化された JSON (例: "[1, 2]", "true", "42") の安全な復元
+    if (typeof exp === "string") {
+      const trimmedExp = exp.trim();
+      if ((trimmedExp.startsWith("[") && trimmedExp.endsWith("]")) ||
+          (trimmedExp.startsWith("{") && trimmedExp.endsWith("}")) ||
+          trimmedExp === "true" || trimmedExp === "false" ||
+          (!isNaN(Number(trimmedExp)) && trimmedExp !== "")) {
+        try {
+          exp = JSON.parse(trimmedExp);
+        } catch (_) {
+          let s = trimmedExp;
+          while ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) {
+            if (s.length >= 2) s = s.slice(1, -1).trim();
+            else break;
+          }
+          exp = s;
+        }
+      }
+    }
+
+    if (pType === "cli") {
+      let inputs = tc.inputs || tc.input || [];
+      if (!Array.isArray(inputs)) inputs = [String(inputs)];
+      return {
+        inputs: inputs.map(String),
+        expected: exp !== undefined ? String(exp) : undefined,
+        match: tc.match || "contains",
+        input_label: tc.input_label || tc.label || `CLIテスト ${idx + 1}`,
+      };
+    } else if (pType === "plot") {
+      return {
+        check: tc.check || "type",
+        expected: exp,
+        input_label: tc.input_label || tc.label || `グラフ検証: ${tc.check || "type"}`,
+      };
+    } else {
+      return {
+        input: String(tc.input || tc.call || tc.expr || ""),
+        expected: exp,
+        input_label: tc.input_label || tc.label || `ケース ${idx + 1}`,
+      };
+    }
+  });
+
+  return {
+    title: String(raw.title || "AIコーディング課題"),
+    type: pType,
+    difficulty: pDiff,
+    description: String(raw.description || "").replace(/\\n/g, "\n"),
+    setup_code: String(raw.setup_code || raw.setupCode || "").replace(/\\n/g, "\n").replace(/\r\n/g, "\n"),
+    template: cleanTemplate,
+    reference_solution: cleanRefSolution,
+    test_cases: canonicalCases,
+  };
+}
+
+/**
+ * Python課題のChallenge Repairer (自動修復層)
+ */
+function repairPythonChallenge(challenge) {
+  // 1. 関数名の整合性補正
+  if (challenge.type === "function") {
+    const fnMatch = challenge.template.match(/def\s+([a-zA-Z_]\w*)/) ||
+                    challenge.reference_solution.match(/def\s+([a-zA-Z_]\w*)/);
+    if (fnMatch) {
+      const canonicalFnName = fnMatch[1];
+      challenge.test_cases.forEach((tc) => {
+        const caseFnMatch = tc.input.match(/^([a-zA-Z_]\w*)\s*\(/);
+        if (caseFnMatch && caseFnMatch[1] !== canonicalFnName) {
+          console.log(`[REPAIR] Function name fixed in test case: ${caseFnMatch[1]} -> ${canonicalFnName}`);
+          tc.input = tc.input.replace(caseFnMatch[1], canonicalFnName);
+        }
+      });
+    }
+  }
+
+  // 2. テンプレートの改行補正
+  if (!challenge.template.includes("\n")) {
+    if (challenge.type === "cli") {
+      challenge.template = `# input() で値を受け取り、処理結果を出力してください\n# ここにコードを書いてください\n`;
+    } else if (challenge.type === "plot") {
+      challenge.template = `import matplotlib.pyplot as plt\n\n# ここにグラフ描画コードを書いてください\n`;
+    } else {
+      challenge.template = `${challenge.template}\n    # ここにコードを記述してください\n    pass\n`;
+    }
+    console.log("[REPAIR] Multi-line template repaired");
+  }
+
+  // 3. expected 欠落の自動補完 (reference_solution からの導出)
+  const hasMissingExpected = challenge.test_cases.some((tc) => tc.expected === undefined || tc.expected === null);
+  if (hasMissingExpected && challenge.reference_solution && typeof window !== "undefined" && window.run_python_tests) {
+    console.log("[REPAIR] Detected missing expected values. Attempting auto-derivation from reference_solution...");
+    try {
+      const testCasesWithDummyExp = challenge.test_cases.map(tc => ({
+        ...tc,
+        expected: tc.expected !== undefined ? tc.expected : "__NEED_DERIVATION__"
+      }));
+
+      const valPayload = JSON.stringify({
+        type: challenge.type,
+        setup_code: challenge.setup_code || "",
+        test_cases: testCasesWithDummyExp,
+      });
+
+      const testRaw = window.run_python_tests(challenge.reference_solution, valPayload);
+      const testRes = JSON.parse(testRaw);
+
+      if (testRes && Array.isArray(testRes.tests)) {
+        let repairedCount = 0;
+        testRes.tests.forEach((tRes, idx) => {
+          if (challenge.test_cases[idx] && (challenge.test_cases[idx].expected === undefined || challenge.test_cases[idx].expected === null)) {
+            if (tRes.actual !== undefined && tRes.actual !== null && !tRes.error) {
+              let actualVal = tRes.actual;
+              if (typeof actualVal === "string") {
+                try { actualVal = JSON.parse(actualVal); } catch (_) {}
+              }
+              challenge.test_cases[idx].expected = actualVal;
+              repairedCount++;
+            }
+          }
+        });
+        if (repairedCount > 0) {
+          console.log(`[REPAIR] Successfully derived ${repairedCount} missing expected values from reference_solution!`);
+        }
+      }
+    } catch (deriveErr) {
+      console.warn("[REPAIR] Could not auto-derive expected values:", deriveErr);
+    }
+  }
+
+  // 4. それでも expected が undefined のものは空文字列に安全フォールバック
+  challenge.test_cases.forEach((tc, idx) => {
+    if (tc.expected === undefined) {
+      console.warn(`[REPAIR] Case ${idx + 1} still missing expected. Falling back to empty string.`);
+      tc.expected = "";
+    }
+  });
+
+  return challenge;
+}
+
+if (typeof window !== "undefined") {
+  window.extractAndParseJson = extractAndParseJson;
+  window.normalizePythonChallenge = normalizePythonChallenge;
+  window.repairPythonChallenge = repairPythonChallenge;
+}
+
 const aiCodingTopicInput = document.getElementById("ai-coding-topic");
 const aiCodingDifficultySelect = document.getElementById("ai-coding-difficulty");
 const aiCodingTypeSelect = document.getElementById("ai-coding-type");
@@ -3812,18 +4039,21 @@ if (aiCodingGenerateBtn) {
 難易度規約: ${difficultyPromptConstraint}
 タイプ指定: ${typeConstraint}
 
-指定のJSONスキーマに従って、高品質な問題データを出力してください。`;
+以下のJSONスキーマに従って、高品質な問題データを出力してください。
+各テストケースには必ず input と expected を含めてください。
+【重要】模範解答コード (reference_solution) は、提示するすべてのテストケースに100%合格する完全なコードを出力してください。
+【重要】templateには答えそのものは含めず、関数の雛形や初期コードのみを含めてください。`;
 
     const codingSchema = {
       type: "OBJECT",
       properties: {
         title: {
           type: "STRING",
-          description: "課題のタイトル（例: 【対話型CLI】簡単計算機、日時差分計算関数、月別売上折れ線グラフ）",
+          description: "課題のタイトル（日本語）",
         },
         type: {
           type: "STRING",
-          description: "問題タイプ: 'function' (関数/標準ライブラリ), 'cli' (input/print対話型), 'plot' (Matplotlibグラフ可視化)",
+          description: "問題タイプ: 'function', 'cli', 'plot'",
         },
         difficulty: {
           type: "STRING",
@@ -3831,33 +4061,34 @@ if (aiCodingGenerateBtn) {
         },
         description: {
           type: "STRING",
-          description: "HTML形式の詳細な問題説明。実装すべき仕様や計算手順を分かりやすく解説。",
+          description: "HTML形式の詳細な問題説明",
         },
         template: {
           type: "STRING",
-          description: "出題用スターターコード（複数行）。解答コードそのものは含めず、書き始めの雛形を提供すること。",
+          description: "スターターコード（複数行）",
         },
         setup_code: {
           type: "STRING",
-          description: "テストケース実行前に評価される準備用のPythonコード（不要な場合は空文字列とする）",
+          description: "事前準備コード（不要なら空文字列）",
         },
         reference_solution: {
           type: "STRING",
-          description: "この課題の完全な模範解答Pythonコード（複数行）。templateで提示した関数名や入出力仕様と100%一致し、全テストケースに必ず合格する完成コード。",
+          description: "全テストケースに100%合格する完全な模範解答コード（複数行）",
         },
         test_cases: {
           type: "ARRAY",
-          description: "自動評価用のテストケース一覧（3〜5件）",
+          description: "自動評価用のテストケース一覧（3〜5件）。各ケースには必ず input と expected を含めること",
           items: {
             type: "OBJECT",
             properties: {
-              input: { type: "STRING", description: "関数呼び出し式（function用）" },
-              expected: { type: "STRING", description: "期待される戻り値や検証値" },
-              inputs: { type: "ARRAY", items: { type: "STRING" }, description: "input()へ渡す入力値の配列（cli用）" },
-              match: { type: "STRING", description: "照合モード: 'contains' または 'exact'（cli用）" },
-              check: { type: "STRING", description: "グラフ検証項目: 'type'|'title'|'labels'|'first_dataset_data'|'datasets_count'（plot用）" },
-              input_label: { type: "STRING", description: "検証項目の日本語説明（plot用）" },
+              input: { type: "STRING", description: "関数呼び出し式（例: 'add(1, 2)'）" },
+              expected: { description: "期待される戻り値や検証値（数値・文字列・真偽値・配列等）。絶対に省略しないこと" },
+              inputs: { type: "ARRAY", items: { type: "STRING" }, description: "cli用: input()へ渡す入力値の配列" },
+              match: { type: "STRING", description: "cli用: 'contains' または 'exact'" },
+              check: { type: "STRING", description: "plot用: 'type'|'title'|'labels'|'datasets_count'" },
+              input_label: { type: "STRING", description: "テストの日本語説明" },
             },
+            required: ["input", "expected"],
           },
         },
       },
@@ -3867,167 +4098,147 @@ if (aiCodingGenerateBtn) {
     try {
       let finalProblem = null;
       let lastValidationFailure = null;
+      let failureReasonCode = "UNKNOWN";
       const MAX_GEN_ATTEMPTS = 3;
 
       for (let attempt = 0; attempt < MAX_GEN_ATTEMPTS; attempt++) {
         let currentPrompt = userPrompt;
         if (lastValidationFailure) {
+          console.log(`[AI GENERATION] Regenerating problem (attempt ${attempt + 1}/${MAX_GEN_ATTEMPTS}). Reason: ${lastValidationFailure}`);
           showAiLoader(
-            "AI課題を自己検証中...",
-            `生成された問題と模範解答をテストエンジンで照合中... 修正版を再構築しています (試行 ${attempt + 1}/${MAX_GEN_ATTEMPTS})...`,
+            "AI課題を修復・再生成中...",
+            `前回の生成データに不整合があったため、AIが修復・再構築しています (試行 ${attempt + 1}/${MAX_GEN_ATTEMPTS})...`,
           );
-          currentPrompt += `\n\n【重要：前回の自己検証失敗理由】\n前回の生成コードで以下の不整合が発生し、テストエンジンで不合格になりました：\n${lastValidationFailure}\n関数名、出題テンプレート、テストケース期待値、および模範解答(reference_solution)を100%一致させ、全テストに合格する完全な問題データを再生成してください。`;
+          currentPrompt += `\n\n【重要：前回の自己検証失敗理由】\n前回の生成結果で以下の問題が発生しました：\n${lastValidationFailure}\nすべてのテストケースに有効な input と expected を含め、reference_solution で100%合格する完全なJSONを出力してください。`;
+        } else {
+          console.log(`[AI GENERATION] Requesting problem generation (attempt ${attempt + 1}/${MAX_GEN_ATTEMPTS})...`);
         }
 
-        const jsonText = await callGemini(
-          systemPrompt,
-          currentPrompt,
-          true,
-          codingSchema,
-        );
-        const parsedProblem = JSON.parse(jsonText);
-
-        // 1. タイプと難易度の正規化
-        const pType = ["cli", "plot", "function"].includes(parsedProblem.type) ? parsedProblem.type : "function";
-        let pDiff = parsedProblem.difficulty || label.slice(0, 2);
-        if (!["初級", "中級", "上級"].includes(pDiff)) {
-          pDiff = difficulty === "beginner" ? "初級" : difficulty === "advanced" ? "上級" : "中級";
+        // 1. [AI GENERATION] API通信層
+        let jsonText = "";
+        try {
+          jsonText = await callGemini(
+            systemPrompt,
+            currentPrompt,
+            true,
+            codingSchema,
+          );
+          console.log(`[AI GENERATION] Response received successfully (length: ${jsonText.length})`);
+        } catch (apiErr) {
+          console.error(`[AI GENERATION] API Communication Error:`, apiErr);
+          failureReasonCode = apiErr.message && apiErr.message.includes("混雑") ? "AI_SERVICE_UNAVAILABLE" : "AI_API_ERROR";
+          throw apiErr;
         }
 
-        // 2. 改行コードの正規化処理
-        let cleanTemplate = parsedProblem.template
-          ? parsedProblem.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n")
-          : "";
-
-        if (!cleanTemplate.includes("\n")) {
-          if (pType === "cli") {
-            cleanTemplate = `# input() で値を受け取り、処理結果を出力してください\n# ここにコードを書いてください\n`;
-          } else if (pType === "plot") {
-            cleanTemplate = `import matplotlib.pyplot as plt\n\n# ここにグラフ描画コードを書いてください\n`;
-          } else {
-            cleanTemplate = `${cleanTemplate}\n    # ここにコードを記述してください\n    pass\n`;
-          }
-        }
-
-        // 3. テストケースの正規化
-        const cleanTestCases = Array.isArray(parsedProblem.test_cases)
-          ? parsedProblem.test_cases.map((tc) => {
-              if (pType === "cli") {
-                return {
-                  inputs: Array.isArray(tc.inputs) ? tc.inputs.map(String) : [String(tc.input || "")],
-                  expected: String(tc.expected || ""),
-                  match: tc.match || "contains",
-                };
-              } else if (pType === "plot") {
-                let exp = tc.expected;
-                if (typeof exp === "string") {
-                  try { exp = JSON.parse(exp); } catch (_) {}
-                }
-                return {
-                  check: tc.check || "type",
-                  expected: exp,
-                  input_label: tc.input_label || `グラフ検証: ${tc.check || "type"}`,
-                };
-              } else {
-                let exp = tc.expected;
-                if (typeof exp === "string") {
-                  let s = exp.trim();
-                  while (
-                    (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) ||
-                    (s.length >= 2 && s.startsWith('"') && s.endsWith('"'))
-                  ) {
-                    s = s.slice(1, -1).trim();
-                  }
-                  exp = s;
-                }
-                return {
-                  input: tc.input || "",
-                  expected: exp,
-                };
-              }
-            })
-          : [];
-
-        if (cleanTestCases.length === 0) {
-          lastValidationFailure = "テストケースが0件です。";
+        // 2. [PARSE] JSONパース層
+        let rawObj = null;
+        try {
+          rawObj = extractAndParseJson(jsonText);
+          console.log("[PARSE] JSON successfully parsed");
+        } catch (parseErr) {
+          console.warn("[PARSE] JSON Parse failed:", parseErr.message);
+          failureReasonCode = "INVALID_JSON";
+          lastValidationFailure = `INVALID_JSON: JSONの構文解析に失敗しました (${parseErr.message})`;
           continue;
         }
 
-        let cleanRefSolution = parsedProblem.reference_solution
-          ? parsedProblem.reference_solution.replace(/\\n/g, "\n").replace(/\r\n/g, "\n")
-          : "";
-
-        // function 型の場合の関数名整合性チェック
-        if (pType === "function") {
-          const fnMatch = cleanTemplate.match(/def\s+([a-zA-Z_]\w*)/) || cleanRefSolution.match(/def\s+([a-zA-Z_]\w*)/);
-          const fnName = fnMatch ? fnMatch[1] : null;
-          if (fnName) {
-            // テストケースの input が別関数名になっていないか確認・補正
-            cleanTestCases.forEach((tc) => {
-              const caseFnMatch = tc.input.match(/^([a-zA-Z_]\w*)\s*\(/);
-              if (caseFnMatch && caseFnMatch[1] !== fnName) {
-                tc.input = tc.input.replace(caseFnMatch[1], fnName);
-              }
-            });
-          }
+        // 3. [NORMALIZE] Schema Normalizer
+        let canonical = null;
+        try {
+          canonical = normalizePythonChallenge(rawObj, type, label.slice(0, 2));
+          console.log("[NORMALIZE] Successfully normalized to Canonical Challenge Object:", canonical.title);
+        } catch (normErr) {
+          console.warn("[NORMALIZE] Normalization failed:", normErr.message);
+          failureReasonCode = "NORMALIZATION_FAILED";
+          lastValidationFailure = `NORMALIZATION_FAILED: スキーマ正規化に失敗 (${normErr.message})`;
+          continue;
         }
 
-        // 4. 出題前自己検証 (Oracle Verification: 模範解答のテスト実行)
-        if (window.run_python_tests && cleanRefSolution) {
+        // 4. [VALIDATE] 必須要素の検証
+        if (!canonical.test_cases || canonical.test_cases.length === 0) {
+          console.warn("[VALIDATE] No test cases present");
+          failureReasonCode = "INVALID_TEST_CASE";
+          lastValidationFailure = "INVALID_TEST_CASE: テストケースが0件です。必ず3〜5件のテストケースを含めてください。";
+          continue;
+        }
+
+        if (!canonical.reference_solution) {
+          console.warn("[VALIDATE] Missing reference_solution");
+          failureReasonCode = "INVALID_REFERENCE_SOLUTION";
+          lastValidationFailure = "INVALID_REFERENCE_SOLUTION: reference_solution（模範解答コード）が空です。";
+          continue;
+        }
+
+        // 5. [REPAIR] 自動修復層 (expected欠落の自動補完等)
+        try {
+          canonical = repairPythonChallenge(canonical);
+          console.log("[REPAIR] Repair stage completed");
+        } catch (repairErr) {
+          console.warn("[REPAIR] Repair warning:", repairErr.message);
+        }
+
+        // 6. [ORACLE] 参照実装（模範解答）によるテスト実実行
+        if (window.run_python_tests && canonical.reference_solution) {
           try {
             const valPayload = JSON.stringify({
-              type: pType,
-              setup_code: parsedProblem.setup_code || "",
-              test_cases: cleanTestCases,
+              type: canonical.type,
+              setup_code: canonical.setup_code || "",
+              test_cases: canonical.test_cases,
             });
-            const testRaw = window.run_python_tests(cleanRefSolution, valPayload);
+            const testRaw = window.run_python_tests(canonical.reference_solution, valPayload);
             const testRes = JSON.parse(testRaw);
 
             if (testRes.error) {
-              lastValidationFailure = `模範解答の実行時エラー: ${testRes.error}`;
-              console.warn(`[Problem Validation] Attempt ${attempt + 1} failed:`, testRes.error);
+              console.warn(`[ORACLE] Reference solution execution error:`, testRes.error);
+              failureReasonCode = "REFERENCE_EXECUTION_ERROR";
+              lastValidationFailure = `REFERENCE_EXECUTION_ERROR: 模範解答実行時エラー (${testRes.error})`;
               continue;
             }
 
             if (Array.isArray(testRes.tests)) {
               const failed = testRes.tests.filter((t) => !t.pass);
               if (failed.length > 0) {
+                console.warn(`[ORACLE] ${failed.length} test cases failed with reference_solution:`, failed);
+                failureReasonCode = "VALIDATION_FAILED";
                 lastValidationFailure = failed
-                  .map((f) => `テストケース ${f.index + 1} 不合格: [入力: ${f.input}] 期待値=${f.expected}, 実際=${f.actual}`)
+                  .map((f) => `ケース ${f.index + 1} 不合格: [${f.input}] 期待値=${JSON.stringify(f.expected)}, 実際=${JSON.stringify(f.actual)}`)
                   .join("; ");
-                console.warn(`[Problem Validation] Attempt ${attempt + 1} tests failed:`, lastValidationFailure);
                 continue;
               }
             }
+            console.log("[ORACLE] All test cases PASSED with reference_solution!");
           } catch (valErr) {
-            lastValidationFailure = `自己検証実行例外: ${valErr.message}`;
+            console.warn(`[ORACLE] Oracle validation exception:`, valErr.message);
+            failureReasonCode = "VALIDATION_FAILED";
+            lastValidationFailure = `VALIDATION_FAILED: 自己検証例外 (${valErr.message})`;
             continue;
           }
         }
 
-        // 検証合格！
+        // 7. [CHALLENGE READY] 出題確定
+        console.log("[CHALLENGE READY] Problem validated and approved for presentation!");
         finalProblem = {
-          title: `[AI生成 - ${pDiff}] ${parsedProblem.title.replace(/^\[.*?\]\s*/, "")}`,
-          type: pType,
-          difficulty: pDiff,
-          description: parsedProblem.description
-            ? parsedProblem.description.replace(/\\n/g, "\n")
-            : "",
-          template: cleanTemplate,
-          setup_code: parsedProblem.setup_code
-            ? parsedProblem.setup_code.replace(/\\n/g, "\n")
-            : "",
-          test_cases: cleanTestCases,
-          reference_solution: cleanRefSolution,
+          title: `[AI生成 - ${canonical.difficulty}] ${canonical.title.replace(/^\[.*?\]\s*/, "")}`,
+          type: canonical.type,
+          difficulty: canonical.difficulty,
+          description: canonical.description,
+          template: canonical.template,
+          setup_code: canonical.setup_code,
+          test_cases: canonical.test_cases,
+          reference_solution: canonical.reference_solution,
           isAiGenerated: true,
         };
         break;
       }
 
       if (!finalProblem) {
-        throw new Error(
-          `AI問題の自己検証に合格できませんでした（${lastValidationFailure || "テスト不整合"}）。お手数ですが、再度生成ボタンを押すか別のテーマをお試しください。`,
-        );
+        let userMessage = "AI課題の生成に失敗しました。";
+        if (failureReasonCode === "INVALID_JSON" || failureReasonCode === "NORMALIZATION_FAILED") {
+          userMessage = "AIが生成した問題データを解析・修復できませんでした。";
+        } else if (failureReasonCode === "VALIDATION_FAILED" || failureReasonCode === "REFERENCE_EXECUTION_ERROR") {
+          userMessage = "問題と模範解答の自己検証に合格できませんでした。条件を変えて再度お試しください。";
+        }
+        throw new Error(`${userMessage}（詳細: ${lastValidationFailure || failureReasonCode}）`);
       }
 
       codingProblems = [finalProblem, ...codingProblems];
@@ -4042,6 +4253,7 @@ if (aiCodingGenerateBtn) {
       aiCodingTopicInput.value = "";
       notify(`AI問題「${finalProblem.title}」を自己検証合格の上、出題しました！`, "success");
     } catch (err) {
+      console.error("[CHALLENGE GENERATION FAILED]", err);
       notify(`${err.message}`, "AI課題生成失敗", "error");
     } finally {
       hideAiLoader();
