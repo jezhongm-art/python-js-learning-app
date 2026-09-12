@@ -1,3 +1,5 @@
+import { geminiRouter } from "./gemini_router.js";
+
 window.brythonTestResult = null;
 
 // ==========================================
@@ -193,7 +195,7 @@ function updateKeyStatus() {
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          APIキーが保存されています (Gemini 3.7 Flash で稼働中)
+          APIキーが保存されています (Gemini 自動フォールバック稼働中)
         `;
     apiKeyStatus.classList.remove("hidden");
   } else {
@@ -3420,71 +3422,25 @@ runBtn.onclick = runCodingTests;
 codingNextBtn.onclick = nextCodingProblem;
 
 // ==========================================
-// Gemini 3.7 Flash API 連携ロジック
+// Gemini API 複数モデル自動フォールバック連携ロジック (Gemini Model Router)
 // ==========================================
-const defaultDefaultKey = "";
-
-function getGeminiUrl() {
-  const savedKey = localStorage.getItem("gemini_api_key");
-  const activeKey = savedKey ? savedKey.trim() : defaultDefaultKey;
-  return {
-    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${activeKey}`,
-    hasKey: !!activeKey,
-  };
-}
-
 async function callGeminiStream(systemPrompt, userPromptOrContents, onChunk) {
-  const apiConfig = getGeminiUrl();
-  const streamUrl =
-    apiConfig.url.replace(":generateContent", ":streamGenerateContent") +
-    "&alt=sse";
-
-  if (!apiConfig.hasKey)
-    throw new Error("Gemini APIキーが設定されていません。");
-
-  // contentsが配列で渡された場合はマルチターン会話として使用
-  const contents = Array.isArray(userPromptOrContents)
-    ? userPromptOrContents
-    : [{ role: "user", parts: [{ text: userPromptOrContents }] }];
-
-  const payload = {
-    contents,
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-  };
-
-  const response = await fetch(streamUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok)
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let fullText = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split("\n");
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const dataStr = line.replace("data: ", "").trim();
-        if (dataStr === "[DONE]") continue;
-        try {
-          const data = JSON.parse(dataStr);
-          const textPart =
-            data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          fullText += textPart;
-          if (onChunk) onChunk(fullText);
-        } catch (e) {}
-      }
-    }
+  const savedKey = localStorage.getItem("gemini_api_key");
+  if (!savedKey || !savedKey.trim()) {
+    apiKeyPanel.classList.remove("hidden");
+    throw new Error("Gemini APIキーが設定されていません。ヘッダーの「APIキー設定」から、ご自身のAPIキーを入力してください。");
   }
-  return fullText;
+
+  return await geminiRouter.generateStream({
+    systemPrompt,
+    userPromptOrContents,
+    onChunk,
+    onStatusChange: (statusMsg) => {
+      if (aiLoadingDesc && !aiLoadingScreen.classList.contains("hidden")) {
+        aiLoadingDesc.textContent = statusMsg;
+      }
+    },
+  });
 }
 
 async function callGemini(
@@ -3493,72 +3449,25 @@ async function callGemini(
   isJson = false,
   responseSchema = null,
 ) {
-  const apiConfig = getGeminiUrl();
-
-  if (!apiConfig.hasKey) {
+  const savedKey = localStorage.getItem("gemini_api_key");
+  if (!savedKey || !savedKey.trim()) {
     apiKeyPanel.classList.remove("hidden");
     throw new Error(
       "Gemini APIキーが設定されていません。ヘッダーの「APIキー設定」から、ご自身のAPIキーを入力してください。",
     );
   }
 
-  const payload = {
-    contents: [{ parts: [{ text: userPrompt }] }],
-    systemInstruction: {
-      parts: [{ text: systemPrompt }],
+  return await geminiRouter.generate({
+    systemPrompt,
+    userPrompt,
+    isJson,
+    responseSchema,
+    onStatusChange: (statusMsg) => {
+      if (aiLoadingDesc && !aiLoadingScreen.classList.contains("hidden")) {
+        aiLoadingDesc.textContent = statusMsg;
+      }
     },
-  };
-
-  if (isJson) {
-    payload.generationConfig = {
-      responseMimeType: "application/json",
-    };
-    if (responseSchema) {
-      payload.generationConfig.responseSchema = responseSchema;
-    }
-  }
-
-  let delay = 1000;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      const response = await fetch(apiConfig.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        if (response.status === 400 || response.status === 403) {
-          throw new Error(
-            "APIキーが無効であるか、アクセス権限がありません。入力したキーが正しいか確認してください。",
-          );
-        }
-        if (response.status === 404) {
-          throw new Error(
-            "指定されたGemini 3.7 Flashモデルが見つかりません。APIアクセス権が有効かご確認ください。",
-          );
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!textResponse) {
-        throw new Error("応答内容が空です。");
-      }
-      return textResponse;
-    } catch (error) {
-      if (
-        error.message.includes("APIキー") ||
-        error.message.includes("404") ||
-        attempt === 4
-      ) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      delay *= 2;
-    }
-  }
+  });
 }
 
 const aiLoadingScreen = document.getElementById("ai-loading-screen");
@@ -3705,7 +3614,7 @@ if (aiQuizGenerateBtn) {
     const label = difficultyLabels[difficulty];
     showAiLoader(
       "AIクイズを作成中...",
-      `Gemini 3.7 Flashが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
+      `Gemini AIが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
     );
 
     let difficultyPromptConstraint = "";
@@ -3826,7 +3735,7 @@ if (aiCodingGenerateBtn) {
     const label = difficultyLabels[difficulty];
     showAiLoader(
       "AI課題をビルド中...",
-      `Gemini 3.7 Flashが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
+      `Gemini AIが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
     );
 
     let difficultyPromptConstraint = "";

@@ -1,3 +1,5 @@
+import { geminiRouter } from "../js/gemini_router.js";
+
 // ============================================================
 // challenges/app.js  — JavaScript Coding Challenge Application
 // Features: built-in problems, AI problem generator, AI coach
@@ -643,124 +645,51 @@ function setupApiKeyPanel() {
 }
 
 // ============================================================
-// 6. GEMINI API — STANDALONE HELPER
+// 6. GEMINI API — MULTI-MODEL ROUTER DELEGATE
 // ============================================================
-function getGeminiConfig() {
-  const key = (localStorage.getItem("gemini_api_key") || "").trim();
-  return {
-    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${key}`,
-    hasKey: !!key,
-  };
-}
-
 /**
  * Call Gemini API as an SSE stream.
  */
 async function callGeminiStream(systemPrompt, userPromptOrContents, onChunk) {
-  const cfg = getGeminiConfig();
-  const streamUrl = cfg.url.replace(":generateContent", ":streamGenerateContent") + "&alt=sse";
-
-  if (!cfg.hasKey) {
+  const key = (localStorage.getItem("gemini_api_key") || "").trim();
+  if (!key) {
     apiKeyPanel.classList.remove("hidden");
     throw new Error("Gemini APIキーが設定されていません。画面右上の「APIキー」ボタンから設定してください。");
   }
 
-  // contentsが配列で渡された場合はマルチターン会話として使用
-  const contents = Array.isArray(userPromptOrContents)
-    ? userPromptOrContents
-    : [{ role: "user", parts: [{ text: userPromptOrContents }] }];
-
-  const payload = {
-    contents,
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-  };
-
-  const response = await fetch(streamUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok)
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let fullText = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split("\n");
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const dataStr = line.replace("data: ", "").trim();
-        if (dataStr === "[DONE]") continue;
-        try {
-          const data = JSON.parse(dataStr);
-          const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          fullText += textPart;
-          if (onChunk) onChunk(fullText);
-        } catch (e) {}
+  return await geminiRouter.generateStream({
+    systemPrompt,
+    userPromptOrContents,
+    onChunk,
+    onStatusChange: (statusMsg) => {
+      if (aiLoadingDesc && !aiLoadingScreen.classList.contains("hidden")) {
+        aiLoadingDesc.textContent = statusMsg;
       }
-    }
-  }
-  return fullText;
+    },
+  });
 }
 
 /**
- * Calls the Gemini API with exponential-back-off retry (up to 5 attempts).
- * @param {string} systemPrompt
- * @param {string} userPrompt
- * @param {boolean} isJson  - request JSON output
- * @param {object|null} responseSchema - optional Gemini response schema
+ * Calls the Gemini API with automatic multi-model switching & fallback.
  */
 async function callGemini(systemPrompt, userPrompt, isJson = false, responseSchema = null) {
-  const cfg = getGeminiConfig();
-
-  if (!cfg.hasKey) {
+  const key = (localStorage.getItem("gemini_api_key") || "").trim();
+  if (!key) {
     apiKeyPanel.classList.remove("hidden");
     throw new Error("Gemini APIキーが設定されていません。画面右上の「APIキー」ボタンから設定してください。");
   }
 
-  const payload = {
-    contents: [{ parts: [{ text: userPrompt }] }],
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-  };
-
-  if (isJson) {
-    payload.generationConfig = { responseMimeType: "application/json" };
-    if (responseSchema) payload.generationConfig.responseSchema = responseSchema;
-  }
-
-  let delay = 1000;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      const response = await fetch(cfg.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        if (response.status === 400 || response.status === 403)
-          throw new Error("APIキーが無効か、アクセス権限がありません。");
-        if (response.status === 404)
-          throw new Error("指定されたモデルが見つかりません。");
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  return await geminiRouter.generate({
+    systemPrompt,
+    userPrompt,
+    isJson,
+    responseSchema,
+    onStatusChange: (statusMsg) => {
+      if (aiLoadingDesc && !aiLoadingScreen.classList.contains("hidden")) {
+        aiLoadingDesc.textContent = statusMsg;
       }
-
-      const result = await response.json();
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error("APIからの応答が空です。");
-      return text;
-    } catch (err) {
-      if (err.message.includes("APIキー") || err.message.includes("404") || attempt === 4) throw err;
-      await new Promise(r => setTimeout(r, delay));
-      delay *= 2;
-    }
-  }
+    },
+  });
 }
 
 function showAiLoader(title, desc) {
