@@ -84,6 +84,7 @@
       import sys
       import io
       import builtins
+      import math
 
       def clean_quote_str(obj):
           """再帰的に文字列の最外殻にある二重/一重引用符を取り除く"""
@@ -103,7 +104,15 @@
       def deep_equal(a, b):
           if a == b:
               return True
+          # 浮動小数点の許容誤差比較 (例: 0.1 + 0.2 と 0.3)
+          if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+              try:
+                  return math.isclose(float(a), float(b), rel_tol=1e-5, abs_tol=1e-8)
+              except Exception:
+                  pass
           if isinstance(a, str) and isinstance(b, str):
+              if a.strip() == b.strip():
+                  return True
               return clean_quote_str(a) == clean_quote_str(b)
           if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
               if len(a) != len(b):
@@ -118,11 +127,26 @@
               return True
           # 数値と数値文字列の同値比較 (例: 3 と "3")
           if isinstance(a, (int, float)) and isinstance(b, str):
-              try: return float(a) == float(clean_quote_str(b))
-              except Exception: pass
+              try:
+                  b_clean = clean_quote_str(b)
+                  return math.isclose(float(a), float(b_clean), rel_tol=1e-5, abs_tol=1e-8)
+              except Exception:
+                  pass
           elif isinstance(b, (int, float)) and isinstance(a, str):
-              try: return float(a) == float(clean_quote_str(a))
-              except Exception: pass
+              try:
+                  a_clean = clean_quote_str(a)
+                  return math.isclose(float(a_clean), float(b), rel_tol=1e-5, abs_tol=1e-8)
+              except Exception:
+                  pass
+          # 真偽値・Noneの文字列対応
+          if isinstance(a, bool) and isinstance(b, str):
+              return str(a).lower() == b.strip().lower()
+          if isinstance(b, bool) and isinstance(a, str):
+              return str(b).lower() == a.strip().lower()
+          if a is None and isinstance(b, str):
+              return b.strip() in ("None", "null", "")
+          if b is None and isinstance(a, str):
+              return a.strip() in ("None", "null", "")
           return clean_quote_str(a) == clean_quote_str(b)
 
       def is_exception_name(s):
@@ -280,11 +304,9 @@
                       sys.stdout = captured_case_output
 
                       def mock_input(prompt=""):
-                          if prompt:
-                              captured_case_output.write(str(prompt))
+                          # promptは標準出力バッファには直接書き込まず入力値のみ記録
                           if inputs_queue:
                               val = str(inputs_queue.pop(0))
-                              captured_case_output.write(val + "\n")
                               return val
                           return ""
 
@@ -301,14 +323,20 @@
 
                       try:
                           exec(user_code, case_env, case_env)
-                          actual_output = captured_case_output.getvalue().strip()
+                          raw_output = captured_case_output.getvalue()
+                          actual_output = raw_output.strip()
                           expected_out = str(case_.get('expected', '')).strip()
 
-                          # 期待される出力との比較 (完全一致または部分一致)
+                          # 期待される出力との比較 (部分一致、完全一致、または改行除外一致)
                           if case_.get('match') == 'contains':
                               case_pass = expected_out in actual_output
                           else:
-                              case_pass = (actual_output == expected_out) or (clean_quote_str(actual_output) == clean_quote_str(expected_out))
+                              case_pass = (
+                                  actual_output == expected_out
+                                  or clean_quote_str(actual_output) == clean_quote_str(expected_out)
+                                  or actual_output.replace("\r\n", "\n") == expected_out.replace("\r\n", "\n")
+                                  or (expected_out in actual_output)
+                              )
 
                           results.append({
                               'index': idx,
@@ -316,23 +344,29 @@
                               'expected': expected_out,
                               'actual': actual_output,
                               'pass': case_pass,
+                              'status': 'PASSED' if case_pass else 'TEST_FAILED',
                               'error': None
                           })
                       except Exception as e:
                           exc_type_name = e.__class__.__name__
+                          err_msg = f"{exc_type_name}: {str(e)}"
+                          is_timeout = "無限ループ" in str(e) or "最大ステップ数" in str(e)
                           results.append({
                               'index': idx,
                               'input': f"入力: {json.dumps(case_.get('inputs', []))}",
                               'expected': str(case_.get('expected', '')),
                               'actual': captured_case_output.getvalue(),
                               'pass': False,
-                              'error': f"{exc_type_name}: {str(e)}"
+                              'status': 'TIMEOUT' if is_timeout else 'EXECUTION_ERROR',
+                              'error': err_msg
                           })
 
                   sys.settrace(None)
                   sys.stdout = stdout_backup
                   builtins.input = stdin_input_backup
-                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': None, 'error': None})
+                  all_passed = len(results) > 0 and all(r['pass'] for r in results)
+                  overall_status = 'PASSED' if all_passed else ('TIMEOUT' if any(r.get('status') == 'TIMEOUT' for r in results) else 'TEST_FAILED')
+                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': None, 'error': None, 'status': overall_status})
 
               elif problem_type == 'plot':
                   # グラフ描画問題 (matplotlib.pyplot)
@@ -370,12 +404,14 @@
                           'expected': repr(expected_val),
                           'actual': repr(actual_val),
                           'pass': is_pass,
+                          'status': 'PASSED' if is_pass else 'TEST_FAILED',
                           'error': None
                       })
 
                   sys.stdout = stdout_backup
                   builtins.input = stdin_input_backup
-                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': chart_data, 'error': None})
+                  all_passed = len(results) > 0 and all(r['pass'] for r in results)
+                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': chart_data, 'error': None, 'status': 'PASSED' if all_passed else 'TEST_FAILED'})
 
               else:
                   # 通常の関数評価型問題
@@ -410,40 +446,51 @@
                               'expected': repr(expected),
                               'actual': repr(actual),
                               'pass': is_pass,
+                              'status': 'PASSED' if is_pass else 'TEST_FAILED',
                               'error': None
                           })
                       except Exception as e:
                           exc_type_name = e.__class__.__name__
+                          err_msg = f"{exc_type_name}: {str(e)}"
                           raw_exp_str = str(raw_expected)
                           if is_exception_name(raw_exp_str) and (raw_exp_str == exc_type_name or raw_exp_str.startswith(exc_type_name)):
                               results.append({
                                   'index': idx,
                                   'input': expr,
                                   'expected': raw_exp_str,
-                                  'actual': f"{exc_type_name}: {str(e)}",
+                                  'actual': err_msg,
                                   'pass': True,
+                                  'status': 'PASSED',
                                   'error': None
                               })
                           else:
+                              is_timeout = "無限ループ" in str(e) or "最大ステップ数" in str(e)
                               results.append({
                                   'index': idx,
                                   'input': expr,
                                   'expected': repr(expected),
                                   'actual': None,
                                   'pass': False,
-                                  'error': f"{exc_type_name}: {str(e)}"
+                                  'status': 'TIMEOUT' if is_timeout else 'EXECUTION_ERROR',
+                                  'error': err_msg
                               })
 
                   sys.settrace(None)
                   sys.stdout = stdout_backup
                   builtins.input = stdin_input_backup
-                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': None, 'error': None})
+                  all_passed = len(results) > 0 and all(r['pass'] for r in results)
+                  overall_status = 'PASSED' if all_passed else ('TIMEOUT' if any(r.get('status') == 'TIMEOUT' for r in results) else 'TEST_FAILED')
+                  return json.dumps({'tests': results, 'stdout': captured_output.getvalue(), 'chart': None, 'error': None, 'status': overall_status})
 
           except Exception as global_err:
               sys.settrace(None)
               sys.stdout = stdout_backup
               builtins.input = stdin_input_backup
-              return json.dumps({'tests': None, 'stdout': captured_output.getvalue(), 'chart': None, 'error': str(global_err)})
+              err_cls = global_err.__class__.__name__
+              full_err = f"{err_cls}: {str(global_err)}"
+              is_timeout = "無限ループ" in str(global_err) or "最大ステップ数" in str(global_err)
+              status_code = 'TIMEOUT' if is_timeout else 'EXECUTION_ERROR'
+              return json.dumps({'tests': None, 'stdout': captured_output.getvalue(), 'chart': None, 'error': full_err, 'status': status_code})
 
       def run_interactive(user_code):
           captured = io.StringIO()

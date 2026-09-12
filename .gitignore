@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
+*.Python
 env/
 venv/
 *.log
@@ -13,7 +13,7 @@ db.sqlite3-journal
 
 # Environment & API Keys
 .env
-.env.local
+*.env.local
 
 # IDE & OS
 .vscode/

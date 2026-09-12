@@ -736,6 +736,9 @@ async function generateAiChallenge() {
 
   const systemPrompt = `あなたはJavaScriptプログラミングの試験問題設計の専門家です。
 指定された難易度とテーマに厳密に合致した、ブラウザ上で動的テスト可能なコーディング問題（関数の戻り値判定問題、またはHTML DOM操作問題）を1問設計してください。
+【最重要要件】
+生成する課題には、指定したすべての testCases に100%合格する完全な模範解答コード「referenceSolution」を必ず含めてください。
+この模範解答コードは、システム内部のテスト実行エンジンで実際にテストされ、1ケースでも不合格になった場合は自動的に棄却・再生成されます。
 必ず指定のJSONスキーマに従ったレスポンスを返してください。`;
 
   // プロンプトを強化し、テンプレートに必ず改行を含めるよう指示
@@ -748,16 +751,18 @@ async function generateAiChallenge() {
 DOM操作問題の場合は、必ず htmlFixture（例: '<h1 id="title">Old Title</h1>'）と、各testCaseに domCheck（例: 'document.querySelector("#title").textContent'）を含めてください。
 testCasesは4件以上（またはDOM問題の場合は1〜4件の検証）を含めること。
 functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p>,<code>,<ul>,<li>,<h3>）を使用してください。
-【必須】templateは必ず関数の開き波括弧の後に改行(\\n)を入れた3行以上の複数行コードにしてください。`;
+【必須】templateは必ず関数の開き波括弧の後に改行(\\n)を入れた3行以上の複数行コードにしてください。
+【必須】referenceSolutionには、すべてのテストケースを通過する完全で動作可能な模範解答コード（function \${functionName}(...) { ... }）を記述してください。`;
 
   const schema = {
     type: "OBJECT",
     properties: {
-      title:        { type: "STRING", description: "課題のタイトル（日本語）" },
-      functionName: { type: "STRING", description: "実装すべき関数名（英語キャメルケース）" },
-      description:  { type: "STRING", description: "HTML形式の詳細な問題説明" },
-      template:     { type: "STRING", description: "初期コードテンプレート。必ず改行(\\n)を入れた複数行で指定（例: 'function foo() {\\n    // ここにコードを記述してください\\n    \\n}'）" },
-      htmlFixture:  { type: "STRING", description: "DOM操作問題の場合、操作対象となる初期HTMLコード。関数問題の場合は空文字列" },
+      title:             { type: "STRING", description: "課題のタイトル（日本語）" },
+      functionName:      { type: "STRING", description: "実装すべき関数名（英語キャメルケース）" },
+      description:       { type: "STRING", description: "HTML形式の詳細な問題説明" },
+      template:          { type: "STRING", description: "初期コードテンプレート。必ず改行(\\n)を入れた複数行で指定（例: 'function foo() {\\n    // ここにコードを記述してください\\n    \\n}'）" },
+      referenceSolution: { type: "STRING", description: "全テストケースに100%合格する完全な模範解答コード（関数名はfunctionNameと一致させること）" },
+      htmlFixture:       { type: "STRING", description: "DOM操作問題の場合、操作対象となる初期HTMLコード。関数問題の場合は空文字列" },
       testCases: {
         type: "ARRAY",
         items: {
@@ -772,59 +777,99 @@ functionNameは英語のキャメルケースで、descriptionはHTMLタグ（<p
         },
       },
     },
-    required: ["title", "functionName", "description", "template", "testCases"],
+    required: ["title", "functionName", "description", "template", "referenceSolution", "testCases"],
   };
 
   try {
-    const jsonText = await callGemini(systemPrompt, userPrompt, true, schema);
-    const parsed   = JSON.parse(jsonText);
+    let verified = false;
+    let newChallenge = null;
+    let attempt = 0;
+    const maxAttempts = 3;
+    let currentPrompt = userPrompt;
 
-    // 1. 改行コードの正規化処理
-    let cleanTemplate = parsed.template ? parsed.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n") : "";
+    while (attempt < maxAttempts && !verified) {
+      attempt++;
+      showAiLoader(
+        "AI課題を生成・検証中...",
+        `Gemini AIが課題と模範解答を生成し、テスト実行エンジンで自己検証しています（試行 ${attempt}/${maxAttempts}）...`
+      );
 
-    // 2. 万が一AIが1行で生成した場合の自動フォーマット(複数行化)処理の安全装置
-    if (!cleanTemplate.includes("\n")) {
-      const fnName = parsed.functionName || "solution";
-      cleanTemplate = `function ${fnName}() {\n    // ここにコードを記述してください\n    \n}`;
+      const jsonText = await callGemini(systemPrompt, currentPrompt, true, schema);
+      const parsed   = JSON.parse(jsonText);
+
+      // 1. 改行コードの正規化処理
+      let cleanTemplate = parsed.template ? parsed.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n") : "";
+      let cleanRefSolution = parsed.referenceSolution ? parsed.referenceSolution.replace(/\\n/g, "\n").replace(/\r\n/g, "\n") : "";
+
+      // 2. 万が一AIが1行で生成した場合の自動フォーマット(複数行化)処理の安全装置
+      if (!cleanTemplate.includes("\n")) {
+        const fnName = parsed.functionName || "solution";
+        cleanTemplate = `function ${fnName}() {\n    // ここにコードを記述してください\n    \n}`;
+      }
+
+      // 新しい課題オブジェクトを構築
+      const cleanFnName = parsed.functionName ? parsed.functionName.replace(/[^\w$]/g, "") : "solution";
+
+      let cleanTestCases = Array.isArray(parsed.testCases) ? parsed.testCases : [];
+      cleanTestCases = cleanTestCases.map((tc, idx) => {
+        let input = tc.input;
+        if (!Array.isArray(input)) {
+          input = input === undefined || input === null ? [] : [input];
+        }
+        let label = tc.inputLabel;
+        if (!label) {
+          try {
+            label = `${cleanFnName}(${input.map((x) => JSON.stringify(x)).join(", ")})`;
+          } catch (e) {
+            label = `${cleanFnName}(ケース ${idx + 1})`;
+          }
+        }
+        return {
+          input,
+          expected: tc.expected,
+          domCheck: tc.domCheck || "",
+          inputLabel: label,
+        };
+      });
+
+      const candidate = {
+        id:                `ai-${Date.now()}`,
+        title:             `[AI] ${parsed.title}`,
+        difficulty:        meta.label,
+        difficultyColor:   meta.color,
+        description:       parsed.description ? parsed.description.replace(/\\n/g, "\n") : "",
+        htmlFixture:       parsed.htmlFixture ? parsed.htmlFixture.replace(/\\n/g, "\n") : "",
+        template:          cleanTemplate,
+        referenceSolution: cleanRefSolution,
+        functionName:      cleanFnName,
+        testCases:         cleanTestCases,
+        isAiGenerated:     true,
+      };
+
+      // 3. 模範解答コードをテスト実行エンジンで自己検証（出題前Oracleテスト）
+      if (cleanRefSolution) {
+        const evalRes = executeJsCodeAgainstCases(cleanRefSolution, candidate);
+        if (evalRes.allPass) {
+          console.log(`[AI Challenge Verification] Attempt ${attempt} PASSED all test cases!`);
+          verified = true;
+          newChallenge = candidate;
+          break;
+        } else {
+          console.warn(`[AI Challenge Verification] Attempt ${attempt} FAILED:`, evalRes.results);
+          const failedDetails = evalRes.results
+            .filter((r) => !r.pass)
+            .map((r) => `ケース: ${r.inputLabel}, 期待値: ${JSON.stringify(r.expected)}, 実際: ${JSON.stringify(r.actual)}`)
+            .join("\n");
+          currentPrompt = `${userPrompt}\n\n【警告: 前回の模範解答がテストに不合格でした。修正して再生成してください】\n不合格内容:\n${failedDetails}\n必ず提示するすべての testCases に100%合格する referenceSolution と整合性のとれた testCases を返してください。`;
+        }
+      } else {
+        currentPrompt = `${userPrompt}\n\n【エラー: referenceSolution が空でした。必ず全テストケースに合格する模範解答コードを含めてください】`;
+      }
     }
 
-    // 新しい課題オブジェクトを構築
-    const cleanFnName = parsed.functionName ? parsed.functionName.replace(/[^\w$]/g, "") : "solution";
-
-    let cleanTestCases = Array.isArray(parsed.testCases) ? parsed.testCases : [];
-    cleanTestCases = cleanTestCases.map((tc, idx) => {
-      let input = tc.input;
-      if (!Array.isArray(input)) {
-        input = input === undefined || input === null ? [] : [input];
-      }
-      let label = tc.inputLabel;
-      if (!label) {
-        try {
-          label = `${cleanFnName}(${input.map((x) => JSON.stringify(x)).join(", ")})`;
-        } catch (e) {
-          label = `${cleanFnName}(ケース ${idx + 1})`;
-        }
-      }
-      return {
-        input,
-        expected: tc.expected,
-        inputLabel: label,
-      };
-    });
-
-    const newId = `ai-${Date.now()}`;
-    const newChallenge = {
-      id:              newId,
-      title:           `[AI] ${parsed.title}`,
-      difficulty:      meta.label,
-      difficultyColor: meta.color,
-      description:     parsed.description ? parsed.description.replace(/\\n/g, "\n") : "",
-      htmlFixture:     parsed.htmlFixture ? parsed.htmlFixture.replace(/\\n/g, "\n") : "",
-      template:        cleanTemplate,
-      functionName:    cleanFnName,
-      testCases:       cleanTestCases,
-      isAiGenerated:   true,
-    };
+    if (!verified || !newChallenge) {
+      throw new Error(`AI生成課題の模範解答がテスト検証を通過できませんでした（${maxAttempts}回試行）。条件を変えて再度お試しください。`);
+    }
 
     // リストの先頭に追加して選択
     challenges.unshift(newChallenge);
@@ -868,14 +913,24 @@ async function requestAiCoach() {
     return;
   }
 
-  let testResultSummary = "テストはまだ実行されていません。";
-  if (lastTestResults) {
-    const passing = lastTestResults.filter(r => r.pass).length;
-    const total   = lastTestResults.length;
+  // 最新のテスト結果がなければ（またはエディタ変更後の未テスト状態なら）、直ちに実際のテストエンジンを実行して真実を取得
+  let currentResults = lastTestResults;
+  if (!currentResults) {
+    const { results } = executeJsCodeAgainstCases(userCode, ch);
+    currentResults = results;
+    lastTestResults = results;
+  }
+
+  let testResultSummary = "";
+  if (currentResults && currentResults.length > 0) {
+    const passing = currentResults.filter(r => r.pass).length;
+    const total   = currentResults.length;
     testResultSummary = `テスト結果: ${passing}/${total} 通過\n` +
-      lastTestResults.map(r =>
+      currentResults.map(r =>
         `- [${r.pass ? "PASS" : "FAIL"}] ${r.inputLabel} → 期待: ${formatValue(r.expected)}, 実際: ${formatValue(r.actual)}${r.error ? " (エラー)" : ""}`
       ).join("\n");
+  } else {
+    testResultSummary = "テストケースが存在しません。";
   }
 
   aiCoachContent.innerHTML = '<span class="animate-pulse text-indigo-500 font-bold">AIコーチがコードを分析し、タイピングしています...</span>';
@@ -886,13 +941,15 @@ async function requestAiCoach() {
   const systemPrompt = `あなたはJavaScriptプログラミングを始めたばかりの初心者を優しく指導するプログラミングコーチAIです。
 これは連続する指導セッションです。過去の指導履歴（JSON形式）を参照し、生徒の進歩を認めつつ、次のステップを指導してください。
 
-【絶対ルール】
+【最重要絶対ルール】
 1. 解答コードをそのまま提示することは絶対に禁止です。
-2. 「何を使えばよいか」「なぜ現在の実装が問題か」を論理的に説明してください。
-3. ヒントはステップ形式で提示し、学習者が自分で気づけるよう誘導してください。
-4. コードの一部のみを示す場合も、完全な解答にならないようにしてください。
-5. 日本語で、親しみやすいトーンで回答してください。
-6. 過去の指導からコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
+2. 提示された【テスト実行結果】を客観的事実として絶対尊重してください。
+   もしテスト結果に FAIL が1つでも存在する場合、あるいは構文・実行時エラーが発生している場合は、絶対に「コードは合っています」「問題ありません」「正しく書けています」などと肯定的な誤認（ハルシネーション）をしてはいけません。
+3. なぜ現在のコードが不合格になっているのか、エラーメッセージや期待値と実際の戻り値の不一致の原因を論理的に説明してください。
+4. ヒントはステップ形式で提示し、学習者が自分で気づけるよう誘導してください。
+5. コードの一部のみを示す場合も、完全な解答にならないようにしてください。
+6. 日本語で、親しみやすいトーンで回答してください。
+7. 過去の指導からコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
 
   let userPrompt = "";
 
@@ -947,7 +1004,7 @@ ${testResultSummary}
       turn: jsCoachHistoryLogs.length + 1,
       submittedCode: userCode.length > 250 ? userCode.slice(0, 247) + "..." : userCode,
       adviceSummary: summarizeCoachAdvice(aiResponseText),
-      testResult: lastTestResults ? `${lastTestResults.filter(r => r.pass).length}/${lastTestResults.length} PASS` : "未実行"
+      testResult: currentResults ? `${currentResults.filter(r => r.pass).length}/${currentResults.length} PASS` : "未実行"
     });
   } catch (err) {
     alert(`AIコーチ取得失敗: ${err.message}`);
@@ -1013,30 +1070,61 @@ ${userCode}
         aiReviewContent.innerHTML = DOMPurify.sanitize(marked.parse(text));
       });
 
-      // 模範解答コードの自動バックグラウンド検証
+      // 模範解答コードの自動バックグラウンド検証（エディタを汚さず直接エンジンで検証）
       const codeMatch = fullText.match(/```(?:javascript|js)\s*([\s\S]*?)```/i);
       if (codeMatch && codeMatch[1]) {
-        const modelCode = codeMatch[1].trim();
-        // 現在のコードエディタのバックアップを取って、模範解答をテスト評価
-        const savedUserCode = codeEditor.value;
-        codeEditor.value = modelCode;
-        runJavaScriptTests();
-        const modelResults = lastTestResults;
-        codeEditor.value = savedUserCode; // 元に戻す
+        let modelCode = codeMatch[1].trim();
+        let evalRes = executeJsCodeAgainstCases(modelCode, ch);
+        let reviewAttempts = 0;
 
-        if (modelResults && modelResults.length > 0) {
-          const passCount = modelResults.filter(r => r.pass).length;
-          const totalCount = modelResults.length;
-          const verifyStatus = document.createElement("div");
-          if (passCount === totalCount) {
-            verifyStatus.className = "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
-            verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。そのままコピー＆ペーストして実行・採点いただけます。`;
-          } else {
-            verifyStatus.className = "mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2";
-            verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> 検証結果: テスト合格 (${passCount}/${totalCount})。一部の前提条件に関する調整が必要な場合があります。`;
+        // 不合格の場合、AIへ自己修正依頼ループ（最大2回）
+        while (!evalRes.allPass && reviewAttempts < 2) {
+          reviewAttempts++;
+          const failedDetails = evalRes.results
+            .filter((r) => !r.pass)
+            .map((r) => `ケース: ${r.inputLabel}, 期待値: ${JSON.stringify(r.expected)}, 実際: ${JSON.stringify(r.actual)}`)
+            .join("\n");
+
+          const fixPrompt = `あなたが提示した模範解答コードを実行したところ、以下のテストケースで不合格となりました。
+【不合格ケース】:
+${failedDetails}
+
+【あなたの提示したコード】:
+\`\`\`javascript
+${modelCode}
+\`\`\`
+
+テストケースの仕様を100%満たすようにコードのバグを修正し、修正版コード（\`\`\`javascript ... \`\`\`）と簡潔な修正理由を日本語で返してください。関数名は必ず「${targetFnName}」にしてください。`;
+
+          let fixFullText = "";
+          await callGeminiStream(systemPrompt, fixPrompt, (text) => {
+            fixFullText = text;
+          });
+
+          const fixedMatch = fixFullText.match(/```(?:javascript|js)\s*([\s\S]*?)```/i);
+          if (fixedMatch && fixedMatch[1]) {
+            modelCode = fixedMatch[1].trim();
+            evalRes = executeJsCodeAgainstCases(modelCode, ch);
+            if (evalRes.allPass) {
+              fullText = fullText + "\n\n---\n### 🛠️ 自動検証による自己修正コード\n" + fixFullText;
+              aiReviewContent.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
+              break;
+            }
           }
-          aiReviewContent.appendChild(verifyStatus);
         }
+
+        const passCount = evalRes.results.filter((r) => r.pass).length;
+        const totalCount = evalRes.results.length;
+        const verifyStatus = document.createElement("div");
+
+        if (evalRes.allPass) {
+          verifyStatus.className = "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
+          verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。安心してコピー＆ペーストしてご利用いただけます。`;
+        } else {
+          verifyStatus.className = "mt-4 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-lg text-rose-800 dark:text-rose-300 text-xs font-semibold flex items-center gap-2";
+          verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-rose-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> ⚠️ 検証不合格 (${passCount}/${totalCount} 通過): AIが生成したコードは一部のテストケースを満たしていません。このコードを正解として採用しないでください。`;
+        }
+        aiReviewContent.appendChild(verifyStatus);
       }
     } catch (err) {
       alert(`AIレビュー取得失敗: ${err.message}`);
@@ -1194,6 +1282,7 @@ function setupEditorListeners() {
   codeEditor.addEventListener("input", () => {
     const ch = challenges[currentChallengeIndex];
     localStorage.setItem(`js_challenge_${ch.id}`, codeEditor.value);
+    lastTestResults = null; // コード編集により前回のテスト結果キャッシュを無効化
     updateEditorDecorations();
   });
 
@@ -1373,11 +1462,7 @@ function deepEqual(a, b) {
   return false;
 }
 
-function runJavaScriptTests() {
-  const ch       = challenges[currentChallengeIndex];
-  const userCode = codeEditor.value;
-
-  // console.log の一時的オーバーライド
+function executeJsCodeAgainstCases(userCode, ch) {
   let capturedLogs = [];
   const originalLog = console.log;
   console.log = (...args) => {
@@ -1390,11 +1475,10 @@ function runJavaScriptTests() {
       return String(arg);
     }).join(" ");
     capturedLogs.push(stringified);
-    originalLog(...args); // ブラウザのデベロッパーツールにも通常出力
   };
 
-  let userFunction  = null;
-  let compileError  = null;
+  let userFunction = null;
+  let compileError = null;
 
   try {
     // 1. 指定された functionName で関数の取り出しを試みる
@@ -1445,12 +1529,19 @@ function runJavaScriptTests() {
     compileError = err.message;
   }
 
-  const results  = [];
-  let   allPass  = true;
+  const results = [];
+  let allPass = true;
 
   if (compileError) {
     allPass = false;
-    results.push({ inputLabel: "コンパイル・実行エラー", expected: "正常実行", actual: compileError, pass: false, error: true });
+    results.push({
+      inputLabel: "構文・定義エラー",
+      expected: "正常実行",
+      actual: compileError,
+      pass: false,
+      error: true,
+      statusCode: "EXECUTION_ERROR",
+    });
   } else {
     const testCases = Array.isArray(ch.testCases) ? ch.testCases : [];
     const sandboxArea = document.getElementById("sandbox-area");
@@ -1495,7 +1586,14 @@ function runJavaScriptTests() {
 
         const pass = deepEqual(actual, tc.expected);
         if (!pass) allPass = false;
-        results.push({ inputLabel, expected: tc.expected, actual, pass, error: false });
+        results.push({
+          inputLabel,
+          expected: tc.expected,
+          actual,
+          pass,
+          error: false,
+          statusCode: pass ? "PASSED" : "TEST_FAILED",
+        });
       } catch (runErr) {
         const errType = runErr.name || "Error";
         const errMsg = runErr.message || String(runErr);
@@ -1516,7 +1614,8 @@ function runJavaScriptTests() {
           expected: tc.expected,
           actual: `エラー: ${actualErrStr}`,
           pass,
-          error: !pass
+          error: !pass,
+          statusCode: pass ? "PASSED" : "EXECUTION_ERROR",
         });
       }
     });
@@ -1525,8 +1624,17 @@ function runJavaScriptTests() {
   // console.log を元の状態に復元
   console.log = originalLog;
 
+  return { allPass, results, capturedLogs, compileError };
+}
+
+function runJavaScriptTests() {
+  const ch       = challenges[currentChallengeIndex];
+  const userCode = codeEditor.value;
+
+  const { allPass, results, capturedLogs } = executeJsCodeAgainstCases(userCode, ch);
+
   // 標準出力デバッグログの描画
-  if (capturedLogs.length > 0) {
+  if (capturedLogs && capturedLogs.length > 0) {
     stdoutTerminal.textContent = capturedLogs.join("\n");
     stdoutContainer.classList.remove("hidden");
   } else {

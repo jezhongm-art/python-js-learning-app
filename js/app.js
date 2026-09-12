@@ -3075,8 +3075,13 @@ function runCodingTests() {
   executePythonTests(userCode, problem);
 }
 
+// 直近のPythonテスト実行結果キャッシュ
+let lastPythonTestResults = null;
+
 function executePythonTests(userCode, problem) {
   setActiveOutputTab("results");
+  lastPythonTestResults = null; // stale state を確実にクリア
+
   runBtn.disabled = true;
   runBtn.innerHTML = `
         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -3107,6 +3112,8 @@ function executePythonTests(userCode, problem) {
     if (resultStr) {
       res = JSON.parse(resultStr);
     }
+    lastPythonTestResults = res; // 直近の実行結果を保存
+
     runBtn.disabled = false;
     runBtn.innerHTML = `
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -3132,11 +3139,12 @@ function executePythonTests(userCode, problem) {
     }
 
     if (res && res.error) {
-      testSummaryBadge.textContent = "エラー";
-      testSummaryBadge.className = "ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300";
+      const isTimeout = res.status === "TIMEOUT" || (res.error && res.error.includes("最大ステップ数"));
+      testSummaryBadge.textContent = isTimeout ? "時間超過" : "実行エラー";
+      testSummaryBadge.className = "ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold";
       testResults.innerHTML = `
             <div class="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 rounded-lg text-sm">
-              <strong class="block font-semibold mb-1">構文エラー / 実行時エラーが発生しました:</strong>
+              <strong class="block font-semibold mb-1">${isTimeout ? "⏱ 制限時間超過 (無限ループ検知):" : "⚠️ 構文エラー / 実行時エラーが発生しました:"}</strong>
               <code class="block whitespace-pre-wrap bg-rose-100 dark:bg-rose-900/40 p-3 rounded text-xs mt-1 font-mono">${escapeHtml(res.error)}</code>
             </div>`;
       testResults.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -3146,9 +3154,9 @@ function executePythonTests(userCode, problem) {
     if (res && Array.isArray(res.tests)) {
       const total = res.tests.length;
       const passed = res.tests.filter((r) => r.pass).length;
-      const score = passed / total;
+      const score = total > 0 ? passed / total : 0;
 
-      testSummaryBadge.textContent = `${passed}/${total} 合格`;
+      testSummaryBadge.textContent = `${passed}/${total} ${passed === total ? "全合格" : "合格"}`;
       testSummaryBadge.className = `ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
         passed === total
           ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
@@ -3317,11 +3325,17 @@ if (cliInteractiveBtn) {
   };
 }
 
-// 失敗テストケースに対するピンポイントAI相談
+// 失敗テストケースに対するピンポイントAI相談 (採点結果連携)
 window.askAiAboutTestFailure = async function (testIndex) {
   const problem = codingProblems[currentCodingIndex];
   const testCase = problem.test_cases[testIndex];
   const userCode = codeEditor.value;
+
+  // 直近の実行結果から実際の出力を取得
+  const lastCaseRes = lastPythonTestResults?.tests?.[testIndex] || null;
+  const actualVal = lastCaseRes ? (lastCaseRes.actual ?? "(None / 未定義)") : "未取得";
+  const errVal = lastCaseRes?.error || "なし（戻り値の不一致）";
+  const statusVal = lastCaseRes?.status || (lastCaseRes?.error ? "EXECUTION_ERROR" : "TEST_FAILED");
 
   aiHintContent.innerHTML =
     '<span class="animate-pulse text-indigo-500 font-bold">AIがこのテストケースの失敗原因を分析しています...</span>';
@@ -3331,13 +3345,18 @@ window.askAiAboutTestFailure = async function (testIndex) {
 
   const systemPrompt = `あなたはPython初学者に優しく教える家庭教師AIです。
 生徒のコードが特定のテストケースで不合格になりました。
-なぜこのテストケース（入力: ${testCase.input}、期待値: ${testCase.expected}）で失敗したのか、コードのどこに着目して直せばよいかを優しく段階的に日本語で解説してください。
-直接の答えコードを丸写しさせるのではなく、考え方のヒントを教えてください。`;
+【重要ルール】
+1. 採点エンジンにより、生徒のコードは実際に不合格（FAIL / エラー）と判定されています。「コードは正しそうに見えます」などと事実と反する肯定をしてはいけません。
+2. なぜこのテストケース（期待値: ${testCase.expected}、実際の戻り値: ${actualVal}、エラー: ${errVal}）で失敗したのか、コードのどこに着目して直せばよいかを優しく段階的に日本語で解説してください。
+3. 直接の答えコードを丸写しさせるのではなく、考え方のヒントを教えてください。`;
 
   const userPrompt = `【問題】: ${problem.title}
-【失敗したテストケース】:
-- 呼び出し: ${testCase.input}
-- 期待された値: ${testCase.expected}
+【失敗したテストケース詳細】:
+- 入力 / 呼び出し: ${testCase.input}
+- 期待された値 (Expected): ${testCase.expected}
+- 実際の実行結果 (Actual): ${actualVal}
+- 発生したエラー (Error): ${errVal}
+- 判定ステータス: ${statusVal}
 
 【生徒の現在のコード】:
 \`\`\`python
@@ -3822,6 +3841,10 @@ if (aiCodingGenerateBtn) {
           type: "STRING",
           description: "テストケース実行前に評価される準備用のPythonコード（不要な場合は空文字列とする）",
         },
+        reference_solution: {
+          type: "STRING",
+          description: "この課題の完全な模範解答Pythonコード（複数行）。templateで提示した関数名や入出力仕様と100%一致し、全テストケースに必ず合格する完成コード。",
+        },
         test_cases: {
           type: "ARRAY",
           description: "自動評価用のテストケース一覧（3〜5件）",
@@ -3838,104 +3861,186 @@ if (aiCodingGenerateBtn) {
           },
         },
       },
-      required: ["title", "type", "difficulty", "description", "template", "test_cases"],
+      required: ["title", "type", "difficulty", "description", "template", "test_cases", "reference_solution"],
     };
 
     try {
-      const jsonText = await callGemini(
-        systemPrompt,
-        userPrompt,
-        true,
-        codingSchema,
-      );
-      const parsedProblem = JSON.parse(jsonText);
+      let finalProblem = null;
+      let lastValidationFailure = null;
+      const MAX_GEN_ATTEMPTS = 3;
 
-      // 1. タイプと難易度の正規化
-      const pType = ["cli", "plot", "function"].includes(parsedProblem.type) ? parsedProblem.type : "function";
-      let pDiff = parsedProblem.difficulty || label.slice(0, 2);
-      if (!["初級", "中級", "上級"].includes(pDiff)) {
-        pDiff = difficulty === "beginner" ? "初級" : difficulty === "advanced" ? "上級" : "中級";
-      }
-
-      // 2. 改行コードの正規化処理
-      let cleanTemplate = parsedProblem.template
-        ? parsedProblem.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n")
-        : "";
-
-      if (!cleanTemplate.includes("\n")) {
-        if (pType === "cli") {
-          cleanTemplate = `# input() で値を受け取り、処理結果を出力してください\n# ここにコードを書いてください\n`;
-        } else if (pType === "plot") {
-          cleanTemplate = `import matplotlib.pyplot as plt\n\n# ここにグラフ描画コードを書いてください\n`;
-        } else {
-          cleanTemplate = `${cleanTemplate}\n    # ここにコードを記述してください\n    pass\n`;
+      for (let attempt = 0; attempt < MAX_GEN_ATTEMPTS; attempt++) {
+        let currentPrompt = userPrompt;
+        if (lastValidationFailure) {
+          showAiLoader(
+            "AI課題を自己検証中...",
+            `生成された問題と模範解答をテストエンジンで照合中... 修正版を再構築しています (試行 ${attempt + 1}/${MAX_GEN_ATTEMPTS})...`,
+          );
+          currentPrompt += `\n\n【重要：前回の自己検証失敗理由】\n前回の生成コードで以下の不整合が発生し、テストエンジンで不合格になりました：\n${lastValidationFailure}\n関数名、出題テンプレート、テストケース期待値、および模範解答(reference_solution)を100%一致させ、全テストに合格する完全な問題データを再生成してください。`;
         }
+
+        const jsonText = await callGemini(
+          systemPrompt,
+          currentPrompt,
+          true,
+          codingSchema,
+        );
+        const parsedProblem = JSON.parse(jsonText);
+
+        // 1. タイプと難易度の正規化
+        const pType = ["cli", "plot", "function"].includes(parsedProblem.type) ? parsedProblem.type : "function";
+        let pDiff = parsedProblem.difficulty || label.slice(0, 2);
+        if (!["初級", "中級", "上級"].includes(pDiff)) {
+          pDiff = difficulty === "beginner" ? "初級" : difficulty === "advanced" ? "上級" : "中級";
+        }
+
+        // 2. 改行コードの正規化処理
+        let cleanTemplate = parsedProblem.template
+          ? parsedProblem.template.replace(/\\n/g, "\n").replace(/\r\n/g, "\n")
+          : "";
+
+        if (!cleanTemplate.includes("\n")) {
+          if (pType === "cli") {
+            cleanTemplate = `# input() で値を受け取り、処理結果を出力してください\n# ここにコードを書いてください\n`;
+          } else if (pType === "plot") {
+            cleanTemplate = `import matplotlib.pyplot as plt\n\n# ここにグラフ描画コードを書いてください\n`;
+          } else {
+            cleanTemplate = `${cleanTemplate}\n    # ここにコードを記述してください\n    pass\n`;
+          }
+        }
+
+        // 3. テストケースの正規化
+        const cleanTestCases = Array.isArray(parsedProblem.test_cases)
+          ? parsedProblem.test_cases.map((tc) => {
+              if (pType === "cli") {
+                return {
+                  inputs: Array.isArray(tc.inputs) ? tc.inputs.map(String) : [String(tc.input || "")],
+                  expected: String(tc.expected || ""),
+                  match: tc.match || "contains",
+                };
+              } else if (pType === "plot") {
+                let exp = tc.expected;
+                if (typeof exp === "string") {
+                  try { exp = JSON.parse(exp); } catch (_) {}
+                }
+                return {
+                  check: tc.check || "type",
+                  expected: exp,
+                  input_label: tc.input_label || `グラフ検証: ${tc.check || "type"}`,
+                };
+              } else {
+                let exp = tc.expected;
+                if (typeof exp === "string") {
+                  let s = exp.trim();
+                  while (
+                    (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) ||
+                    (s.length >= 2 && s.startsWith('"') && s.endsWith('"'))
+                  ) {
+                    s = s.slice(1, -1).trim();
+                  }
+                  exp = s;
+                }
+                return {
+                  input: tc.input || "",
+                  expected: exp,
+                };
+              }
+            })
+          : [];
+
+        if (cleanTestCases.length === 0) {
+          lastValidationFailure = "テストケースが0件です。";
+          continue;
+        }
+
+        let cleanRefSolution = parsedProblem.reference_solution
+          ? parsedProblem.reference_solution.replace(/\\n/g, "\n").replace(/\r\n/g, "\n")
+          : "";
+
+        // function 型の場合の関数名整合性チェック
+        if (pType === "function") {
+          const fnMatch = cleanTemplate.match(/def\s+([a-zA-Z_]\w*)/) || cleanRefSolution.match(/def\s+([a-zA-Z_]\w*)/);
+          const fnName = fnMatch ? fnMatch[1] : null;
+          if (fnName) {
+            // テストケースの input が別関数名になっていないか確認・補正
+            cleanTestCases.forEach((tc) => {
+              const caseFnMatch = tc.input.match(/^([a-zA-Z_]\w*)\s*\(/);
+              if (caseFnMatch && caseFnMatch[1] !== fnName) {
+                tc.input = tc.input.replace(caseFnMatch[1], fnName);
+              }
+            });
+          }
+        }
+
+        // 4. 出題前自己検証 (Oracle Verification: 模範解答のテスト実行)
+        if (window.run_python_tests && cleanRefSolution) {
+          try {
+            const valPayload = JSON.stringify({
+              type: pType,
+              setup_code: parsedProblem.setup_code || "",
+              test_cases: cleanTestCases,
+            });
+            const testRaw = window.run_python_tests(cleanRefSolution, valPayload);
+            const testRes = JSON.parse(testRaw);
+
+            if (testRes.error) {
+              lastValidationFailure = `模範解答の実行時エラー: ${testRes.error}`;
+              console.warn(`[Problem Validation] Attempt ${attempt + 1} failed:`, testRes.error);
+              continue;
+            }
+
+            if (Array.isArray(testRes.tests)) {
+              const failed = testRes.tests.filter((t) => !t.pass);
+              if (failed.length > 0) {
+                lastValidationFailure = failed
+                  .map((f) => `テストケース ${f.index + 1} 不合格: [入力: ${f.input}] 期待値=${f.expected}, 実際=${f.actual}`)
+                  .join("; ");
+                console.warn(`[Problem Validation] Attempt ${attempt + 1} tests failed:`, lastValidationFailure);
+                continue;
+              }
+            }
+          } catch (valErr) {
+            lastValidationFailure = `自己検証実行例外: ${valErr.message}`;
+            continue;
+          }
+        }
+
+        // 検証合格！
+        finalProblem = {
+          title: `[AI生成 - ${pDiff}] ${parsedProblem.title.replace(/^\[.*?\]\s*/, "")}`,
+          type: pType,
+          difficulty: pDiff,
+          description: parsedProblem.description
+            ? parsedProblem.description.replace(/\\n/g, "\n")
+            : "",
+          template: cleanTemplate,
+          setup_code: parsedProblem.setup_code
+            ? parsedProblem.setup_code.replace(/\\n/g, "\n")
+            : "",
+          test_cases: cleanTestCases,
+          reference_solution: cleanRefSolution,
+          isAiGenerated: true,
+        };
+        break;
       }
 
-      // 3. テストケースの正規化
-      const cleanTestCases = Array.isArray(parsedProblem.test_cases)
-        ? parsedProblem.test_cases.map((tc) => {
-            if (pType === "cli") {
-              return {
-                inputs: Array.isArray(tc.inputs) ? tc.inputs.map(String) : [String(tc.input || "")],
-                expected: String(tc.expected || ""),
-                match: tc.match || "contains",
-              };
-            } else if (pType === "plot") {
-              let exp = tc.expected;
-              if (typeof exp === "string") {
-                try { exp = JSON.parse(exp); } catch (_) {}
-              }
-              return {
-                check: tc.check || "type",
-                expected: exp,
-                input_label: tc.input_label || `グラフ検証: ${tc.check || "type"}`,
-              };
-            } else {
-              let exp = tc.expected;
-              if (typeof exp === "string") {
-                let s = exp.trim();
-                while (
-                  (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) ||
-                  (s.length >= 2 && s.startsWith('"') && s.endsWith('"'))
-                ) {
-                  s = s.slice(1, -1).trim();
-                }
-                exp = s;
-              }
-              return {
-                input: tc.input || "",
-                expected: exp,
-              };
-            }
-          })
-        : [];
+      if (!finalProblem) {
+        throw new Error(
+          `AI問題の自己検証に合格できませんでした（${lastValidationFailure || "テスト不整合"}）。お手数ですが、再度生成ボタンを押すか別のテーマをお試しください。`,
+        );
+      }
 
-      const newProblem = {
-        title: `[AI生成 - ${pDiff}] ${parsedProblem.title.replace(/^\[.*?\]\s*/, "")}`,
-        type: pType,
-        difficulty: pDiff,
-        description: parsedProblem.description
-          ? parsedProblem.description.replace(/\\n/g, "\n")
-          : "",
-        template: cleanTemplate,
-        setup_code: parsedProblem.setup_code
-          ? parsedProblem.setup_code.replace(/\\n/g, "\n")
-          : "",
-        test_cases: cleanTestCases,
-        isAiGenerated: true,
-      };
-
-      codingProblems = [newProblem, ...codingProblems];
+      codingProblems = [finalProblem, ...codingProblems];
       currentCodingIndex = 0;
       codingScores = [];
+      lastPythonTestResults = null;
 
       codingResultContainer.classList.add("hidden");
       document.getElementById("coding-quiz-container").classList.remove("hidden");
       showCodingProblem();
 
       aiCodingTopicInput.value = "";
-      notify(`AI問題「${newProblem.title}」を生成しました`, "success");
+      notify(`AI問題「${finalProblem.title}」を自己検証合格の上、出題しました！`, "success");
     } catch (err) {
       notify(`${err.message}`, "AI課題生成失敗", "error");
     } finally {
@@ -3946,7 +4051,7 @@ if (aiCodingGenerateBtn) {
 }
 
 // ==========================================
-// AIヒント機能（省略化JSON履歴・高速マルチターン対応）
+// AIヒント機能（採点結果連携・省略化JSON履歴・高速マルチターン対応）
 // ==========================================
 let pyHintHistoryLogs = [];
 
@@ -3970,27 +4075,49 @@ if (aiHintBtn) {
     const userCode = codeEditor.value;
 
     aiHintContent.innerHTML =
-      '<span class="animate-pulse text-indigo-500 font-bold">AIがコードを分析し、タイピングしています...</span>';
+      '<span class="animate-pulse text-indigo-500 font-bold">AIがコードと採点結果を分析し、タイピングしています...</span>';
     aiHintPanel.classList.remove("hidden");
     aiReviewPanel.classList.add("hidden");
     aiHintPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    // 直近の採点結果コンテキストを構築
+    let executionContextStr = "【直近の実行・採点結果】: まだ実行ボタンが押されていません。\n";
+    if (lastPythonTestResults) {
+      if (lastPythonTestResults.error) {
+        executionContextStr = `【直近の実行結果】: 構文エラーまたは実行時エラー (${lastPythonTestResults.error}) が発生してクラッシュしました。\n`;
+      } else if (Array.isArray(lastPythonTestResults.tests)) {
+        const passed = lastPythonTestResults.tests.filter((t) => t.pass).length;
+        const total = lastPythonTestResults.tests.length;
+        const failedCases = lastPythonTestResults.tests
+          .filter((t) => !t.pass)
+          .map(
+            (t) =>
+              `- テストケース ${t.index + 1}: 入力=${t.input} | 期待値=${t.expected} | 実際の戻り値=${t.actual ?? "(None / 未定義)"} | エラー=${t.error || "なし"}`,
+          )
+          .join("\n");
+        executionContextStr = `【直近の採点結果】: ${passed}/${total} 通過 (${total - passed} 件失敗)\n【失敗したテスト詳細】:\n${failedCases || "全テスト合格"}\n`;
+      }
+    }
 
     const systemPrompt = `あなたはプログラミングを始めたばかりの超初心者（forやifの使い方もまだよくわかっていない生徒）に、優しく伴走するPythonの家庭教師AIです。
 これは連続する指導セッションです。過去の指導履歴（JSON形式）を参照し、生徒の進歩を認めつつ、次のステップを指導してください。
 
 以下の【絶対ルール】を厳守して指導してください。
 1. 直接の解答コード（生徒がコピー＆ペーストしてそのまま動く答え）は絶対に教えてはいけません。
-2. 生徒がこの課題を解くために「何を使えばよいか（for, if などの構文や、len() などの基本的な関数）」を優しく教えてください。
-3. その構文や関数の「一般的な書き方（構文のテンプレート例）」を、今回の問題に依存しない一般的なプレースホルダーを使った形で親切に教えてあげてください。
-4. バグがあれば、何行目で何が起きているかを小学生でもわかるように優しく日本語で解説し、考え方のステップをナビゲートしてください。
-5. 過去の指導からコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
+2. 採点エンジンによりエラーやテスト不合格が出ている場合、「コードは合っています」「問題ありません」などの誤った肯定は絶対にしないでください。客観的な採点結果に基づいてアドバイスしてください。
+3. 生徒がこの課題を解くために「何を使えばよいか（for, if などの構文や、len() などの基本的な関数）」を優しく教えてください。
+4. その構文や関数の「一般的な書き方（構文のテンプレート例）」を、今回の問題に依存しない一般的なプレースホルダーを使った形で親切に教えてあげてください。
+5. バグやエラーがあれば、何行目で何が起きているかを小学生でもわかるように優しく日本語で解説し、考え方のステップをナビゲートしてください。
+6. 過去の指導からコードが改善されている場合は、具体的にどこが良くなったかを褒めてから、次の改善点を指摘してください。`;
 
     let userPrompt = "";
 
     if (pyHintHistoryLogs.length === 0) {
       userPrompt = `【問題タイトル】: ${problem.title}
 【問題文】: ${problem.description}
-【期待するテストケース例】: ${JSON.stringify(problem.test_cases)}
+【期待するテストケース仕様】: ${JSON.stringify(problem.test_cases)}
+
+${executionContextStr}
 
 【生徒が現在記述した解答コード】:
 \`\`\`python
@@ -4003,6 +4130,8 @@ ${userCode}
       userPrompt = `【問題タイトル】: ${problem.title}
 【問題文】: ${problem.description}
 
+${executionContextStr}
+
 【これまでの指導履歴（JSON形式・省サイズ）】:
 \`\`\`json
 ${historyJson}
@@ -4013,7 +4142,7 @@ ${historyJson}
 ${userCode}
 \`\`\`
 
-これまでの指導履歴（JSON）と現在の最新コードを比較し、生徒のコードの改善点を具体的に褒めた上で、次に修正すべきポイントやヒントを簡潔にMarkdown形式でアドバイスしてください。`;
+これまでの指導履歴と直近の実行結果を踏まえ、生徒のコードの改善点を具体的に褒めた上で、次に修正すべきポイントやヒントを簡潔にMarkdown形式でアドバイスしてください。`;
     }
 
     try {
@@ -4036,7 +4165,7 @@ ${userCode}
 }
 
 // ==========================================
-// AIレビュー＆模範解答機能 (事前テスト検証対応)
+// AIレビュー＆模範解答機能 (自己テスト検証＆自動修正対応)
 // ==========================================
 if (aiReviewBtn) {
   aiReviewBtn.onclick = async () => {
@@ -4044,7 +4173,7 @@ if (aiReviewBtn) {
     const userCode = codeEditor.value;
 
     aiReviewContent.innerHTML =
-      '<span class="animate-pulse text-purple-500 font-bold">AIがコードを分析し、タイピングしています...</span>';
+      '<span class="animate-pulse text-purple-500 font-bold">AIがコードを分析し、模範解答を自己検証しています...</span>';
     aiReviewPanel.classList.remove("hidden");
     aiHintPanel.classList.add("hidden");
     aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -4054,12 +4183,15 @@ if (aiReviewBtn) {
     if (problem.test_cases && problem.test_cases.length > 0 && problem.test_cases[0].input) {
       const match = problem.test_cases[0].input.match(/^([a-zA-Z_]\w*)\s*\(/);
       if (match) targetFnName = match[1];
+    } else if (problem.template) {
+      const match = problem.template.match(/def\s+([a-zA-Z_]\w*)/);
+      if (match) targetFnName = match[1];
     }
 
-    const systemPrompt = `あなたはシニアPythonエンジニアであり、素晴らしい技術指導者です。
+    const systemPrompt = `あなたはシニアPythonエンジニアであり、卓越した技術指導者です。
 【最優先絶対ルール】
 1. 模範解答コードブロック（\`\`\`python ... \`\`\`）内の関数名は、必ず「${targetFnName}」という名称で正確に定義してください。異なる関数名を使うと自動採点でエラーになります。
-2. 提示されたすべてのテストケース（型チェックによるTypeErrorのraise指定を含む）に100%合格する、完全かつ動作可能なコード例を提示してください。
+2. 提示されたすべてのテストケースに100%合格する、完全かつ動作可能なコード例を提示してください。
 3. コードプレースホルダー（passやTODOなど）を含めず、そのままコピー＆ペーストして採点実行が通る完成コードにしてください。
 4. 解答コードブロックは必ずマークダウン（\`\`\`python）で記述してください。`;
 
@@ -4080,39 +4212,69 @@ ${userCode}
 
     try {
       let fullText = "";
+      let verifiedPass = false;
+      let passCount = 0;
+      let totalCount = problem.test_cases ? problem.test_cases.length : 0;
+      let validationMessage = "";
+
+      // 初回生成
       await callGeminiStream(systemPrompt, userPrompt, (text) => {
         fullText = text;
         aiReviewContent.innerHTML = sanitizeHtml(marked.parse(text));
       });
 
-      // 模範解答コードの自動バックグラウンド検証
-      const codeMatch = fullText.match(/```python\s*([\s\S]*?)```/);
-      if (codeMatch && codeMatch[1]) {
+      // 模範解答コードの自己検証 & 自動修正ループ (最大2回)
+      for (let retryCount = 0; retryCount < 2; retryCount++) {
+        const codeMatch = fullText.match(/```python\s*([\s\S]*?)```/);
+        if (!codeMatch || !codeMatch[1] || !window.run_python_tests) break;
+
         const modelCode = codeMatch[1].trim();
-        if (window.run_python_tests) {
-          const payload = JSON.stringify({
-            setup_code: problem.setup_code || "",
-            test_cases: problem.test_cases || [],
-          });
-          const testResRaw = window.run_python_tests(modelCode, payload);
-          const testRes = JSON.parse(testResRaw);
-          if (testRes && testRes.tests) {
-            const passCount = testRes.tests.filter((t) => t.pass).length;
-            const totalCount = testRes.tests.length;
-            const verifyStatus = document.createElement("div");
-            if (passCount === totalCount) {
-              verifyStatus.className =
-                "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
-              verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。そのままコピー＆ペーストして実行・採点いただけます。`;
-            } else {
-              verifyStatus.className =
-                "mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2";
-              verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> 検証結果: テスト合格 (${passCount}/${totalCount})。一部の前提条件に関する調整が必要な場合があります。`;
-            }
-            aiReviewContent.appendChild(verifyStatus);
+        const payload = JSON.stringify({
+          type: problem.type || "function",
+          setup_code: problem.setup_code || "",
+          test_cases: problem.test_cases || [],
+        });
+
+        const testResRaw = window.run_python_tests(modelCode, payload);
+        const testRes = JSON.parse(testResRaw);
+
+        if (testRes && Array.isArray(testRes.tests)) {
+          passCount = testRes.tests.filter((t) => t.pass).length;
+          totalCount = testRes.tests.length;
+
+          if (passCount === totalCount && !testRes.error) {
+            verifiedPass = true;
+            break;
+          }
+
+          // 不合格の場合、AIに修正依頼
+          if (retryCount === 0) {
+            const failDetails = testRes.tests
+              .filter((t) => !t.pass)
+              .map((f) => `入力: ${f.input}, 期待値: ${f.expected}, 実際: ${f.actual}, エラー: ${f.error || "なし"}`)
+              .join("; ");
+            const fixPrompt = `先ほど提示された模範解答は、テスト実行したところ以下の不整合で不合格になりました:\n${failDetails}\n【関数名】: ${targetFnName}\n全テストケースに100%合格するよう修正した完成模範解答コードブロック（\`\`\`python ... \`\`\`）を含む修正版レビューを出力してください。`;
+
+            await callGeminiStream(systemPrompt, fixPrompt, (text) => {
+              fullText = text;
+              aiReviewContent.innerHTML = sanitizeHtml(marked.parse(text));
+            });
           }
         }
       }
+
+      // 検証結果バッジの表示
+      const verifyStatus = document.createElement("div");
+      if (verifiedPass) {
+        verifyStatus.className =
+          "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
+        verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動自己検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。そのまま実行・採点いただけます。`;
+      } else {
+        verifyStatus.className =
+          "mt-4 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-lg text-rose-800 dark:text-rose-300 text-xs font-semibold flex items-center gap-2";
+        verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-rose-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> ⚠️ 自動検証警告: 生成された模範解答コードはテストケース (${passCount}/${totalCount}) で不合格となりました。コードを丸写しせず、上記のアドバイスや考え方の解説のみをご参考ください。`;
+      }
+      aiReviewContent.appendChild(verifyStatus);
     } catch (err) {
       notify(`${err.message}`, "AIレビュー取得失敗", "error");
     }
