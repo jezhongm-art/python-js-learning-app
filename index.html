@@ -86,20 +86,37 @@
       import builtins
       import math
 
-      def clean_quote_str(obj):
-          """再帰的に文字列の最外殻にある二重/一重引用符を取り除く"""
-          if isinstance(obj, list):
-              return [clean_quote_str(x) for x in obj]
-          if isinstance(obj, tuple):
-              return tuple(clean_quote_str(x) for x in obj)
-          if isinstance(obj, dict):
-              return {clean_quote_str(k): clean_quote_str(v) for k, v in obj.items()}
+      def format_python_val(obj):
+          """UI表示用フォーマッター（読み取り専用・採点に影響しない）"""
+          if obj is None:
+              return "None"
+          if isinstance(obj, bool):
+              return "True" if obj else "False"
+          if isinstance(obj, (int, float)):
+              return repr(obj)
           if isinstance(obj, str):
-              s = obj.strip()
-              while len(s) >= 2 and ((s[0] == "'" and s[-1] == "'") or (s[0] == '"' and s[-1] == '"')):
-                  s = s[1:-1].strip()
-              return s
-          return obj
+              return json.dumps(obj, ensure_ascii=False)
+          if isinstance(obj, dict):
+              try:
+                  return json.dumps(obj, ensure_ascii=False, indent=2, sort_keys=True)
+              except Exception:
+                  return repr(obj)
+          if isinstance(obj, (list, tuple)):
+              try:
+                  return json.dumps(obj, ensure_ascii=False, indent=2)
+              except Exception:
+                  return repr(obj)
+          return repr(obj)
+
+      def make_json_safe(obj):
+          """JS境界への安全な生データ受け渡し（型を壊さずJSON化可能オブジェクトを保持）"""
+          if obj is None or isinstance(obj, (int, float, bool, str)):
+              return obj
+          if isinstance(obj, (list, tuple, set)):
+              return [make_json_safe(x) for x in obj]
+          if isinstance(obj, dict):
+              return {str(k): make_json_safe(v) for k, v in obj.items()}
+          return repr(obj)
 
       def deep_equal(a, b):
           if a == b:
@@ -110,14 +127,15 @@
                   return math.isclose(float(a), float(b), rel_tol=1e-5, abs_tol=1e-8)
               except Exception:
                   pass
+          # 文字列の比較 (空白前後の正規化のみ、勝手な引用符除去は行わない)
           if isinstance(a, str) and isinstance(b, str):
-              if a.strip() == b.strip():
-                  return True
-              return clean_quote_str(a) == clean_quote_str(b)
+              return a.strip() == b.strip()
+          # リスト・タプル
           if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
               if len(a) != len(b):
                   return False
               return all(deep_equal(x, y) for x, y in zip(a, b))
+          # 辞書 (キー順序に依存せず、すべてのキーと値が一致するか)
           elif isinstance(a, dict) and isinstance(b, dict):
               if len(a) != len(b):
                   return False
@@ -125,17 +143,18 @@
                   if k not in b or not deep_equal(v, b[k]):
                       return False
               return True
+          # セット
+          elif isinstance(a, set) and isinstance(b, set):
+              return a == b
           # 数値と数値文字列の同値比較 (例: 3 と "3")
           if isinstance(a, (int, float)) and isinstance(b, str):
               try:
-                  b_clean = clean_quote_str(b)
-                  return math.isclose(float(a), float(b_clean), rel_tol=1e-5, abs_tol=1e-8)
+                  return math.isclose(float(a), float(b.strip()), rel_tol=1e-5, abs_tol=1e-8)
               except Exception:
                   pass
           elif isinstance(b, (int, float)) and isinstance(a, str):
               try:
-                  a_clean = clean_quote_str(a)
-                  return math.isclose(float(a_clean), float(b), rel_tol=1e-5, abs_tol=1e-8)
+                  return math.isclose(float(a.strip()), float(b), rel_tol=1e-5, abs_tol=1e-8)
               except Exception:
                   pass
           # 真偽値・Noneの文字列対応
@@ -147,7 +166,7 @@
               return b.strip() in ("None", "null", "")
           if b is None and isinstance(a, str):
               return a.strip() in ("None", "null", "")
-          return clean_quote_str(a) == clean_quote_str(b)
+          return False
 
       def is_exception_name(s):
           if not isinstance(s, str):
@@ -327,15 +346,13 @@
                           actual_output = raw_output.strip()
                           expected_out = str(case_.get('expected', '')).strip()
 
-                          # 期待される出力との比較 (部分一致、完全一致、または改行除外一致)
+                          # 期待される出力との比較 (部分一致または完全一致)
                           if case_.get('match') == 'contains':
                               case_pass = expected_out in actual_output
                           else:
                               case_pass = (
                                   actual_output == expected_out
-                                  or clean_quote_str(actual_output) == clean_quote_str(expected_out)
                                   or actual_output.replace("\r\n", "\n") == expected_out.replace("\r\n", "\n")
-                                  or (expected_out in actual_output)
                               )
 
                           results.append({
@@ -453,7 +470,7 @@
                           continue
 
                       expected = raw_expected
-                      if isinstance(raw_expected, str):
+                      if isinstance(raw_expected, str) and raw_expected != "__NEED_DERIVATION__":
                           try:
                               expected = json.loads(raw_expected)
                           except Exception:
@@ -462,33 +479,19 @@
                               except Exception:
                                   expected = raw_expected
 
-                      if expected is not None and isinstance(expected, str):
-                          expected = clean_quote_str(expected)
-
                       try:
                           actual = eval(expr, _local_namespace, _local_namespace)
-                          is_pass = deep_equal(actual, expected)
-                          
-                          # 表現差（JSON文字列 vs Python実構造）の救済
-                          if not is_pass:
-                              if isinstance(expected, str) and isinstance(actual, (dict, list)):
-                                  try:
-                                      if deep_equal(actual, json.loads(expected)):
-                                          is_pass = True
-                                  except Exception:
-                                      pass
-                              elif isinstance(actual, str) and isinstance(expected, (dict, list)):
-                                  try:
-                                      if deep_equal(json.loads(actual), expected):
-                                          is_pass = True
-                                  except Exception:
-                                      pass
+                          if raw_expected == "__NEED_DERIVATION__":
+                              is_pass = True
+                          else:
+                              is_pass = deep_equal(actual, expected)
 
                           results.append({
                               'index': idx,
                               'input': expr,
-                              'expected': repr(expected),
-                              'actual': repr(actual),
+                              'expected': format_python_val(expected),
+                              'actual': format_python_val(actual) if actual is not None else "None",
+                              'actual_val': make_json_safe(actual),
                               'pass': is_pass,
                               'status': 'PASSED' if is_pass else 'TEST_FAILED',
                               'error': None
@@ -503,6 +506,7 @@
                                   'input': expr,
                                   'expected': raw_exp_str,
                                   'actual': err_msg,
+                                  'actual_val': err_msg,
                                   'pass': True,
                                   'status': 'PASSED',
                                   'error': None
@@ -512,8 +516,9 @@
                               results.append({
                                   'index': idx,
                                   'input': expr,
-                                  'expected': repr(expected),
+                                  'expected': format_python_val(expected),
                                   'actual': None,
+                                  'actual_val': None,
                                   'pass': False,
                                   'status': 'TIMEOUT' if is_timeout else 'EXECUTION_ERROR',
                                   'error': err_msg

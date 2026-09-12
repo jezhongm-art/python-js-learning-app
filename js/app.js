@@ -3221,6 +3221,48 @@ function runCodingTests() {
   executePythonTests(userCode, problem);
 }
 
+/**
+ * UI表示専用フォーマッター（読み取り専用・キー順整列・内部採点データ非破壊）
+ */
+function formatDisplayValue(val) {
+  if (val === undefined || val === null) return "None";
+  if (typeof val === "boolean") return val ? "True" : "False";
+  if (typeof val === "number") return String(val);
+  if (typeof val === "object") {
+    try {
+      if (Array.isArray(val)) {
+        return JSON.stringify(val, null, 2);
+      }
+      const sortedKeys = Object.keys(val).sort();
+      const sortedObj = {};
+      sortedKeys.forEach((k) => {
+        sortedObj[k] = val[k];
+      });
+      return JSON.stringify(sortedObj, null, 2);
+    } catch (_) {
+      return String(val);
+    }
+  }
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    ) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return formatDisplayValue(parsed);
+      } catch (_) {}
+    }
+    return val;
+  }
+  return String(val);
+}
+
+if (typeof window !== "undefined") {
+  window.formatDisplayValue = formatDisplayValue;
+}
+
 // 直近のPythonテスト実行結果キャッシュ
 let lastPythonTestResults = null;
 
@@ -3337,18 +3379,18 @@ function executePythonTests(userCode, problem) {
           ? '<span class="text-[11px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 rounded-md">PASS</span>'
           : '<span class="text-[11px] font-bold px-2 py-0.5 bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300 rounded-md">FAIL</span>';
 
-        // 失敗時のDiff比較ビュー
+        // 失敗時のDiff比較ビュー（formatDisplayValueにより見た目の乖離を揃え、改行・インデントを美しく表示）
         let diffHtml = "";
         if (!r.pass) {
           diffHtml = `
             <div class="mt-2.5 pt-2.5 border-t border-rose-200/60 dark:border-rose-900/40 space-y-1.5 text-xs font-mono">
               <div class="diff-block diff-expected p-2 rounded">
                 <span class="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">期待される戻り値 (Expected):</span>
-                <span class="font-bold">${escapeHtml(r.expected)}</span>
+                <pre class="font-bold whitespace-pre-wrap">${escapeHtml(formatDisplayValue(r.expected))}</pre>
               </div>
               <div class="diff-block diff-actual p-2 rounded">
                 <span class="text-[10px] uppercase font-bold text-rose-700 dark:text-rose-400 block">実際の戻り値 (Actual):</span>
-                <span class="font-bold">${r.error ? escapeHtml(r.error) : escapeHtml(r.actual ?? "(None / 未定義)")}</span>
+                <pre class="font-bold whitespace-pre-wrap">${r.error ? escapeHtml(r.error) : escapeHtml(formatDisplayValue(r.actual ?? "(None / 未定義)"))}</pre>
               </div>
               <div class="pt-1 flex justify-end">
                 <button
@@ -3374,7 +3416,7 @@ function executePythonTests(userCode, problem) {
                 <div class="text-xs font-mono">
                   <span class="opacity-75 text-slate-600 dark:text-slate-400">入力式:</span> <code class="bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-slate-800 dark:text-slate-200">${escapeHtml(r.input)}</code>
                 </div>
-                ${r.pass ? `<div class="text-xs font-mono"><span class="opacity-75 text-slate-600 dark:text-slate-400">戻り値:</span> <code class="bg-emerald-100/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">${escapeHtml(r.actual)}</code></div>` : diffHtml}
+                ${r.pass ? `<div class="text-xs font-mono"><span class="opacity-75 text-slate-600 dark:text-slate-400">戻り値:</span> <code class="bg-emerald-100/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded whitespace-pre-wrap">${escapeHtml(formatDisplayValue(r.actual))}</code></div>` : diffHtml}
               </div>
             `;
       });
@@ -4036,6 +4078,7 @@ function normalizePythonChallenge(raw, fallbackType = "function", fallbackDiff =
       template: cleanTemplate,
       reference_solution: cleanRefSolution,
       test_cases: canonicalCases,
+      problem_specification: raw.problem_specification || null,
     };
   } catch (err) {
     const normError = new Error(`NORMALIZATION_FAILED: スキーマ正規化中に例外が発生しました (${err.name}: ${err.message})`);
@@ -4100,8 +4143,9 @@ function repairPythonChallenge(challenge) {
         let repairedCount = 0;
         testRes.tests.forEach((tRes, idx) => {
           if (challenge.test_cases[idx] && (challenge.test_cases[idx].expected === undefined || challenge.test_cases[idx].expected === null)) {
-            if (tRes.actual !== undefined && tRes.actual !== null && !tRes.error) {
-              let actualVal = tRes.actual;
+            const rawVal = (tRes.actual_val !== undefined) ? tRes.actual_val : tRes.actual;
+            if (rawVal !== undefined && rawVal !== null && !tRes.error) {
+              let actualVal = rawVal;
               if (typeof actualVal === "string") {
                 try { actualVal = JSON.parse(actualVal); } catch (_) {}
               }
@@ -4154,6 +4198,11 @@ const fallbackPresetPythonProblems = [
       { input: "filter_even_numbers([2, 4, 8])", expected: [2, 4, 8], input_label: "すべて偶数" },
       { input: "filter_even_numbers([])", expected: [], input_label: "空リスト" },
     ],
+    problem_specification: {
+      function_name: "filter_even_numbers",
+      return_type: "list",
+      rules: ["整数のリストから偶数のみを抽出する", "空リストの場合は空リストを返す"],
+    },
     isAiGenerated: true,
   },
   {
@@ -4169,6 +4218,31 @@ const fallbackPresetPythonProblems = [
       { input: "count_word_frequency(['cat'])", expected: {"cat": 1}, input_label: "単一単語" },
       { input: "count_word_frequency([])", expected: {}, input_label: "空リスト" },
     ],
+    problem_specification: {
+      function_name: "count_word_frequency",
+      return_type: "dict",
+      rules: ["単語の出現回数をキーと値の辞書で集計する", "空リストは空辞書を返す"],
+    },
+    isAiGenerated: true,
+  },
+  {
+    title: "[厳選問題 - 上級] データのグループ化と集計",
+    type: "function",
+    difficulty: "上級",
+    description: "<p>取引データのリスト <code>records</code>（各要素は <code>{'category': str, 'amount': int}</code> の辞書）を受け取り、カテゴリーごとの合計金額を辞書形式で集計して返す関数 <code>aggregate_sales(records)</code> を作成してください。</p>",
+    template: "def aggregate_sales(records):\n    # ここにコードを記述してください\n    pass\n",
+    setup_code: "",
+    reference_solution: "def aggregate_sales(records):\n    res = {}\n    for r in records:\n        cat = r.get('category', 'その他')\n        res[cat] = res.get(cat, 0) + int(r.get('amount', 0))\n    return res\n",
+    test_cases: [
+      { input: "aggregate_sales([{'category': 'food', 'amount': 100}, {'category': 'book', 'amount': 200}, {'category': 'food', 'amount': 300}])", expected: {"food": 400, "book": 200}, input_label: "複数カテゴリの集計" },
+      { input: "aggregate_sales([{'category': 'tech', 'amount': 500}])", expected: {"tech": 500}, input_label: "単一カテゴリ" },
+      { input: "aggregate_sales([])", expected: {}, input_label: "空リスト" },
+    ],
+    problem_specification: {
+      function_name: "aggregate_sales",
+      return_type: "dict",
+      rules: ["カテゴリーごとの合計金額を辞書で集計する", "空リストの場合は空辞書を返す"],
+    },
     isAiGenerated: true,
   },
   {
@@ -4246,7 +4320,44 @@ if (aiCodingGenerateBtn) {
       typeConstraint = "テーマの内容に応じて、「function」または「cli」のいずれかを選択してください。";
     }
 
-    const systemPrompt = `あなたは非常に優秀で安定したPython教育試験設計士です。
+    // 難易度階層（自動降格用）の定義
+    const difficultyTiers =
+      difficulty === "advanced"
+        ? ["advanced", "intermediate", "beginner"]
+        : difficulty === "intermediate"
+        ? ["intermediate", "beginner"]
+        : ["beginner"];
+
+    try {
+      let finalProblem = null;
+      let lastValidationFailure = null;
+      let failureReasonCode = "UNKNOWN";
+
+      tierLoop: for (const currentTier of difficultyTiers) {
+        const isDegraded = currentTier !== difficulty;
+        const tierLabel = difficultyLabels[currentTier] || "初級";
+
+        if (isDegraded) {
+          console.log(`[DEGRADATION] Auto-degrading difficulty tier to: ${tierLabel}`);
+          showAiLoader(
+            "安定した難易度に調整中...",
+            `高品質な課題を確実に提供するため、難易度を「${tierLabel}」に調整して再構成しています...`
+          );
+        }
+
+        let tierConstraint = "";
+        if (currentTier === "beginner") {
+          tierConstraint =
+            "初心者向け。基本文法、四則演算、リストや文字列の初歩的操作、単純なif条件分岐、初歩的な対話cliなどを対象とします。";
+        } else if (currentTier === "intermediate") {
+          tierConstraint =
+            "中級者向け。リスト内包表記、辞書集計、標準ライブラリ（math, datetime, re, collections等）の活用、少し複雑なCLI計算などを対象とします。";
+        } else {
+          tierConstraint =
+            "上級者向け。クラス設計、特殊メソッド、データ構造集計などを対象とします。曖昧な仕様や未定義の例外処理は避け、明示的な正準仕様（problem_specification）を必ず定義してください。";
+        }
+
+        const systemPrompt = `あなたは非常に優秀で安定したPython教育試験設計士です。
 ユーザーが指定するテーマ・難易度・問題タイプに完全に合致したコーディング問題を1問作成してください。
 
 【設計規約】
@@ -4254,6 +4365,7 @@ if (aiCodingGenerateBtn) {
    - 関数の引数と戻り値を検証します。
    - test_cases: 各ケースに 'input' (関数呼び出し式: 例 'calc(10, 20)') のみを含めてください。
    - 【最重要】expectedはシステム側があなたの模範解答を実行して自動確定するため、test_casesにexpectedプロパティは含めないでください。
+   - problem_specification（正準仕様）を必ず含め、関数名、戻り値の型、仕様規約、代表的な入出力例（sample_cases）を定義してください。
 
 2. 'cli' (input() と print() を使った対話型CLI問題):
    - ユーザーから input() で入力を受け取り、print() で標準出力する問題です。
@@ -4264,211 +4376,277 @@ if (aiCodingGenerateBtn) {
 - templateには答えそのものは含めず、関数の雛形・書き出しフレームのみ（複数行）を含めてください。
 - reference_solutionには、すべてのテストケースを100%確実に通過する完全なPythonコードを記述してください。`;
 
-    const userPrompt = `難易度: ${label}
+        const userPrompt = `難易度: ${tierLabel}
 指定テーマ: ${topic}
-難易度規約: ${difficultyPromptConstraint}
+難易度規約: ${tierConstraint}
 タイプ指定: ${typeConstraint}
 
 以下のJSONスキーマに従って、高品質な問題データを出力してください。
 テストケースには input（呼び出し式または入力配列）のみを含め、expected は含めないでください。
 模範解答コード (reference_solution) はエラーなく実行できる完全なコードを出力してください。`;
 
-    const codingSchema = {
-      type: "OBJECT",
-      properties: {
-        title: {
-          type: "STRING",
-          description: "課題のタイトル（日本語）",
-        },
-        type: {
-          type: "STRING",
-          description: "問題タイプ: 'function' または 'cli'",
-        },
-        difficulty: {
-          type: "STRING",
-          description: "難易度: '初級', '中級', '上級'",
-        },
-        description: {
-          type: "STRING",
-          description: "HTML形式の詳細な問題説明",
-        },
-        template: {
-          type: "STRING",
-          description: "スターターコード（複数行の関数フレーム）",
-        },
-        setup_code: {
-          type: "STRING",
-          description: "事前準備コード（不要なら空文字列）",
-        },
-        reference_solution: {
-          type: "STRING",
-          description: "全テストケースを通過する完全な模範解答コード（複数行）",
-        },
-        test_cases: {
-          type: "ARRAY",
-          description: "テスト用の入力データ一覧（3〜5件）。expectedはシステム側で自動導出するため含めないこと",
-          items: {
-            type: "OBJECT",
-            properties: {
-              input: { type: "STRING", description: "関数呼び出し式（例: 'calc(10, 20)'）" },
-              inputs: { type: "ARRAY", items: { type: "STRING" }, description: "cli用: input()へ渡す入力値の配列" },
-              match: { type: "STRING", description: "cli用: 'contains' または 'exact'" },
-              input_label: { type: "STRING", description: "テストの日本語説明" },
+        const codingSchema = {
+          type: "OBJECT",
+          properties: {
+            title: {
+              type: "STRING",
+              description: "課題のタイトル（日本語）",
             },
-            required: ["input"],
+            type: {
+              type: "STRING",
+              description: "問題タイプ: 'function' または 'cli'",
+            },
+            difficulty: {
+              type: "STRING",
+              description: `難易度: '${tierLabel}'`,
+            },
+            description: {
+              type: "STRING",
+              description: "HTML形式の詳細な問題説明",
+            },
+            template: {
+              type: "STRING",
+              description: "スターターコード（複数行の関数フレーム）",
+            },
+            setup_code: {
+              type: "STRING",
+              description: "事前準備コード（不要なら空文字列）",
+            },
+            reference_solution: {
+              type: "STRING",
+              description: "全テストケースを通過する完全な模範解答コード（複数行）",
+            },
+            problem_specification: {
+              type: "OBJECT",
+              description: "問題の厳密な仕様定義",
+              properties: {
+                function_name: { type: "STRING", description: "関数名" },
+                return_type: { type: "STRING", description: "戻り値の型（dict, list, int, float, bool, str等）" },
+                rules: { type: "ARRAY", items: { type: "STRING" }, description: "仕様規約リスト" },
+                sample_cases: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      input: { type: "STRING", description: "サンプル入力式" },
+                      expected_display: { type: "STRING", description: "期待される結果の文字列表現" },
+                    },
+                    required: ["input"],
+                  },
+                  description: "代表的な入出力例（1〜2件）"
+                }
+              },
+              required: ["function_name", "return_type"]
+            },
+            test_cases: {
+              type: "ARRAY",
+              description: "テスト用の入力データ一覧（3〜5件）。expectedはシステム側で自動導出するため含めないこと",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  input: { type: "STRING", description: "関数呼び出し式（例: 'calc(10, 20)'）" },
+                  inputs: { type: "ARRAY", items: { type: "STRING" }, description: "cli用: input()へ渡す入力値の配列" },
+                  match: { type: "STRING", description: "cli用: 'contains' または 'exact'" },
+                  input_label: { type: "STRING", description: "テストの日本語説明" },
+                },
+                required: ["input"],
+              },
+            },
           },
-        },
-      },
-      required: ["title", "type", "difficulty", "description", "template", "test_cases", "reference_solution"],
-    };
+          required: ["title", "type", "difficulty", "description", "template", "test_cases", "reference_solution"],
+        };
 
-    try {
-      let finalProblem = null;
-      let lastValidationFailure = null;
-      let failureReasonCode = "UNKNOWN";
-      const MAX_GEN_ATTEMPTS = 3;
+        const MAX_TIER_ATTEMPTS = 2;
+        for (let attempt = 0; attempt < MAX_TIER_ATTEMPTS; attempt++) {
+          let currentPrompt = userPrompt;
+          if (lastValidationFailure) {
+            console.log(`[AI GENERATION] Regenerating problem (tier: ${tierLabel}, attempt ${attempt + 1}/${MAX_TIER_ATTEMPTS}). Reason: ${lastValidationFailure}`);
+            showAiLoader(
+              "課題を再構成中...",
+              `テスト整合性を確認し、課題を再構成しています (${tierLabel} 試行 ${attempt + 1}/${MAX_TIER_ATTEMPTS})...`,
+            );
+            currentPrompt += `\n\n【重要：前回の失敗理由】\n前回の模範解答コードで以下のエラーが発生しました：\n${lastValidationFailure}\nエラーのない完全なPythonコードを reference_solution に出力してください。`;
+          } else {
+            console.log(`[AI GENERATION] Requesting problem generation (tier: ${tierLabel}, attempt ${attempt + 1}/${MAX_TIER_ATTEMPTS})...`);
+          }
 
-      for (let attempt = 0; attempt < MAX_GEN_ATTEMPTS; attempt++) {
-        let currentPrompt = userPrompt;
-        if (lastValidationFailure) {
-          console.log(`[AI GENERATION] Regenerating problem (attempt ${attempt + 1}/${MAX_GEN_ATTEMPTS}). Reason: ${lastValidationFailure}`);
-          showAiLoader(
-            "課題を再構成中...",
-            `テスト整合性を確認し、課題を再構成しています (試行 ${attempt + 1}/${MAX_GEN_ATTEMPTS})...`,
-          );
-          currentPrompt += `\n\n【重要：前回の失敗理由】\n前回の模範解答コードで以下のエラーが発生しました：\n${lastValidationFailure}\nエラーのない完全なPythonコードを reference_solution に出力してください。`;
-        } else {
-          console.log(`[AI GENERATION] Requesting problem generation (attempt ${attempt + 1}/${MAX_GEN_ATTEMPTS})...`);
-        }
-
-        // 1. [AI GENERATION] API通信層
-        let jsonText = "";
-        try {
-          jsonText = await callGemini(
-            systemPrompt,
-            currentPrompt,
-            true,
-            codingSchema,
-          );
-          console.log(`[AI GENERATION] API: SUCCESS (response length: ${jsonText.length})`);
-          console.debug("[AI RAW RESPONSE]", jsonText);
-        } catch (apiErr) {
-          console.error(`[AI GENERATION] API: FAILED:`, apiErr);
-          failureReasonCode = apiErr.message && apiErr.message.includes("混雑") ? "AI_SERVICE_UNAVAILABLE" : "AI_API_ERROR";
-          throw apiErr;
-        }
-
-        // 2. [PARSE] JSONパース層
-        let rawObj = null;
-        try {
-          rawObj = extractAndParseJson(jsonText);
-          console.log("[PARSE] PARSE: SUCCESS");
-          console.debug("[AI PARSED]", rawObj);
-        } catch (parseErr) {
-          console.warn("[PARSE] PARSE: FAILED:", parseErr.message);
-          failureReasonCode = "INVALID_JSON";
-          lastValidationFailure = `INVALID_JSON: JSONの構文解析に失敗しました (${parseErr.message})`;
-          continue;
-        }
-
-        // 3. [NORMALIZE] Schema Normalizer
-        let canonical = null;
-        try {
-          const fallbackType = (selectedType && selectedType !== "auto") ? selectedType : "function";
-          const fallbackDiff = label ? label.slice(0, 2) : "初級";
-          canonical = normalizePythonChallenge(rawObj, fallbackType, fallbackDiff);
-          console.log("[NORMALIZE] NORMALIZE: SUCCESS. Title:", canonical.title, "| Canonical Type:", canonical.type);
-          console.debug("[AI NORMALIZED]", canonical);
-        } catch (normErr) {
-          console.warn("[NORMALIZE] NORMALIZE: FAILED:", normErr);
-          failureReasonCode = "NORMALIZATION_FAILED";
-          lastValidationFailure = `NORMALIZATION_FAILED: スキーマ正規化に失敗 (${normErr.message})`;
-          continue;
-        }
-
-        // 4. [VALIDATE] 必須要素の検証
-        if (!canonical.test_cases || canonical.test_cases.length === 0) {
-          console.warn("[VALIDATE] VALIDATE: FAILED (No test cases)");
-          failureReasonCode = "INVALID_TEST_CASE";
-          lastValidationFailure = "INVALID_TEST_CASE: テストケースが0件です。必ず3〜5件のテストケースを含めてください。";
-          continue;
-        }
-
-        if (!canonical.reference_solution) {
-          console.warn("[VALIDATE] VALIDATE: FAILED (Missing reference_solution)");
-          failureReasonCode = "INVALID_REFERENCE_SOLUTION";
-          lastValidationFailure = "INVALID_REFERENCE_SOLUTION: reference_solution（模範解答コード）が空です。";
-          continue;
-        }
-        console.log("[VALIDATE] VALIDATE: SUCCESS");
-
-        // 5. [REPAIR] 自動修復層 (関数名同期やテンプレート補正)
-        try {
-          canonical = repairPythonChallenge(canonical);
-          console.log("[REPAIR] REPAIR: SUCCESS");
-          console.debug("[AI REPAIRED]", canonical);
-        } catch (repairErr) {
-          console.warn("[REPAIR] REPAIR: WARNING:", repairErr.message);
-        }
-
-        // 6. [ORACLE & EXPECTED AUTO-GENERATION] 模範解答の実実行による期待値自動生成
-        if (window.run_python_tests && canonical.reference_solution) {
+          // 1. [AI GENERATION] API通信層
+          let jsonText = "";
           try {
-            // 初期ダミー expected で模範解答を実行し、実際の評価結果 (actual) を取得
-            const valPayload = JSON.stringify({
-              type: canonical.type,
-              setup_code: canonical.setup_code || "",
-              test_cases: canonical.test_cases.map(tc => ({ ...tc, expected: "__NEED_DERIVATION__" })),
-            });
-            const testRaw = window.run_python_tests(canonical.reference_solution, valPayload);
-            const testRes = JSON.parse(testRaw);
+            jsonText = await callGemini(
+              systemPrompt,
+              currentPrompt,
+              true,
+              codingSchema,
+            );
+            console.log(`[AI GENERATION] API: SUCCESS (response length: ${jsonText.length})`);
+            console.debug("[AI RAW RESPONSE]", jsonText);
+          } catch (apiErr) {
+            console.error(`[AI GENERATION] API: FAILED:`, apiErr);
+            failureReasonCode = apiErr.message && apiErr.message.includes("混雑") ? "AI_SERVICE_UNAVAILABLE" : "AI_API_ERROR";
+            throw apiErr;
+          }
 
-            if (testRes.error) {
-              console.warn(`[ORACLE] ORACLE: FAILED (Reference solution execution error):`, testRes.error);
-              failureReasonCode = "REFERENCE_EXECUTION_ERROR";
-              lastValidationFailure = `REFERENCE_EXECUTION_ERROR: 模範解答コードの実行時エラー (${testRes.error})`;
-              continue;
-            }
-
-            if (Array.isArray(testRes.tests) && testRes.tests.length > 0) {
-              // 各ケースの実際の戻り値・出力をそのまま expected に確定！
-              canonical.test_cases = canonical.test_cases.map((tc, idx) => {
-                const tResult = testRes.tests[idx];
-                let expVal = (tResult && tResult.actual !== undefined) ? tResult.actual : "";
-                return {
-                  ...tc,
-                  expected: expVal,
-                };
-              });
-              console.log("[ORACLE] ORACLE: SUCCESS! All expected values automatically derived from reference_solution execution!");
-            }
-          } catch (valErr) {
-            console.warn(`[ORACLE] ORACLE: FAILED (Exception):`, valErr.message);
-            failureReasonCode = "VALIDATION_FAILED";
-            lastValidationFailure = `VALIDATION_FAILED: 自己検証例外 (${valErr.message})`;
+          // 2. [PARSE] JSONパース層
+          let rawObj = null;
+          try {
+            rawObj = extractAndParseJson(jsonText);
+            console.log("[PARSE] PARSE: SUCCESS");
+            console.debug("[AI PARSED]", rawObj);
+          } catch (parseErr) {
+            console.warn("[PARSE] PARSE: FAILED:", parseErr.message);
+            failureReasonCode = "INVALID_JSON";
+            lastValidationFailure = `INVALID_JSON: JSONの構文解析に失敗しました (${parseErr.message})`;
             continue;
           }
-        }
 
-        // 7. [CHALLENGE READY] 出題確定
-        console.log("[FINAL] FINAL: SUCCESS. Challenge ready and approved for presentation!");
-        finalProblem = {
-          title: `[${canonical.difficulty}] ${canonical.title.replace(/^\[.*?\]\s*/, "")}`,
-          type: canonical.type,
-          difficulty: canonical.difficulty,
-          description: canonical.description,
-          template: canonical.template,
-          setup_code: canonical.setup_code,
-          test_cases: canonical.test_cases,
-          reference_solution: canonical.reference_solution,
-          isAiGenerated: true,
-        };
-        break;
+          // 3. [NORMALIZE] Schema Normalizer
+          let canonical = null;
+          try {
+            const fallbackType = (selectedType && selectedType !== "auto") ? selectedType : "function";
+            canonical = normalizePythonChallenge(rawObj, fallbackType, tierLabel);
+            console.log("[NORMALIZE] NORMALIZE: SUCCESS. Title:", canonical.title, "| Canonical Type:", canonical.type);
+            console.debug("[AI NORMALIZED]", canonical);
+          } catch (normErr) {
+            console.warn("[NORMALIZE] NORMALIZE: FAILED:", normErr);
+            failureReasonCode = "NORMALIZATION_FAILED";
+            lastValidationFailure = `NORMALIZATION_FAILED: スキーマ正規化に失敗 (${normErr.message})`;
+            continue;
+          }
+
+          // 4. [VALIDATE] 必須要素の検証
+          if (!canonical.test_cases || canonical.test_cases.length === 0) {
+            console.warn("[VALIDATE] VALIDATE: FAILED (No test cases)");
+            failureReasonCode = "INVALID_TEST_CASE";
+            lastValidationFailure = "INVALID_TEST_CASE: テストケースが0件です。必ず3〜5件のテストケースを含めてください。";
+            continue;
+          }
+
+          if (!canonical.reference_solution) {
+            console.warn("[VALIDATE] VALIDATE: FAILED (Missing reference_solution)");
+            failureReasonCode = "INVALID_REFERENCE_SOLUTION";
+            lastValidationFailure = "INVALID_REFERENCE_SOLUTION: reference_solution（模範解答コード）が空です。";
+            continue;
+          }
+          console.log("[VALIDATE] VALIDATE: SUCCESS");
+
+          // 5. [REPAIR] 自動修復層 (関数名同期やテンプレート補正)
+          try {
+            canonical = repairPythonChallenge(canonical);
+            console.log("[REPAIR] REPAIR: SUCCESS");
+            console.debug("[AI REPAIRED]", canonical);
+          } catch (repairErr) {
+            console.warn("[REPAIR] REPAIR: WARNING:", repairErr.message);
+          }
+
+          // 6. [ORACLE STAGE 1: 模範解答実実行による期待値自動生成]
+          if (window.run_python_tests && canonical.reference_solution) {
+            try {
+              // 初期ダミー expected で模範解答を実行し、実際の評価結果を取得
+              const valPayload = JSON.stringify({
+                type: canonical.type,
+                setup_code: canonical.setup_code || "",
+                test_cases: canonical.test_cases.map(tc => ({ ...tc, expected: "__NEED_DERIVATION__" })),
+              });
+              const testRaw = window.run_python_tests(canonical.reference_solution, valPayload);
+              const testRes = JSON.parse(testRaw);
+
+              if (testRes.error) {
+                console.warn(`[ORACLE] ORACLE: FAILED (Reference solution execution error):`, testRes.error);
+                failureReasonCode = "REFERENCE_EXECUTION_ERROR";
+                lastValidationFailure = `REFERENCE_EXECUTION_ERROR: 模範解答コードの実行時エラー (${testRes.error})`;
+                continue;
+              }
+
+              if (!Array.isArray(testRes.tests) || testRes.tests.length === 0) {
+                console.warn("[ORACLE] ORACLE: FAILED (No test results returned)");
+                failureReasonCode = "ORACLE_EMPTY";
+                lastValidationFailure = "ORACLE_EMPTY: テスト結果が返却されませんでした。";
+                continue;
+              }
+
+              // 期待値の保存: Pythonネイティブ型から安全に変換された生データ (actual_val) を最優先保持
+              canonical.test_cases = canonical.test_cases.map((tc, idx) => {
+                const tResult = testRes.tests[idx];
+                const safeVal = (tResult && tResult.actual_val !== undefined)
+                  ? tResult.actual_val
+                  : (tResult && tResult.actual !== undefined ? tResult.actual : "");
+                return {
+                  ...tc,
+                  expected: safeVal,
+                };
+              });
+
+              // 7. [ORACLE STAGE 2: PROBLEM SPECIFICATION 独立整合性チェック]
+              if (canonical.problem_specification && canonical.type === "function") {
+                const spec = canonical.problem_specification;
+                if (spec.return_type) {
+                  const reqType = spec.return_type.toLowerCase();
+                  const actualOutputs = testRes.tests.map(t => (t.actual_val !== undefined ? t.actual_val : t.actual));
+                  if (reqType.includes("dict")) {
+                    const hasDict = actualOutputs.some(o => typeof o === "object" && o !== null && !Array.isArray(o));
+                    if (!hasDict) {
+                      lastValidationFailure = `SPEC_TYPE_MISMATCH: 仕様上の戻り値型「${spec.return_type}」と模範解答の実際の型が一致しません。`;
+                      console.warn("[SPEC CHECK FAILED]", lastValidationFailure);
+                      continue;
+                    }
+                  } else if (reqType.includes("list")) {
+                    const hasList = actualOutputs.some(o => Array.isArray(o));
+                    if (!hasList) {
+                      lastValidationFailure = `SPEC_TYPE_MISMATCH: 仕様上の戻り値型「${spec.return_type}」と模範解答の実際の型が一致しません。`;
+                      console.warn("[SPEC CHECK FAILED]", lastValidationFailure);
+                      continue;
+                    }
+                  }
+                }
+              }
+
+              // 8. [ORACLE STAGE 3: 確定した expected による再検証 Oracle (100% 合格保証)]
+              const revalPayload = JSON.stringify({
+                type: canonical.type,
+                setup_code: canonical.setup_code || "",
+                test_cases: canonical.test_cases,
+              });
+              const revalRaw = window.run_python_tests(canonical.reference_solution, revalPayload);
+              const revalRes = JSON.parse(revalRaw);
+
+              if (revalRes.error || !revalRes.tests || !revalRes.tests.every(t => t.pass === true)) {
+                console.warn("[ORACLE] Re-verification failed! Reference solution did NOT pass 100% of cases:", revalRes);
+                failureReasonCode = "REVERIFICATION_FAILED";
+                lastValidationFailure = "REVERIFICATION_FAILED: 模範解答コードが全テストケースを100%通過しませんでした。";
+                continue;
+              }
+
+              console.log(`[ORACLE] 100% PASS RE-VERIFIED! Problem approved at tier: ${tierLabel}`);
+            } catch (valErr) {
+              console.warn(`[ORACLE] ORACLE: FAILED (Exception):`, valErr.message);
+              failureReasonCode = "VALIDATION_FAILED";
+              lastValidationFailure = `VALIDATION_FAILED: 自己検証例外 (${valErr.message})`;
+              continue;
+            }
+          }
+
+          // 9. [CHALLENGE READY] 出題確定
+          console.log(`[FINAL] FINAL: SUCCESS. Challenge ready and approved for presentation at tier: ${tierLabel}!`);
+          finalProblem = {
+            title: `[${canonical.difficulty}] ${canonical.title.replace(/^\[.*?\]\s*/, "")}`,
+            type: canonical.type,
+            difficulty: canonical.difficulty,
+            description: canonical.description,
+            template: canonical.template,
+            setup_code: canonical.setup_code,
+            test_cases: canonical.test_cases,
+            reference_solution: canonical.reference_solution,
+            problem_specification: canonical.problem_specification,
+            isAiGenerated: true,
+          };
+          break tierLoop;
+        }
       }
 
-      // 3回試行しても生成できなかった場合は、安全なローカルプリセット問題へフォールバック
+      // 全階層の試行で生成できなかった場合は、安全なローカルプリセット問題へフォールバック
       if (!finalProblem) {
-        console.warn("[FALLBACK] AI generation failed 3 attempts. Deploying high-quality curated preset problem.");
+        console.warn("[FALLBACK] All tier generation attempts failed. Deploying high-quality curated preset problem.");
         const presets = fallbackPresetPythonProblems.filter(p => selectedType === "auto" || p.type === selectedType);
         const chosen = presets.length > 0 ? presets[Math.floor(Math.random() * presets.length)] : fallbackPresetPythonProblems[0];
         finalProblem = { ...chosen, isAiGenerated: true };
