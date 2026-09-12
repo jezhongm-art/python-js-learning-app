@@ -976,7 +976,7 @@ print(sorted_users[0]["name"]) # 'Bob'</code></pre>
 print(send_email("user@test.com", "メンテナンス通知"))
 print(send_email("admin@test.com", "障害発生", urgent=True))</code></pre>
           <div class="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg text-xs mt-2">
-            <strong>⚠️ 重大バグ注意:</strong> デフォルト引数に空リスト <code>[]</code> や辞書 <code>{}</code> などのミュータブル（変更可能）オブジェクトを指定してはいけません！呼び出し間で共有されてしまいます。必ず <code>arg=None</code> とし、関数内で <code>if arg is None: arg = []</code> と初期化します。
+            <strong>[注意] 重大バグ:</strong> デフォルト引数に空リスト <code>[]</code> や辞書 <code>{}</code> などのミュータブル（変更可能）オブジェクトを指定してはいけません！呼び出し間で共有されてしまいます。必ず <code>arg=None</code> とし、関数内で <code>if arg is None: arg = []</code> と初期化します。
           </div>
         `,
         key_takeaways: ["def 関数名(必須引数, オプション引数=初期値):", "デフォルト引数にミュータブル([], {})を指定しない (None初期化を使用)", "キーワード引数で呼び出すと引数順序に依存しない"],
@@ -1144,7 +1144,7 @@ else:
 finally:
     print("クリーンアップ処理")  # 成功・失敗に関わらず必ず実行</code></pre>
           <div class="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg text-xs mt-2">
-            <strong>⚠️ 実務の注意点:</strong> 何も特定しない <code>except:</code> (Bare except) や <code>except Exception: pass</code> のようにエラーをもみ消す書き方はバグの特定を困難にするため禁止です。必ず具体的な例外クラスを指定します。
+            <strong>[実務上の注意]</strong> 何も特定しない <code>except:</code> (Bare except) や <code>except Exception: pass</code> のようにエラーをもみ消す書き方はバグの特定を困難にするため禁止です。必ず具体的な例外クラスを指定します。
           </div>
         `,
         key_takeaways: ["except SpecificError で想定されるエラーを個別に捕捉", "else は例外が発生しなかった時、finally は必ず実行", "エラーをもみ消さず適切にログやフォールバックを実装"],

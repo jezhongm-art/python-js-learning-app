@@ -429,20 +429,20 @@ function updateDashboardUI() {
   let badges = [];
 
   if (learningProgress.totalQuizzesAnswered > 0) {
-    rank = "クイズ挑戦者";
+    rank = "クイズ学習者";
   }
   if (learningProgress.highestQuizScore >= 5) {
-    badges.push("爆速クイズ王");
+    badges.push("スピードマスター");
   }
   if (learningProgress.completedProblems.length > 0) {
-    rank = "駆け出しプログラマー";
+    rank = "初級プログラマー";
   }
   if (learningProgress.aiChallengesCleared > 0) {
-    badges.push("AIチャレンジャー");
+    badges.push("コーディング実践者");
   }
   if (learningProgress.completedProblems.length >= 10) {
     rank = "アルゴリズムマスター";
-    badges.push("Pythonicエキスパート");
+    badges.push("Pythonエキスパート");
   }
 
   const badgeString =
@@ -3290,7 +3290,7 @@ function executePythonTests(userCode, problem) {
       testSummaryBadge.className = "ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold";
       testResults.innerHTML = `
             <div class="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 rounded-lg text-sm">
-              <strong class="block font-semibold mb-1">${isTimeout ? "⏱ 制限時間超過 (無限ループ検知):" : "⚠️ 構文エラー / 実行時エラーが発生しました:"}</strong>
+              <strong class="block font-semibold mb-1">${isTimeout ? "制限時間超過 (無限ループ検知):" : "構文エラー / 実行時エラーが発生しました:"}</strong>
               <code class="block whitespace-pre-wrap bg-rose-100 dark:bg-rose-900/40 p-3 rounded text-xs mt-1 font-mono">${escapeHtml(res.error)}</code>
             </div>`;
       testResults.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -3318,8 +3318,8 @@ function executePythonTests(userCode, problem) {
               <div class="space-y-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="font-bold text-slate-800 dark:text-slate-100 text-sm sm:text-base">テスト通過結果: ${passed} / ${total} 通過</span>
-                  ${hasStdout ? `<button onclick="setActiveOutputTab('stdout')" class="px-2 py-0.5 rounded text-[11px] bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors flex items-center gap-1">📝 print出力 (${stdoutLines}行)</button>` : ""}
-                  ${hasChart ? `<button onclick="setActiveOutputTab('plot')" class="px-2 py-0.5 rounded text-[11px] bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold transition-colors flex items-center gap-1">📊 グラフ出力を見る</button>` : ""}
+                  ${hasStdout ? `<button onclick="setActiveOutputTab('stdout')" class="px-2 py-0.5 rounded text-[11px] bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors">標準出力 (${stdoutLines}行)</button>` : ""}
+                  ${hasChart ? `<button onclick="setActiveOutputTab('plot')" class="px-2 py-0.5 rounded text-[11px] bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold transition-colors">グラフ表示</button>` : ""}
                 </div>
                 <p class="text-xs text-slate-500 dark:text-slate-400">全テストケースに合格するとクリアとなります</p>
               </div>
@@ -3484,7 +3484,7 @@ window.askAiAboutTestFailure = async function (testIndex) {
   const statusVal = lastCaseRes?.status || (lastCaseRes?.error ? "EXECUTION_ERROR" : "TEST_FAILED");
 
   aiHintContent.innerHTML =
-    '<span class="animate-pulse text-indigo-500 font-bold">AIがこのテストケースの失敗原因を分析しています...</span>';
+    '<span class="text-slate-600 dark:text-slate-400 font-medium">テストケースの失敗原因を分析しています...</span>';
   aiHintPanel.classList.remove("hidden");
   aiReviewPanel.classList.add("hidden");
   aiHintPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -3518,7 +3518,7 @@ ${userCode}
       aiHintContent.innerHTML = sanitizeHtml(marked.parse(fullText));
     });
   } catch (err) {
-    notify(`${err.message}`, "AIエラー分析失敗", "error");
+    notify(`${err.message}`, "エラー分析失敗", "error");
   }
 };
 
@@ -3706,6 +3706,8 @@ const categorizedCodingTopics = {
     "【datetime】2つの日付の経過日数差分の計算 (datetime.date)",
     "【itertools】itertools.accumulate による累積和リスト生成",
     "【random】randomモジュールを使ったサイコロ抽選・ランダム選択",
+    "【NumPy基礎】多次元配列の生成とベクトル化スカラー演算",
+    "【データ集計】売上リストデータからの合計・平均・最大値の算出",
     "【対話CLI】input()で名前を受け取り挨拶するCLIプログラム",
     "【対話CLI】input()で年齢を受け取り成人/未成年判定",
     "【対話CLI】input()で2つの数値を入力して四則演算する計算機",
@@ -3713,6 +3715,10 @@ const categorizedCodingTopics = {
     "【可視化】Matplotlibで果物の売上個数の棒グラフを描画 (plt.bar)",
   ],
   intermediate: [
+    "【NumPy応用】2次元配列のスライシングとBoolean Indexingによるデータ抽出",
+    "【pandas流】テーブルレコードのgroupbyカテゴリ別売上集計",
+    "【requests流】Web APIのJSONレスポンスからのデータ抽出・構造化",
+    "【BeautifulSoup流】HTML文字列からの商品名・価格・リンク抽出",
     "【re】reモジュールを使ったメールアドレスやURLの正規表現バリデーション",
     "【re】re.findall を使ったテキスト内からの電話番号・郵便番号抽出",
     "【datetime】datetimeとtimedeltaを用いた指定日数後の日付フォーマット変換",
@@ -3732,6 +3738,9 @@ const categorizedCodingTopics = {
     "【可視化】Matplotlibでアンケート回答割合の円グラフを描画 (plt.pie)",
   ],
   advanced: [
+    "【データ分析】テーブルデータの一括クレンジング・欠損値補完パイプライン",
+    "【機械学習前処理】生データからの特徴量Xと目的変数yの分割・構築",
+    "【横断プロジェクト】Webデータ抽出から統計集計・レポート生成への一貫処理",
     "【itertools】itertools.combinations による合計指定ペアの全探索",
     "【itertools】itertools.permutations や product を用いた順列・直積全列挙",
     "【itertools】itertools.groupby を用いた連続同一要素の圧縮・集計",
@@ -3778,8 +3787,8 @@ if (aiQuizGenerateBtn) {
 
     const label = difficultyLabels[difficulty];
     showAiLoader(
-      "AIクイズを作成中...",
-      `Gemini AIが「${label}」レベルのテーマ「${topic}」に関する深い知識を問うハイクオリティな問題を作成しています。`,
+      "クイズを作成中...",
+      `「${label}」レベルのテーマ「${topic}」に関するクイズを準備しています。`,
     );
 
     let difficultyPromptConstraint = "";
@@ -3845,7 +3854,7 @@ if (aiQuizGenerateBtn) {
       }
 
       const newQuestion = {
-        question: `[AI生成 - ${label}] ${parsedQuiz.question ? parsedQuiz.question.replace(/\\n/g, "\n") : ""}`,
+        question: `[${label}] ${parsedQuiz.question ? parsedQuiz.question.replace(/\\n/g, "\n") : ""}`,
         options: shuffledOptions,
         correctIndex: finalCorrectIndex,
         correctAnswer: parsedQuiz.correctAnswer,
@@ -3863,7 +3872,7 @@ if (aiQuizGenerateBtn) {
 
       aiQuizTopicInput.value = "";
     } catch (err) {
-      notify(`${err.message}`, "AIクイズ生成失敗", "error");
+      notify(`${err.message}`, "クイズ生成失敗", "error");
     } finally {
       hideAiLoader();
       aiQuizGenerateBtn.disabled = false;
@@ -4212,8 +4221,8 @@ if (aiCodingGenerateBtn) {
 
     const label = difficultyLabels[difficulty];
     showAiLoader(
-      "AI課題をビルド中...",
-      `Gemini AIが「${label}」難易度に適したテーマ「${topic}」に基づく、自動評価テスト付きコーディング問題を設計しています。`,
+      "課題を準備中...",
+      `「${label}」難易度のテーマ「${topic}」に基づくコーディング課題を構成しています。`,
     );
 
     let difficultyPromptConstraint = "";
@@ -4324,8 +4333,8 @@ if (aiCodingGenerateBtn) {
         if (lastValidationFailure) {
           console.log(`[AI GENERATION] Regenerating problem (attempt ${attempt + 1}/${MAX_GEN_ATTEMPTS}). Reason: ${lastValidationFailure}`);
           showAiLoader(
-            "AI課題を修復・再生成中...",
-            `前回の生成データに不整合があったため、AIが修復・再構築しています (試行 ${attempt + 1}/${MAX_GEN_ATTEMPTS})...`,
+            "課題を再構成中...",
+            `テスト整合性を確認し、課題を再構成しています (試行 ${attempt + 1}/${MAX_GEN_ATTEMPTS})...`,
           );
           currentPrompt += `\n\n【重要：前回の失敗理由】\n前回の模範解答コードで以下のエラーが発生しました：\n${lastValidationFailure}\nエラーのない完全なPythonコードを reference_solution に出力してください。`;
         } else {
@@ -4444,7 +4453,7 @@ if (aiCodingGenerateBtn) {
         // 7. [CHALLENGE READY] 出題確定
         console.log("[FINAL] FINAL: SUCCESS. Challenge ready and approved for presentation!");
         finalProblem = {
-          title: `[AI生成 - ${canonical.difficulty}] ${canonical.title.replace(/^\[.*?\]\s*/, "")}`,
+          title: `[${canonical.difficulty}] ${canonical.title.replace(/^\[.*?\]\s*/, "")}`,
           type: canonical.type,
           difficulty: canonical.difficulty,
           description: canonical.description,
@@ -4463,9 +4472,9 @@ if (aiCodingGenerateBtn) {
         const presets = fallbackPresetPythonProblems.filter(p => selectedType === "auto" || p.type === selectedType);
         const chosen = presets.length > 0 ? presets[Math.floor(Math.random() * presets.length)] : fallbackPresetPythonProblems[0];
         finalProblem = { ...chosen, isAiGenerated: true };
-        notify("AI生成サービスが混雑していたため、おすすめ厳選練習問題を出題しました！", "練習問題出題", "info");
+        notify("おすすめの練習問題を出題しました。", "練習問題出題", "info");
       } else {
-        notify(`AI問題「${finalProblem.title}」を自己検証合格の上、出題しました！`, "success");
+        notify(`問題「${finalProblem.title}」を出題しました。`, "success");
       }
 
       codingProblems = [finalProblem, ...codingProblems];
@@ -4486,7 +4495,7 @@ if (aiCodingGenerateBtn) {
       codingProblems = [finalProblem, ...codingProblems];
       currentCodingIndex = 0;
       showCodingProblem();
-      notify("AI生成が混雑していたため、おすすめ練習問題を出題しました！", "練習問題出題", "info");
+      notify("おすすめの練習問題を出題しました。", "練習問題出題", "info");
     } finally {
       hideAiLoader();
       aiCodingGenerateBtn.disabled = false;
@@ -4519,7 +4528,7 @@ if (aiHintBtn) {
     const userCode = codeEditor.value;
 
     aiHintContent.innerHTML =
-      '<span class="animate-pulse text-indigo-500 font-bold">AIがコードと採点結果を分析し、タイピングしています...</span>';
+      '<span class="text-slate-600 dark:text-slate-400 font-medium">コードと採点結果を分析しています...</span>';
     aiHintPanel.classList.remove("hidden");
     aiReviewPanel.classList.add("hidden");
     aiHintPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -4603,7 +4612,7 @@ ${userCode}
         adviceSummary: summarizeAdviceText(aiResponseText),
       });
     } catch (err) {
-      notify(`${err.message}`, "AIヒント取得失敗", "error");
+      notify(`${err.message}`, "ヒント取得失敗", "error");
     }
   };
 }
@@ -4617,7 +4626,7 @@ if (aiReviewBtn) {
     const userCode = codeEditor.value;
 
     aiReviewContent.innerHTML =
-      '<span class="animate-pulse text-purple-500 font-bold">AIがコードを分析し、模範解答を自己検証しています...</span>';
+      '<span class="text-slate-600 dark:text-slate-400 font-medium">コードを分析し、模範解答を検証しています...</span>';
     aiReviewPanel.classList.remove("hidden");
     aiHintPanel.classList.add("hidden");
     aiReviewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -4712,15 +4721,15 @@ ${userCode}
       if (verifiedPass) {
         verifyStatus.className =
           "mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2";
-        verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 自動自己検証結果: この模範解答は全テストケース (${passCount}/${totalCount}) の合格を確認済みです。そのまま実行・採点いただけます。`;
+        verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 検証結果: 全テストケース (${passCount}/${totalCount}) に合格する模範解答です。`;
       } else {
         verifyStatus.className =
           "mt-4 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-lg text-rose-800 dark:text-rose-300 text-xs font-semibold flex items-center gap-2";
-        verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-rose-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> ⚠️ 自動検証警告: 生成された模範解答コードはテストケース (${passCount}/${totalCount}) で不合格となりました。コードを丸写しせず、上記のアドバイスや考え方の解説のみをご参考ください。`;
+        verifyStatus.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-rose-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> 検証結果: 模範解答コードは一部テストケース (${passCount}/${totalCount}) で不合格となりました。解説とアプローチをご参考ください。`;
       }
       aiReviewContent.appendChild(verifyStatus);
     } catch (err) {
-      notify(`${err.message}`, "AIレビュー取得失敗", "error");
+      notify(`${err.message}`, "レビュー取得失敗", "error");
     }
   };
 }
@@ -5788,10 +5797,19 @@ function renderSkillChart(data) {
 // ==========================================
 // 3. パーソナライズ教科書学習 (Textbook Curriculum)
 // ==========================================
-const defaultTextbookChapters =
+let defaultTextbookChapters =
   typeof window !== "undefined" && window.textbookDataChapters && window.textbookDataChapters.length > 0
     ? window.textbookDataChapters
     : (typeof textbookDataChapters !== "undefined" ? textbookDataChapters : []);
+
+if (typeof window !== "undefined" && window.practicalLibraryChapters && Array.isArray(window.practicalLibraryChapters)) {
+  const existingIds = new Set(defaultTextbookChapters.map((ch) => ch.id));
+  window.practicalLibraryChapters.forEach((ch) => {
+    if (!existingIds.has(ch.id)) {
+      defaultTextbookChapters.push(ch);
+    }
+  });
+}
 
 let textbookChapters = [];
 let currentTextbookLesson = null;
@@ -5931,40 +5949,69 @@ async function loadTextbookRoadmap() {
 
 function renderTextbookTree(chapters) {
   if (!textbookChaptersTree) return;
-  textbookChaptersTree.innerHTML = chapters
-    .map(
-      (ch) => `
-    <div class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-850">
-      <div class="p-3 bg-slate-50 dark:bg-slate-800 flex justify-between items-center cursor-pointer select-none">
-        <div class="flex items-center gap-2">
-          <span class="font-bold text-xs text-slate-800 dark:text-slate-200">${escapeHtml(ch.title)}</span>
-          ${ch.is_mastered ? `<span class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded">マスター済</span>` : ""}
+
+  const coreChapters = chapters.filter((c) => (c.category_group !== "library" && c.id <= 10));
+  const libraryChapters = chapters.filter((c) => (c.category_group === "library" || c.id > 10));
+
+  function renderChapterItem(ch) {
+    const isLib = ch.category_group === "library" || ch.id >= 11;
+    return `
+      <div class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-850">
+        <div class="p-3 bg-slate-50 dark:bg-slate-800 flex justify-between items-center cursor-pointer select-none">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">${escapeHtml(ch.title)}</span>
+            ${ch.is_mastered ? `<span class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded shrink-0">マスター済</span>` : ""}
+            ${isLib ? `<span class="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 text-[9px] font-bold rounded border border-indigo-200/50 dark:border-indigo-800/40 shrink-0">実用</span>` : ""}
+          </div>
+          <span class="text-[10px] text-slate-400 font-semibold shrink-0 ml-1">${ch.completed_lessons_count || 0}/${ch.total_lessons_count || (ch.lessons ? ch.lessons.length : 0)}</span>
         </div>
-        <span class="text-[10px] text-slate-400 font-semibold">${ch.completed_lessons_count || 0}/${ch.total_lessons_count || (ch.lessons ? ch.lessons.length : 0)}</span>
+        <div class="p-2 space-y-1">
+          ${(ch.lessons || [])
+            .map((l) => {
+              const st = l.user_status || getLocalLessonProgress(l.id) || {};
+              let badge = `<span class="text-[10px] text-slate-400 whitespace-nowrap shrink-0">未受講</span>`;
+              if (st.is_skipped_by_assessment) {
+                badge = `<span class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded whitespace-nowrap shrink-0">診断スキップ</span>`;
+              } else if (st.is_completed || st.exercise_passed) {
+                badge = `<span class="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded whitespace-nowrap shrink-0">完了</span>`;
+              }
+              return `
+              <button onclick="loadLesson(${l.id})" class="w-full text-left p-2 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-2 ${currentTextbookLesson && currentTextbookLesson.id === l.id ? "bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-300"}">
+                <span class="truncate min-w-0 flex-1">${escapeHtml(l.title)}</span>
+                ${badge}
+              </button>
+            `;
+            })
+            .join("")}
+        </div>
       </div>
-      <div class="p-2 space-y-1">
-        ${(ch.lessons || [])
-          .map((l) => {
-            const st = l.user_status || getLocalLessonProgress(l.id) || {};
-            let badge = `<span class="text-[10px] text-slate-400 whitespace-nowrap shrink-0">未受講</span>`;
-            if (st.is_skipped_by_assessment) {
-              badge = `<span class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded whitespace-nowrap shrink-0">診断スキップ</span>`;
-            } else if (st.is_completed || st.exercise_passed) {
-              badge = `<span class="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded whitespace-nowrap shrink-0">完了</span>`;
-            }
-            return `
-            <button onclick="loadLesson(${l.id})" class="w-full text-left p-2 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-2 ${currentTextbookLesson && currentTextbookLesson.id === l.id ? "bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-300"}">
-              <span class="truncate min-w-0 flex-1">${escapeHtml(l.title)}</span>
-              ${badge}
-            </button>
-          `;
-          })
-          .join("")}
+    `;
+  }
+
+  let html = "";
+  if (coreChapters.length > 0) {
+    html += `
+      <div class="pt-1 pb-1">
+        <span class="text-[11px] font-extrabold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 px-1 pb-1">
+          Python基礎・応用 (第0〜10章)
+        </span>
       </div>
-    </div>
-  `
-    )
-    .join("");
+      ${coreChapters.map(renderChapterItem).join("")}
+    `;
+  }
+
+  if (libraryChapters.length > 0) {
+    html += `
+      <div class="pt-4 pb-1">
+        <span class="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 px-1 pb-1">
+          実用ライブラリ編 (データ処理・Web・ML)
+        </span>
+      </div>
+      ${libraryChapters.map(renderChapterItem).join("")}
+    `;
+  }
+
+  textbookChaptersTree.innerHTML = html;
 }
 
 async function loadLesson(lessonId) {
@@ -5988,8 +6035,35 @@ async function loadLesson(lessonId) {
   if (!data) return;
   currentTextbookLesson = data;
 
-  if (lessonChapterLabel) lessonChapterLabel.textContent = `第${data.chapter_order}章: ${data.chapter_title || ""}`;
+  const isLibChapter = data.chapter_order >= 11 || (data.chapter_title && data.chapter_title.includes("NumPy"));
+  if (lessonChapterLabel) {
+    lessonChapterLabel.textContent = isLibChapter
+      ? `【実用ライブラリ】${data.chapter_title || ""}`
+      : `第${data.chapter_order}章: ${data.chapter_title || ""}`;
+  }
   if (lessonTimeBadge) lessonTimeBadge.textContent = `読了目安: ${data.reading_time_minutes || 5}分`;
+
+  // 実行環境バッジの表示制御
+  const runtimeBadge = document.getElementById("lesson-runtime-badge");
+  if (runtimeBadge) {
+    const env = data.runtime_env || "browser";
+    if (env === "browser") {
+      runtimeBadge.textContent = "ブラウザ実行可能";
+      runtimeBadge.className = "text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800";
+      runtimeBadge.classList.remove("hidden");
+    } else if (env === "browser_limited") {
+      runtimeBadge.textContent = "ブラウザ制限あり (ロジック学習)";
+      runtimeBadge.className = "text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800";
+      runtimeBadge.classList.remove("hidden");
+    } else if (env === "backend_only") {
+      runtimeBadge.textContent = "コード閲覧 (要バックエンド)";
+      runtimeBadge.className = "text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800";
+      runtimeBadge.classList.remove("hidden");
+    } else {
+      runtimeBadge.classList.add("hidden");
+    }
+  }
+
   if (lessonTitle) lessonTitle.textContent = data.title;
   if (lessonContent) lessonContent.innerHTML = data.content_html;
 
@@ -6009,6 +6083,25 @@ async function loadLesson(lessonId) {
   if (lessonExampleOutput) {
     lessonExampleOutput.classList.add("hidden");
     lessonExampleOutput.innerHTML = "";
+  }
+
+  // 実行ボタンの表示切り替え（backend_only の場合は注意案内モード）
+  if (lessonRunExampleBtn) {
+    if (data.runtime_env === "backend_only") {
+      lessonRunExampleBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        実行環境について
+      `;
+    } else {
+      lessonRunExampleBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        </svg>
+        実行して確認
+      `;
+    }
   }
 
   // 演習問題
@@ -6054,6 +6147,14 @@ async function loadLessonByChapter(chapterOrder) {
 if (lessonRunExampleBtn) {
   lessonRunExampleBtn.onclick = () => {
     if (!currentTextbookLesson || !currentTextbookLesson.example_code) return;
+    if (currentTextbookLesson.runtime_env === "backend_only") {
+      notify(
+        "このライブラリ（scikit-learn等）は重厚なC拡張環境を要するため、通常のPythonローカル環境またはDjangoバックエンドでの実行を想定しています。\n\nブラウザ上ではコード設計や前処理パイプラインの学習教材としてご活用ください。",
+        "実行環境についてのご案内",
+        "info"
+      );
+      return;
+    }
     try {
       if (typeof window.run_python_interactive === "function") {
         const res = JSON.parse(window.run_python_interactive(currentTextbookLesson.example_code));
@@ -6188,7 +6289,7 @@ if (lessonCompleteNextBtn) {
     if (nextLessonId) {
       loadLesson(nextLessonId);
     } else {
-      notify("おめでとうございます！全カリキュラムを完了しました！", "success");
+      notify("全カリキュラムの学習を完了しました。", "success");
     }
   };
 }

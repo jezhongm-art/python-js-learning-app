@@ -869,7 +869,7 @@
             >
             <span
               class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase"
-              >AI生成クリア</span
+              >追加課題クリア</span
             >
           </div>
         </div>
@@ -1093,13 +1093,13 @@
             </div>
 
             <!-- おすすめスタート地点 -->
-            <div class="bg-gradient-to-br from-indigo-600 to-purple-700 text-white p-6 rounded-2xl shadow-md flex flex-col justify-between">
-              <span class="text-xs font-bold text-indigo-200 uppercase tracking-wider">あなたに最適の教科書単元</span>
+            <div class="bg-slate-900 dark:bg-slate-800 text-white p-6 rounded-2xl border border-slate-700/60 shadow-sm flex flex-col justify-between">
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">推奨学習単元</span>
               <div class="py-2">
-                <h4 id="chart-recommended-title" class="text-lg font-bold">第1章: 入門とデータ型</h4>
-                <p id="chart-recommended-desc" class="text-xs text-indigo-100 mt-1">実力に合わせたステップアップをはじめましょう。</p>
+                <h4 id="chart-recommended-title" class="text-lg font-bold text-white">第1章: 入門とデータ型</h4>
+                <p id="chart-recommended-desc" class="text-xs text-slate-300 mt-1">実力に合わせたステップアップをはじめましょう。</p>
               </div>
-              <button id="chart-jump-textbook-btn" class="bg-white text-indigo-700 hover:bg-indigo-50 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow text-center flex items-center justify-center gap-1">
+              <button id="chart-jump-textbook-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-sm text-center flex items-center justify-center gap-1">
                 <span>推奨章の教科書を開く</span>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -1127,7 +1127,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                AI 学習アドバイザー総評
+                学習アドバイザー総評
               </h4>
               <div id="chart-ai-feedback" class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-850 p-4 rounded-xl border border-slate-100 dark:border-slate-800 whitespace-pre-line"></div>
               
@@ -1173,9 +1173,12 @@
             <div id="textbook-lesson-container" class="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 space-y-6">
               <!-- 単元タイトル部 -->
               <div class="border-b border-slate-100 dark:border-slate-800 pb-4 space-y-1">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between flex-wrap gap-2">
                   <span id="lesson-chapter-label" class="text-xs font-bold text-indigo-600 dark:text-indigo-400">第1章: Pythonの第一歩とデータ型</span>
-                  <span id="lesson-time-badge" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded">読了目安: 5分</span>
+                  <div class="flex items-center gap-2">
+                    <span id="lesson-runtime-badge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-md transition-all"></span>
+                    <span id="lesson-time-badge" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded">読了目安: 5分</span>
+                  </div>
                 </div>
                 <h2 id="lesson-title" class="text-xl font-extrabold text-slate-800 dark:text-slate-100">1.1 変数宣言と数値演算</h2>
               </div>
@@ -1322,19 +1325,19 @@
       <div id="quiz-mode" class="hidden space-y-6">
         <!-- AI問題生成コントロール -->
         <div
-          class="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-900 dark:to-slate-850 p-5 rounded-xl border border-indigo-100 dark:border-slate-800 shadow-sm space-y-3 transition-colors duration-200"
+          class="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors duration-200"
         >
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <h3
-              class="text-sm font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5"
+              class="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
-              AI クイズジェネレーター
+              4択クイズ出題設定
             </h3>
-            <p class="text-xs text-indigo-600 dark:text-indigo-400">
-              テーマと難易度を指定して、Geminiによるオリジナル4択クイズを自動生成
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              テーマと難易度を指定して4択クイズを出題
             </p>
           </div>
 
@@ -1342,7 +1345,7 @@
             <!-- 難易度セレクター -->
             <select
               id="ai-quiz-difficulty"
-              class="w-full px-3 py-2 text-sm rounded-lg border border-indigo-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
+              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
             >
               <option value="random">難易度: おまかせ</option>
               <option value="beginner">初級 (基礎概念)</option>
@@ -1355,13 +1358,13 @@
               id="ai-quiz-topic"
               type="text"
               placeholder="例: デコレータ、型ヒント"
-              class="w-full px-3.5 py-2 text-sm rounded-lg border border-indigo-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+              class="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
             />
 
             <!-- 生成ボタン -->
             <button
               id="ai-quiz-generate-btn"
-              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-1.5"
             >
               問題作成
             </button>
@@ -1378,8 +1381,8 @@
               Python 4択クイズ
               <span
                 id="quiz-type-badge"
-                class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-400"
-                >AI生成問題</span
+                class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
+                >追加問題</span
               >
             </h2>
             <span
@@ -1423,19 +1426,19 @@
       <div id="coding-mode" class="hidden space-y-6">
         <!-- AIコーディング問題生成コントロール -->
         <div
-          class="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/20 p-5 rounded-xl border border-emerald-100 dark:border-emerald-900/40 shadow-sm space-y-3 transition-colors duration-200"
+          class="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors duration-200"
         >
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <h3
-              class="text-sm font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5"
+              class="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
               </svg>
-              AI 課題ジェネレーター
+              課題出題設定
             </h3>
-            <p class="text-xs text-emerald-600 dark:text-emerald-400">
-              関数・Matplotlib可視化・input対話CLI・標準ライブラリ（math, datetime等）対応
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              関数・Matplotlib可視化・対話CLI・標準ライブラリ対応
             </p>
           </div>
 
@@ -1443,7 +1446,7 @@
             <!-- タイプセレクター -->
             <select
               id="ai-coding-type"
-              class="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
+              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
             >
               <option value="auto">ジャンル: おまかせ / 自動判別</option>
               <option value="function">関数・アルゴリズム・標準ライブラリ</option>
@@ -1454,7 +1457,7 @@
             <!-- 難易度セレクター -->
             <select
               id="ai-coding-difficulty"
-              class="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
+              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200"
             >
               <option value="random">難易度: おまかせ</option>
               <option value="beginner">初級 (基礎文法・基本計算)</option>
@@ -1467,15 +1470,15 @@
               id="ai-coding-topic"
               type="text"
               placeholder="例: 売上グラフ, 日時計算, 年齢判定CLI"
-              class="w-full px-3.5 py-2 text-sm rounded-lg border border-emerald-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+              class="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
             />
 
             <!-- 生成ボタン -->
             <button
               id="ai-coding-generate-btn"
-              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+              class="w-full bg-slate-800 hover:bg-slate-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-1.5"
             >
-              問題作成
+              課題作成
             </button>
           </div>
         </div>
@@ -1487,7 +1490,7 @@
             <div class="flex items-center gap-2">
               <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 Python 基礎コーディング問題
-                <span id="coding-type-badge" class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400">AI生成問題</span>
+                <span id="coding-type-badge" class="hidden text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">追加問題</span>
               </h2>
             </div>
             <div class="flex items-center gap-2 w-full sm:w-auto">
@@ -1690,26 +1693,26 @@
                   コードを整える
                 </button>
 
-                <!-- AIヒントボタン -->
+                <!-- ヒントボタン -->
                 <button
                   id="ai-hint-btn"
-                  class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-900/50 px-4 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 text-sm"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 px-3.5 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 text-sm"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-600 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
-                  AIにヒントをもらう
+                  ヒント
                 </button>
 
-                <!-- AIコードレビュー＆模範解答ボタン -->
+                <!-- レビュー＆模範解答ボタン -->
                 <button
                   id="ai-review-btn"
-                  class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:hover:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900/50 px-4 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 text-sm"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 px-3.5 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 text-sm"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-600 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  AIレビュー＆模範解答
+                  レビュー・模範解答
                 </button>
               </div>
 
@@ -1801,35 +1804,35 @@
               </div>
             </div>
 
-            <!-- AIヒントアドバイス表示パネル -->
+            <!-- ヒント・アドバイス表示パネル -->
             <div
               id="ai-hint-panel"
-              class="hidden bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 p-6 rounded-xl space-y-3"
+              class="hidden bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-3"
             >
               <h4
-                class="text-sm font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5 border-b border-indigo-100 dark:border-indigo-900/40 pb-2"
+                class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2"
               >
-                <span>AI先生のアドバイス</span>
+                <span>ヒント・解説</span>
               </h4>
               <div
                 id="ai-hint-content"
-                class="prose prose-indigo dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed text-sm"
+                class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed text-sm"
               ></div>
             </div>
 
-            <!-- AIコードレビュー＆模範解答パネル -->
+            <!-- コードレビュー＆模範解答パネル -->
             <div
               id="ai-review-panel"
-              class="hidden bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 p-6 rounded-xl space-y-3"
+              class="hidden bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-3"
             >
               <h4
-                class="text-sm font-bold text-purple-800 dark:text-purple-300 flex items-center gap-1.5 border-b border-purple-100 dark:border-purple-900/30 pb-2"
+                class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2"
               >
-                <span>AIコードレビュー ＆ 模範コード</span>
+                <span>コードレビュー・模範解答</span>
               </h4>
               <div
                 id="ai-review-content"
-                class="prose prose-purple dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed text-sm"
+                class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed text-sm"
               ></div>
             </div>
           </div>
@@ -1984,13 +1987,13 @@
             id="ai-loading-title"
             class="text-lg font-bold text-slate-800 dark:text-slate-100"
           >
-            AIが思考中...
+            問題を準備中...
           </h4>
           <p
             id="ai-loading-desc"
             class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed"
           >
-            Geminiが最適なプログラミング課題を生成しています。数秒お待ちください。
+            プログラミング課題を構成しています。少々お待ちください。
           </p>
         </div>
       </div>
@@ -2125,6 +2128,7 @@
     </footer>
 
     <script src="js/textbook_data.js"></script>
+    <script src="js/library_textbook_data.js"></script>
     <script type="module" src="js/app.js"></script>
   </body>
 </html>
